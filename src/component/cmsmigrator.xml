@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="component" method="upgrade">
+    <name>COM_CMSMIGRATOR</name>
+    <author>Rahul Singh</author>
+    <authorEmail>rahulsingh19390@gmail.com</authorEmail>
+    <authorUrl>https://rahulsingh.free.nf/</authorUrl>
+    <creationDate>2025-06-05</creationDate>
+    <copyright>(C) 2025 Open Source Matters, Inc.</copyright>
+    <license>GNU General Public License version 2 or later; see LICENSE.txt</license>
+    <version>0.1.0</version>
+    <description>COM_CMSMIGRATOR_DESCRIPTION</description>
+    <namespace path="src">Binary\Component\CmsMigrator</namespace>
+    <scriptfile>script.php</scriptfile>
+    <files folder="site">
+    </files>
+    <administration>
+        <files folder="admin">
+            <folder>services</folder>
+            <folder>language</folder>
+            <folder>src</folder>
+            <folder>tmpl</folder>
+            <file>access.xml</file>
+        </files>
+
+        <languages folder="admin/language">
+            <language tag="en-GB">en-GB/com_cmsmigrator.ini</language>
+            <language tag="en-GB">en-GB/com_cmsmigrator.sys.ini</language>
+        </languages>
+        
+        <menu line="option=com_cmsmigrator" img="class:default">COM_CMSMIGRATOR_MENU_BACKEND</menu>
+    </administration>
+</extension>
