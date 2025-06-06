@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension version="5.0" type="plugin" group="migration" method="upgrade">
+    <name>plg_migration_wordpress</name>
+    <author>Your Name</author>
+    <creationDate>Today</creationDate>
+    <copyright>Copyright (C) 2024. All rights reserved.</copyright>
+    <license>GNU General Public License version 2 or later; see LICENSE.txt</license>
+    <version>1.0.0</version>
+    <description>PLG_MIGRATION_WORDPRESS_XML_DESCRIPTION</description>
+    <files>
+        <filename plugin="wordpress">wordpress.php</filename>
+        <folder>language</folder>
+    </files>
+</extension> 

@@ -16,6 +16,7 @@
     <administration>
         <files folder="admin">
             <folder>services</folder>
+            <folder>forms</folder>
             <folder>language</folder>
             <folder>src</folder>
             <folder>tmpl</folder>
