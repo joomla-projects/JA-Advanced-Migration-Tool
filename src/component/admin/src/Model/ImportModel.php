@@ -19,16 +19,20 @@ class ImportModel extends BaseDatabaseModel
 {
     protected $sourceUrl;
     protected $http;
-
+    //Our importFunction doesn't know how to convert/parse this data
     public function import($file, $sourceCms, $sourceUrl = '')
     {
         $this->sourceUrl = rtrim($sourceUrl, '/');
         $this->http = HttpFactory::getHttp();
+         // Load plugins "migration"
         PluginHelper::importPlugin('migration');
         $dispatcher = Factory::getApplication()->getDispatcher();
 
+        // Fire the "onMigrationConvert" event to allow plugins to convert the file
         $event = new MigrationEvent('onMigrationConvert', ['sourceCms' => $sourceCms, 'filePath' => $file['tmp_name']]);
         $dispatcher->dispatch('onMigrationConvert', $event);
+
+        //Get Results
         $results = $event->getResults();
 
         // Find the first successful conversion
@@ -52,7 +56,7 @@ class ImportModel extends BaseDatabaseModel
             return false;
         }
         
-        // Now process the $data which is in the common schema.org format
+        // Now process the data which is in the common schema.org format
         $this->processImport($data);
 
 

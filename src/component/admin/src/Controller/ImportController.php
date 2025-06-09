@@ -29,7 +29,7 @@ class ImportController extends BaseController
             $this->setRedirect('index.php?option=com_cmsmigrator');
             return;
         }
-
+        //Passes the data to ImportModel Function
         $model = $this->getModel('Import');
 
         if (!$model->import($file, $sourceCms, $sourceUrl)) {
