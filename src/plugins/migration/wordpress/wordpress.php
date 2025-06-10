@@ -29,55 +29,79 @@ class PlgMigrationWordpress extends CMSPlugin
             return;
         }
 
-        $itemList = [
-            '@context' => 'http://schema.org',
-            '@type'    => 'ItemList',
-            'itemListElement' => [],
-        ];
+        // Register namespaces
+        $namespaces = $xml->getNamespaces(true);
+        $wp = $namespaces['wp'] ?? 'wp';
+        $content = $namespaces['content'] ?? 'content';
+        $dc = $namespaces['dc'] ?? 'dc';
+
+        $itemList = [];
+        $position = 1;
 
         foreach ($xml->channel->item as $item) {
-            $wp_ns = $item->children('wp', true);
-            $postType = (string) $wp_ns->post_type;
+            $wp_ns = $item->children($wp);
+            $postType = (string)$wp_ns->post_type;
 
-            if (($postType !== 'post' && $postType !== 'page') || (string) $wp_ns->status !== 'publish') {
+            // Only process posts and pages
+            if (($postType !== 'post' && $postType !== 'page') || (string)$wp_ns->status !== 'publish') {
                 continue;
             }
 
-            $dc_ns      = $item->children('dc', true);
-            $content_ns = $item->children('content', true);
-
-            $tags = [];
+            // Get categories and tags
             $categories = [];
+            $tags = [];
             foreach ($item->category as $category) {
-                $domain = (string) $category['domain'];
-                if ($domain === 'post_tag') {
-                    $tags[] = (string) $category;
-                }
+                $domain = (string)$category['domain'];
                 if ($domain === 'category') {
-                    $categories[] = (string) $category;
+                    $categories[] = (string)$category;
+                } elseif ($domain === 'post_tag') {
+                    $tags[] = (string)$category;
                 }
             }
 
+            // Article body with replaced image URLs
+            $contentEncoded = $item->children($content)->encoded;
+            $articleBody = (string)$contentEncoded;
+
+            // Replace local image URLs
+            foreach ($wp_ns->attachment_url as $attachment) {
+                $localUrl = 'http://localhost/wp/wp-content/uploads/';
+                $attachmentUrl = (string)$attachment;
+                $articleBody = str_replace($localUrl, $attachmentUrl, $articleBody);
+            }
+
+            // Convert date to ISO 8601
+            $pubDate = new DateTime((string)$item->pubDate);
+            $isoDate = $pubDate->format(DateTime::ATOM);
+
+            // Build article
             $article = [
-                '@type'         => 'Article',
-                'headline'      => (string) $item->title,
-                'articleBody'   => (string) $content_ns->encoded,
-                'datePublished' => (string) $wp_ns->post_date,
-                'author'        => [
+                '@type' => 'Article',
+                'headline' => (string)$item->title,
+                'articleSection' => $categories ?: ['Uncategorized'],
+                'keywords' => implode(', ', $tags),
+                'articleBody' => $articleBody,
+                'datePublished' => $isoDate,
+                'author' => [
                     '@type' => 'Person',
-                    'name'  => (string) $dc_ns->creator,
-                ],
-                'keywords'      => implode(', ', $tags),
-                'articleSection' => $categories,
+                    'name' => (string)$item->children($dc)->creator
+                ]
             ];
 
-            $itemList['itemListElement'][] = [
-                '@type'    => 'ListItem',
-                'position' => count($itemList['itemListElement']) + 1,
-                'item'     => $article,
+            // Add to list
+            $itemList[] = [
+                '@type' => 'ListItem',
+                'position' => $position++,
+                'item' => $article
             ];
         }
 
-        $event->addResult(json_encode($itemList, JSON_PRETTY_PRINT));
+        $final = [
+            '@context' => 'http://schema.org',
+            '@type' => 'ItemList',
+            'itemListElement' => $itemList
+        ];
+
+        $event->addResult(json_encode($final, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
     }
-} 
+}

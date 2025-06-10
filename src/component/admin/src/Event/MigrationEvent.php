@@ -11,5 +11,26 @@ use Joomla\CMS\Event\AbstractEvent;
  */
 class MigrationEvent extends AbstractEvent
 {
-    //Joomla Plugin will use to hook into or trigger during migration.
-} 
+    protected $arguments = [];
+
+    public function __construct(string $name, array $arguments = [])
+    {
+        parent::__construct($name);
+        $this->arguments = $arguments;
+    }
+
+    public function getArguments(): array
+    {
+        return $this->arguments;
+    }
+
+    public function addResult($result): void
+    {
+        $this->results[] = $result;
+    }
+
+    public function getResults(): array
+    {
+        return $this->results ?? [];
+    }
+}
