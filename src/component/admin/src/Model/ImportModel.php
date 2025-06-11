@@ -41,7 +41,7 @@ class ImportModel extends BaseDatabaseModel
             }
         }
 
-        // Save the converted data to a file
+        // Save the converted data to a file (Optional)
         if ($convertedData) {
             $importPath = JPATH_SITE . '/media/com_cmsmigrator/imports';
             Folder::create($importPath);
@@ -70,10 +70,24 @@ class ImportModel extends BaseDatabaseModel
         }
         
         $http = HttpFactory::getHttp();
-        $processor = new ProcessorModel($sourceUrl, $http);
-
-        if (!$processor->process($data)) {
-            $this->setError($processor->getError());
+        try {
+            $processor = new ProcessorModel($sourceUrl, $http);
+            //Processor function to process data to Joomla Tables
+            $result = $processor->process($data);
+         
+            if ($result['success']) {
+                $app = Factory::getApplication();
+                $app->enqueueMessage(Text::sprintf('COM_CMSMIGRATOR_IMPORT_SUCCESS', $result['imported']), 'message');
+            } else {
+                $app = Factory::getApplication();
+                $message = Text::sprintf('COM_CMSMIGRATOR_IMPORT_PARTIAL', $result['imported']) . "\n" . 
+                          implode("\n", $result['errors']);
+                $app->enqueueMessage($message, 'warning');
+                return false;
+            }
+        } catch (\Exception $e) {
+            $app = Factory::getApplication();
+            $app->enqueueMessage(Text::sprintf('COM_CMSMIGRATOR_IMPORT_ERROR', $e->getMessage()), 'error');
             return false;
         }
 

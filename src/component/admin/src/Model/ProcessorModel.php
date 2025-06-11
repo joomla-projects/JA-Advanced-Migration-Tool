@@ -13,222 +13,242 @@ use Joomla\CMS\Filesystem\Folder;
 use Joomla\CMS\Filesystem\File;
 use Joomla\CMS\Http\Http;
 
+use Joomla\CMS\Filter\OutputFilter;
+use Joomla\CMS\User\UserHelper;
+use Binary\Component\CmsMigrator\Administrator\Table\ArticleTable;
+
 class ProcessorModel extends BaseDatabaseModel
 {
     protected $sourceUrl;
     protected $http;
-
+    protected $db;
     public function __construct(string $sourceUrl, Http $http, array $config = [])
     {
         $this->sourceUrl = rtrim($sourceUrl, '/');
         $this->http = $http;
 
         parent::__construct($config);
+        $this->db = Factory::getDbo();
     }
 
-    public function process(array $data)
+    public function process(array $data): array
     {
-        if (!isset($data['@type']) || $data['@type'] !== 'ItemList' || !isset($data['itemListElement'])) {
-            $this->setError(Text::_('COM_CMSMIGRATOR_INVALID_ITEMLIST_FORMAT'));
-            return false;
-        }
-
-        foreach ($data['itemListElement'] as $element) {
-            if ($element['item']['@type'] === 'Article') {
-                $this->importArticle($element['item']);
-            }
-        }
-
-        return true;
-    }
-
-    protected function importArticle(array $articleData)
-    {
-        $articleTable = Table::getInstance('Content', 'Joomla\\Component\\Content\\Administrator\\Table\\ContentTable');
-
-        if ($articleTable === false) {
-            $this->setError(Text::_('COM_CMSMIGRATOR_UNABLE_TO_LOAD_ARTICLE_TABLE'));
-            return false;
-        }
-
-        // Get the first category name, or use an empty string as a fallback for 'uncategorised'
-        $categoryName = $articleData['articleSection'][0] ?? '';
-        $authorName = $articleData['author']['name'] ?? '';
-        $articleBody = $articleData['articleBody'] ?? '';
-
-        // Process images if a source URL is provided
-        if (!empty($this->sourceUrl)) {
-            $articleBody = $this->processImages($articleBody);
-        }
-
-        $data = [];
-        $data['title'] = $articleData['headline'] ?? 'Untitled Article';
-        $data['articletext'] = $articleBody;
-        $data['created'] = isset($articleData['datePublished']) ? (new Date($articleData['datePublished']))->toSql() : Factory::getDate()->toSql();
-        $data['created_by'] = $this->getAuthorId($authorName);
-        $data['state'] = 1;
-        $data['language'] = '*';
-        $data['catid'] = $this->getCategoryId($categoryName);
-
-
-        if (!$articleTable->bind($data)) {
-            $this->setError($articleTable->getError());
-            return false;
-        }
-
-        if (!$articleTable->check()) {
-            $this->setError($articleTable->getError());
-            return false;
-        }
-
-        if (!$articleTable->store()) {
-            $this->setError($articleTable->getError());
-            return false;
-        }
-
-        Factory::getApplication()->enqueueMessage(Text::sprintf('COM_CMSMIGRATOR_ARTICLE_IMPORTED_SUCCESS', $data['title']));
-
-        return true;
-    }
-
-    protected function processImages(string $text): string
-    {
-        if (empty($text)) {
-            return '';
-        }
-
-        preg_match_all('/<img[^>]+src="([^">]+)"/i', $text, $matches);
-
-        if (empty($matches[1])) {
-            return $text;
-        }
-
-        $destinationFolder = JPATH_SITE . '/images/imported_media';
-        Folder::create($destinationFolder);
-
-        foreach ($matches[1] as $originalSrc) {
-            $imageUrl = $originalSrc;
-            // Handle relative URLs
-            if (strpos($imageUrl, 'http') !== 0) {
-                if ($imageUrl[0] !== '/') {
-                    $imageUrl = '/' . $imageUrl;
-                }
-                $imageUrl = $this->sourceUrl . $imageUrl;
-            }
-
-            try {
-                $response = $this->http->get($imageUrl);
-
-                if ($response->code !== 200) {
-                    continue;
-                }
-
-                $filename = basename(parse_url($imageUrl, PHP_URL_PATH));
-                $destinationPath = $destinationFolder . '/' . $filename;
-
-                if (File::write($destinationPath, $response->body)) {
-                    $newSrc = 'images/imported_media/' . $filename;
-                    $text = str_replace($originalSrc, $newSrc, $text);
-                }
-            } catch (\Exception $e) {
-                // Could log the error, but for now we just skip the image
-                continue;
-            }
-        }
-
-        return $text;
-    }
-
-    protected function getAuthorId(string $authorName): int
-    {
-        if (empty($authorName)) {
-            return Factory::getUser()->id;
-        }
-
-        $db = $this->getDbo();
-        $query = $db->getQuery(true)
-            ->select($db->quoteName('id'))
-            ->from($db->quoteName('#__users'))
-            ->where($db->quoteName('username') . ' = ' . $db->quote($authorName) . ' OR ' . $db->quoteName('name') . ' = ' . $db->quote($authorName));
-
-        $authorId = $db->setQuery($query)->loadResult();
-
-        if ($authorId) {
-            return (int) $authorId;
-        }
-
-        // Fallback to current user if no matching author is found
-        return Factory::getUser()->id;
-    }
-
-    protected function getCategoryId(string $categoryName): int
-    {
-        // Use default 'Uncategorised' if no name is provided
-        if (empty($categoryName)) {
-            $uncategorisedTable = Table::getInstance('Category', 'Joomla\\Component\\Categories\\Administrator\\Table\\CategoryTable');
-
-            if ($uncategorisedTable === false) {
-                // Should not happen on a standard Joomla install
-                return 1;
-            }
-
-            if ($uncategorisedTable->load(['alias' => 'uncategorised', 'extension' => 'com_content'])) {
-                return (int) $uncategorisedTable->id;
-            }
-            // Should not happen on a standard Joomla install
-            return 1;
-        }
-
-        $db = $this->getDbo();
-        $query = $db->getQuery(true)
-            ->select($db->quoteName('id'))
-            ->from($db->quoteName('#__categories'))
-            ->where($db->quoteName('title') . ' = ' . $db->quote($categoryName))
-            ->where($db->quoteName('extension') . ' = ' . $db->quote('com_content'));
-        
-        $categoryId = $db->setQuery($query)->loadResult();
-
-        if ($categoryId) {
-            return (int) $categoryId;
-        }
-
-        // Category not found, create it as a top-level category
-        $categoryTable = Table::getInstance('Category', 'Joomla\\Component\\Categories\\Administrator\\Table\\CategoryTable');
-
-        if ($categoryTable === false) {
-            $this->setError(Text::_('COM_CMSMIGRATOR_UNABLE_TO_LOAD_CATEGORY_TABLE'));
-            // Fallback to Uncategorised on failure
-            return $this->getCategoryId('');
-        }
-        
-        $categoryData = [
-            'title' => $categoryName,
-            'alias' => \Joomla\CMS\Filter\OutputFilter::stringURLSafe($categoryName),
-            'extension' => 'com_content',
-            'published' => 1,
-            'language' => '*',
-            'access' => 1, // Public
-            'parent_id' => 1, // Root
-            'created_user_id' => Factory::getUser()->id,
+        $result = [
+            'success' => true,
+            'imported' => 0,
+            'errors' => []
         ];
 
-        if (!$categoryTable->bind($categoryData)) {
-            $this->setError($categoryTable->getError());
-            return $this->getCategoryId('');
+        if (!isset($data['itemListElement']) || !is_array($data['itemListElement'])) {
+            throw new \RuntimeException('Invalid WordPress JSON format');
         }
 
-        if (!$categoryTable->check()) {
-            $this->setError($categoryTable->getError());
-            return $this->getCategoryId('');
+        try {
+            $this->db->transactionStart();
+
+            foreach ($data['itemListElement'] as $element) {
+                try {
+                    if (!isset($element['item'])) {
+                        continue;
+                    }
+
+                    $article = $element['item'];
+                    
+                    // Get or create category
+                    $categoryId = $this->getOrCreateCategory(
+                        $article['articleSection'][0] ?? 'Uncategorized'
+                    );
+
+                    // Get or create author
+                    $authorId = $this->getOrCreateUser(
+                        $article['author']['name'] ?? 'admin'
+                    );
+
+                    // Create article
+                    $articleTable = new ArticleTable($this->db);
+                    
+                    $articleData = [
+                        'title' => $article['headline'],
+                        'alias' => OutputFilter::stringURLSafe($article['headline']),
+                        'content' => $this->cleanWordPressContent($article['articleBody']),
+                        'state' => 1,
+                        'catid' => $categoryId,
+                        'created_by' => $authorId,
+                        'created' => $this->formatDate($article['datePublished']),
+                        'publish_up' => $this->formatDate($article['datePublished']),
+                        'access' => 1,
+                        'language' => '*',
+                        'params' => '{}'
+                    ];
+
+                    if (!$articleTable->bind($articleData)) {
+                        throw new \RuntimeException($articleTable->getError());
+                    }
+
+                    if (!$articleTable->check()) {
+                        throw new \RuntimeException($articleTable->getError());
+                    }
+
+                    if (!$articleTable->store()) {
+                        throw new \RuntimeException($articleTable->getError());
+                    }
+
+                    $result['imported']++;
+
+                } catch (\Exception $e) {
+                    $result['errors'][] = sprintf(
+                        'Error importing article "%s": %s',
+                        $article['headline'] ?? 'Unknown',
+                        $e->getMessage()
+                    );
+                }
+            }
+
+            if (empty($result['errors'])) {
+                $this->db->transactionCommit();
+            } else {
+                $this->db->transactionRollback();
+                $result['success'] = false;
+            }
+
+        } catch (\Exception $e) {
+            $this->db->transactionRollback();
+            throw new \RuntimeException('Import failed: ' . $e->getMessage());
         }
 
-        if (!$categoryTable->store()) {
-            $this->setError($categoryTable->getError());
-            return $this->getCategoryId('');
-        }
+        return $result;
+    }
+
+    /**
+     * Get or create category
+     *
+     * @param   string  $categoryName  Category name
+     * @return  int     Category ID
+     */
+    protected function getOrCreateCategory(string $categoryName): int
+    {
+        $categoryTable = Table::getInstance('Category');
         
-        $categoryTable->rebuildPath($categoryTable->id);
+        // Try to find existing category
+        $query = $this->db->getQuery(true)
+            ->select('id')
+            ->from('#__categories')
+            ->where([
+                'extension = ' . $this->db->quote('com_cmsmigrator'),
+                'title = ' . $this->db->quote($categoryName)
+            ]);
 
-        return (int) $categoryTable->id;
+        $categoryId = $this->db->setQuery($query)->loadResult();
+
+        if (!$categoryId) {
+            // Create new category
+            $categoryData = [
+                'title' => $categoryName,
+                'alias' => OutputFilter::stringURLSafe($categoryName),
+                'extension' => 'com_cmsmigrator',
+                'published' => 1,
+                'access' => 1,
+                'params' => '{}',
+                'metadata' => '{}',
+                'language' => '*'
+            ];
+
+            if (!$categoryTable->bind($categoryData)) {
+                throw new \RuntimeException($categoryTable->getError());
+            }
+
+            if (!$categoryTable->check()) {
+                throw new \RuntimeException($categoryTable->getError());
+            }
+
+            if (!$categoryTable->store()) {
+                throw new \RuntimeException($categoryTable->getError());
+            }
+
+            $categoryId = $categoryTable->id;
+        }
+
+        return (int) $categoryId;
+    }
+
+    /**
+     * Get or create user
+     *
+     * @param   string  $username  Username
+     * @return  int     User ID
+     */
+    protected function getOrCreateUser(string $username): int
+    {
+        $userTable = Table::getInstance('User');
+        
+        // Try to find existing user
+        $query = $this->db->getQuery(true)
+            ->select('id')
+            ->from('#__users')
+            ->where('username = ' . $this->db->quote($username));
+
+        $userId = $this->db->setQuery($query)->loadResult();
+
+        if (!$userId) {
+            // Create new user
+            $userData = [
+                'name' => $username,
+                'username' => $username,
+                'email' => strtolower($username) . '@example.com',
+                'password' => UserHelper::hashPassword(UserHelper::genRandomPassword()),
+                'block' => 0,
+                'sendEmail' => 0,
+                'registerDate' => Factory::getDate()->toSql(),
+                'params' => '{}'
+            ];
+
+            if (!$userTable->bind($userData)) {
+                throw new \RuntimeException($userTable->getError());
+            }
+
+            if (!$userTable->check()) {
+                throw new \RuntimeException($userTable->getError());
+            }
+
+            if (!$userTable->store()) {
+                throw new \RuntimeException($userTable->getError());
+            }
+
+            $userId = $userTable->id;
+        }
+
+        return (int) $userId;
+    }
+
+    /**
+     * Clean WordPress content
+     *
+     * @param   string  $content  WordPress content
+     * @return  string  Cleaned content
+     */
+    protected function cleanWordPressContent(string $content): string
+    {
+        // Remove WordPress specific tags
+        $content = preg_replace('/<!-- wp:.*?-->/', '', $content);
+        $content = preg_replace('/<!-- \/wp:.*?-->/', '', $content);
+        
+        // Clean up HTML
+        $content = strip_tags($content, '<p><a><h1><h2><h3><h4><h5><h6><ul><ol><li><blockquote><img><hr><br>');
+        
+        return trim($content);
+    }
+
+    protected function formatDate(?string $dateString): string
+    {
+        if (empty($dateString)) {
+            return Factory::getDate()->toSql();
+        }
+
+        try {
+            $date = new Date($dateString);
+            return $date->toSql();
+        } catch (\Exception $e) {
+            return Factory::getDate()->toSql();
+        }
     }
 } 

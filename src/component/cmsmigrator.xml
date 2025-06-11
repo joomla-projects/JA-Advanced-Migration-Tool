@@ -20,6 +20,7 @@
             <folder>language</folder>
             <folder>src</folder>
             <folder>tmpl</folder>
+            <folder>sql</folder>
             <file>access.xml</file>
         </files>
 
@@ -27,6 +28,12 @@
             <language tag="en-GB">en-GB/com_cmsmigrator.ini</language>
             <language tag="en-GB">en-GB/com_cmsmigrator.sys.ini</language>
         </languages>
+
+        <install>
+            <sql>
+                <file driver="mysql" charset="utf8">sql/install.mysql.utf8.sql</file>
+            </sql>
+        </install>
         
         <menu line="option=com_cmsmigrator" img="class:default">COM_CMSMIGRATOR_MENU_BACKEND</menu>
     </administration>
