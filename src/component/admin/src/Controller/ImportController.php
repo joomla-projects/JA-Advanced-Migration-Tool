@@ -38,7 +38,7 @@ class ImportController extends BaseController
             return;
         }
 
-        $app->enqueueMessage(Text::_('COM_CMSMIGRATOR_IMPORT_SUCCESS'), 'message');
+        // $app->enqueueMessage(Text::_('COM_CMSMIGRATOR_IMPORT_SUCCESS'), 'message');
         $this->setRedirect('index.php?option=com_cmsmigrator');
     }
 } 

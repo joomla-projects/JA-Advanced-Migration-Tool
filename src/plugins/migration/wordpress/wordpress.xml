@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <extension version="5.0" type="plugin" group="migration" method="upgrade">
     <name>plg_migration_wordpress</name>
-    <author>Your Name</author>
-    <creationDate>Today</creationDate>
-    <copyright>Copyright (C) 2024. All rights reserved.</copyright>
+    <author>Rahul Singh</author>
+    <creationDate>2025-06-05</creationDate>
+    <copyright>(C) 2025 Open Source Matters, Inc.</copyright>
     <license>GNU General Public License version 2 or later; see LICENSE.txt</license>
     <version>1.0.0</version>
     <description>PLG_MIGRATION_WORDPRESS_XML_DESCRIPTION</description>
