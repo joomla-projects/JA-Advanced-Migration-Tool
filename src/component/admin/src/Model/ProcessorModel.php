@@ -15,7 +15,7 @@ use Joomla\CMS\Http\Http;
 
 use Joomla\CMS\Filter\OutputFilter;
 use Joomla\CMS\User\UserHelper;
-use Binary\Component\CmsMigrator\Administrator\Table\ArticleTable;
+use Joomla\Component\Content\Administrator\Model\ArticleModel;
 
 class ProcessorModel extends BaseDatabaseModel
 {
@@ -32,116 +32,119 @@ class ProcessorModel extends BaseDatabaseModel
     }
 
     public function process(array $data): array
-{
-    $result = [
-        'success' => true,
-        'imported' => 0,
-        'errors' => []
-    ];
+    {
+        $result = [
+            'success' => true,
+            'imported' => 0,
+            'errors' => []
+        ];
 
-    if (!isset($data['itemListElement']) || !is_array($data['itemListElement'])) {
-        throw new \RuntimeException('Invalid WordPress JSON format');
-    }
+        if (!isset($data['itemListElement']) || !is_array($data['itemListElement'])) {
+            throw new \RuntimeException('Invalid WordPress JSON format');
+        }
 
-    try {
-        $this->db->transactionStart();
+        // Get an instance of the article model
+        $app = Factory::getApplication();
+        $articleModel = $app->bootComponent('content')->getMVCFactory()->createModel('Article', 'Administrator', ['ignore_request' => true]);
 
-        $user = Factory::getUser();
+        if (!$articleModel) {
+            throw new \RuntimeException('Could not get Article model');
+        }
 
-        // Get default category ID for 'Uncategorized'
-        $query = $this->db->getQuery(true)
-            ->select('id')
-            ->from($this->db->quoteName('#__categories'))
-            ->where($this->db->quoteName('extension') . ' = ' . $this->db->quote('com_content'))
-            ->where($this->db->quoteName('path') . ' = ' . $this->db->quote('uncategorized'));
-        $this->db->setQuery($query);
-        $defaultCategoryId = (int) $this->db->loadResult() ?: 2;
+        try {
+            $this->db->transactionStart();
 
-        foreach ($data['itemListElement'] as $element) {
-            try {
-                if (!isset($element['item'])) {
-                    continue;
+            $user = Factory::getUser();
+
+            // Get default category ID for 'Uncategorized'
+            $query = $this->db->getQuery(true)
+                ->select('id')
+                ->from($this->db->quoteName('#__categories'))
+                ->where($this->db->quoteName('extension') . ' = ' . $this->db->quote('com_content'))
+                ->where($this->db->quoteName('path') . ' = ' . $this->db->quote('uncategorized'));
+            $this->db->setQuery($query);
+            $defaultCategoryId = (int) $this->db->loadResult() ?: 2;
+
+            foreach ($data['itemListElement'] as $element) {
+                try {
+                    if (!isset($element['item'])) {
+                        continue;
+                    }
+
+                    $article = $element['item'];
+
+                    $title = $article['headline'];
+                    $alias = OutputFilter::stringURLSafe($title);
+                    $content = $this->cleanWordPressContent($article['articleBody'] ?? '');
+
+                    // Handle introtext/fulltext split
+                    $introtext = $content;
+                    $fulltext = '';
+                    if (strpos($content, '<!--more-->') !== false) {
+                        [$introtext, $fulltext] = explode('<!--more-->', $content, 2);
+                    }
+
+                    // Resolve category and author
+                    $categoryId = $this->getOrCreateCategory($article['articleSection'][0] ?? 'Uncategorized');
+                    $authorId = $this->getOrCreateUser($article['author']['name'] ?? 'admin');
+                    $createdDate = $this->formatDate($article['datePublished'] ?? '');
+
+                    // Build article data object
+                    $articleData = [
+                        'id'          => 0,
+                        'title'       => $article['headline'],
+                        'alias'       => OutputFilter::stringURLSafe($article['headline']),
+                        'introtext'   => $introtext,
+                        'fulltext'    => $fulltext,
+                        'state'       => 1, // Published
+                        'catid'       => $categoryId ?: $defaultCategoryId,
+                        'created'     => $this->formatDate($article['datePublished']),
+                        'created_by'  => $authorId,
+                        'created_by_alias' => $article['author']['name'] ?? '',
+                        'publish_up'  => $this->formatDate($article['datePublished']),
+                        'language'    => '*',
+                        'access'      => 1,
+                        'featured'    => 0,
+                        'metadata'    => [
+                            'robots' => '',
+                            'author' => $article['author']['name'] ?? '',
+                            'rights' => '',
+                            'xreference' => ''
+                        ],
+                        'images'      => '{}',
+                        'urls'        => '{}',
+                    ];
+
+                    // Save the article using the content model
+                    if (!$articleModel->save($articleData)) {
+                        throw new \RuntimeException('Failed to save article: ' . $articleModel->getError());
+                    }
+
+                    $result['imported']++;
+
+                } catch (\Exception $e) {
+                    $result['errors'][] = sprintf(
+                        'Error importing article "%s": %s',
+                        $article['headline'] ?? 'Unknown',
+                        $e->getMessage()
+                    );
                 }
-
-                $article = $element['item'];
-
-                $title = $article['headline'];
-                $alias = OutputFilter::stringURLSafe($title);
-                $content = $this->cleanWordPressContent($article['articleBody'] ?? '');
-
-                // Handle introtext/fulltext split
-                $introtext = $content;
-                $fulltext = '';
-                if (strpos($content, '<!--more-->') !== false) {
-                    [$introtext, $fulltext] = explode('<!--more-->', $content, 2);
-                }
-
-                // Resolve category and author
-                $categoryId = $this->getOrCreateCategory($article['articleSection'][0] ?? 'Uncategorized');
-                $authorId = $this->getOrCreateUser($article['author']['name'] ?? 'admin');
-                $createdDate = $this->formatDate($article['datePublished'] ?? '');
-
-                // Build article data object
-                $articleData = (object)[
-                    'title' => $article['headline'],
-                    'alias' => OutputFilter::stringURLSafe($article['headline']),
-                    'introtext' => $introtext,
-                    'fulltext' => $this->cleanWordPressContent($article['articleBody']),
-                    'state' => 1, // Published
-                    'catid' => $categoryId ?: $defaultCategoryId,
-                    'created' => $this->formatDate($article['datePublished']),
-                    'created_by' => $authorId,
-                    'created_by_alias' => $article->author->name ?? '',
-                    'modified' => Factory::getDate()->toSql(),
-                    'modified_by' => $authorId,
-                    'publish_up' => $this->formatDate($article['datePublished']),
-                    'publish_down' => '0000-00-00 00:00:00',
-                    'images' => '{}',
-                    'urls' => '{}',
-                    'attribs' => '{}',
-                    'version' => 1,
-                    'ordering' => 0, // Joomla handles this in the backend if left 0
-                    'metakey' => '',
-                    'metadesc' => '',
-                    'access' => 1, // Public
-                    'hits' => 0,
-                    'metadata' => '{}',
-                    'featured' => 0,
-                    'language' => '*',
-                    'note' => '',
-                ];
-                
-                // Insert into core content table(Use  Table::getInstance('Content'); to handle )
-                if (!$this->db->insertObject('#__content', $articleData)) {
-                    throw new \RuntimeException('Failed to insert article: ' . $title);
-                }
-
-                $result['imported']++;
-
-            } catch (\Exception $e) {
-                $result['errors'][] = sprintf(
-                    'Error importing article "%s": %s',
-                    $article['headline'] ?? 'Unknown',
-                    $e->getMessage()
-                );
             }
-        }
 
-        if (empty($result['errors'])) {
-            $this->db->transactionCommit();
-        } else {
+            if (empty($result['errors'])) {
+                $this->db->transactionCommit();
+            } else {
+                $this->db->transactionRollback();
+                $result['success'] = false;
+            }
+
+        } catch (\Exception $e) {
             $this->db->transactionRollback();
-            $result['success'] = false;
+            throw new \RuntimeException('Import failed: ' . $e->getMessage());
         }
 
-    } catch (\Exception $e) {
-        $this->db->transactionRollback();
-        throw new \RuntimeException('Import failed: ' . $e->getMessage());
+        return $result;
     }
-
-    return $result;
-}
-
 
     /**
      * Get or create category
@@ -152,14 +155,15 @@ class ProcessorModel extends BaseDatabaseModel
     protected function getOrCreateCategory(string $categoryName): int
     {
         $categoryTable = Table::getInstance('Category');
-        
-        // Try to find existing category
+        $alias = OutputFilter::stringURLSafe($categoryName);
+
+        // Try to find existing category by alias
         $query = $this->db->getQuery(true)
             ->select('id')
             ->from('#__categories')
             ->where([
-                'extension = ' . $this->db->quote('com_cmsmigrator'),
-                'title = ' . $this->db->quote($categoryName)
+                'extension = ' . $this->db->quote('com_content'),
+                'alias = ' . $this->db->quote($alias)
             ]);
 
         $categoryId = $this->db->setQuery($query)->loadResult();
@@ -168,8 +172,8 @@ class ProcessorModel extends BaseDatabaseModel
             // Create new category
             $categoryData = [
                 'title' => $categoryName,
-                'alias' => OutputFilter::stringURLSafe($categoryName),
-                'extension' => 'com_cmsmigrator',
+                'alias' => $alias,
+                'extension' => 'com_content',
                 'published' => 1,
                 'access' => 1,
                 'params' => '{}',
