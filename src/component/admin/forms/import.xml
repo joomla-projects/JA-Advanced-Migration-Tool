@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<form>
+    <fieldset>
+        <field
+            name="source_cms"
+            type="list"
+            label="Source CMS"
+            class="form-select"
+            default="wordpress">
+            <option value="wordpress">WordPress</option>
+        </field>
+
+        <field
+            name="import_file"
+            type="file"
+            label="Import File (XML/JSON)"
+            class="form-control"
+            accept=".xml,.json"
+        />
+
+        <field
+            name="source_url"
+            type="url"
+            label="Source Site URL (for images)"
+            description="Enter the full URL of the original website (e.g., https://my-wordpress-site.com). This is needed to download and import images."
+            class="form-control"
+            filter="url"
+        />
+    </fieldset>
+</form> 
