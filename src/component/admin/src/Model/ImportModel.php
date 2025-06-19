@@ -69,9 +69,8 @@ class ImportModel extends BaseDatabaseModel
             return false;
         }
         
-        $http = HttpFactory::getHttp();
         try {
-            $processor = new ProcessorModel($sourceUrl, $http);
+            $processor = new ProcessorModel();
             //Processor function to process data to Joomla Tables
             $result = $processor->process($data);
          

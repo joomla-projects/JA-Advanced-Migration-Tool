@@ -6,14 +6,16 @@
             type="list"
             label="Source CMS"
             class="form-select"
-            default="wordpress">
+            default="">
+            <option value="">Select Source</option>
             <option value="wordpress">WordPress</option>
+            <option value="json">JSON</option>
         </field>
 
         <field
             name="import_file"
             type="file"
-            label="Import File (XML/JSON)"
+            label="Import File"
             class="form-control"
             accept=".xml,.json"
         />
