@@ -76,10 +76,17 @@ class ImportModel extends BaseDatabaseModel
          
             if ($result['success']) {
                 $app = Factory::getApplication();
-                $app->enqueueMessage(Text::sprintf('COM_CMSMIGRATOR_IMPORT_SUCCESS', $result['imported']), 'message');
+                $message = Text::_('COM_CMSMIGRATOR_IMPORT_SUCCESS') . "\n" .
+                          Text::sprintf('COM_CMSMIGRATOR_IMPORT_USERS_COUNT', $result['counts']['users']) . "\n" .
+                          Text::sprintf('COM_CMSMIGRATOR_IMPORT_ARTICLES_COUNT', $result['counts']['articles']) . "\n" .
+                          Text::sprintf('COM_CMSMIGRATOR_IMPORT_TAXONOMIES_COUNT', $result['counts']['taxonomies']);
+                $app->enqueueMessage($message, 'message');
             } else {
                 $app = Factory::getApplication();
-                $message = Text::sprintf('COM_CMSMIGRATOR_IMPORT_PARTIAL', $result['imported']) . "\n" . 
+                $message = Text::_('COM_CMSMIGRATOR_IMPORT_PARTIAL') . "\n" .
+                          Text::sprintf('COM_CMSMIGRATOR_IMPORT_USERS_COUNT', $result['counts']['users']) . "\n" .
+                          Text::sprintf('COM_CMSMIGRATOR_IMPORT_ARTICLES_COUNT', $result['counts']['articles']) . "\n" .
+                          Text::sprintf('COM_CMSMIGRATOR_IMPORT_TAXONOMIES_COUNT', $result['counts']['taxonomies']) . "\n" .
                           implode("\n", $result['errors']);
                 $app->enqueueMessage($message, 'warning');
                 return false;

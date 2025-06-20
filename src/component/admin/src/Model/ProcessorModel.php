@@ -38,7 +38,15 @@ class ProcessorModel extends BaseDatabaseModel
 
     private function processJson(array $data): array
     {
-        $result = ['success' => true, 'imported' => 0, 'errors' => []];
+        $result = [
+            'success' => true,
+            'counts' => [
+                'users' => 0,
+                'taxonomies' => 0,
+                'articles' => 0
+            ],
+            'errors' => []
+        ];
 
         $this->db->transactionStart();
 
@@ -47,7 +55,7 @@ class ProcessorModel extends BaseDatabaseModel
             if (!empty($data['users'])) {
                 $userResult = $this->processUsers($data['users']);
                 $userMap = $userResult['map'];
-                $result['imported'] += $userResult['imported'];
+                $result['counts']['users'] = $userResult['imported'];
                 $result['errors'] = array_merge($result['errors'], $userResult['errors']);
             }
             
@@ -55,7 +63,7 @@ class ProcessorModel extends BaseDatabaseModel
             if (!empty($data['taxonomies'])) {
                 $taxonomyResult = $this->processTaxonomies($data['taxonomies']);
                 $categoryMap = $taxonomyResult['map'];
-                $result['imported'] += $taxonomyResult['imported'];
+                $result['counts']['taxonomies'] = $taxonomyResult['imported'];
                 $result['errors'] = array_merge($result['errors'], $taxonomyResult['errors']);
             }
 
@@ -63,7 +71,7 @@ class ProcessorModel extends BaseDatabaseModel
                 foreach ($data['post_types'] as $postType => $posts) {
                     if ($postType === 'post' || $postType === 'page') {
                         $postResult = $this->processPosts($posts, $postType, $userMap, $categoryMap);
-                        $result['imported'] += $postResult['imported'];
+                        $result['counts']['articles'] += $postResult['imported'];
                         $result['errors'] = array_merge($result['errors'], $postResult['errors']);
                     }
                 }
