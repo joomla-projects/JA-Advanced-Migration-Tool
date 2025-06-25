@@ -258,7 +258,11 @@ class ProcessorModel extends BaseDatabaseModel
     {
         $result = [
             'success' => true,
-            'imported' => 0,
+            'counts' => [
+                'users' => 0,
+                'taxonomies' => 0,
+                'articles' => 0
+            ],
             'errors' => []
         ];
 
@@ -299,10 +303,10 @@ class ProcessorModel extends BaseDatabaseModel
                     }
 
                     // Resolve category and author
-                    $categoryId = $this->getOrCreateCategory($article['articleSection'][0] ?? 'Uncategorized');
+                    $categoryId = $this->getOrCreateCategory($article['articleSection'][0] ?? 'Uncategorized', $result['counts']);
                     $authorName = $article['author']['name'] ?? 'admin';
                     $authorEmail = $article['author']['email'] ?? strtolower(str_replace(' ', '', $authorName)) . '@example.com';
-                    $authorId = $this->getOrCreateUser($authorName, $authorEmail);
+                    $authorId = $this->getOrCreateUser($authorName, $authorEmail, $result['counts']);
 
 
                     // Build article data object
@@ -335,7 +339,7 @@ class ProcessorModel extends BaseDatabaseModel
                         throw new \RuntimeException('Failed to save article: ' . $articleModel->getError());
                     }
 
-                    $result['imported']++;
+                    $result['counts']['articles']++;
 
                 } catch (\Exception $e) {
                     $result['errors'][] = sprintf(
@@ -362,7 +366,7 @@ class ProcessorModel extends BaseDatabaseModel
         return $result;
     }
 
-    protected function getOrCreateCategory(string $categoryName): int
+    protected function getOrCreateCategory(string $categoryName, array &$counts): int
     {
         $categoryTable = Table::getInstance('Category');
         $alias = OutputFilter::stringURLSafe($categoryName);
@@ -403,13 +407,14 @@ class ProcessorModel extends BaseDatabaseModel
                 throw new \RuntimeException($categoryTable->getError());
             }
 
+            $counts['taxonomies']++;
             $categoryId = $categoryTable->id;
         }
 
         return (int) $categoryId;
     }
 
-    protected function getOrCreateUser(string $username, string $email): int
+    protected function getOrCreateUser(string $username, string $email, array &$counts): int
     {
         $userTable = Table::getInstance('User');
 
@@ -440,6 +445,7 @@ class ProcessorModel extends BaseDatabaseModel
                 throw new \RuntimeException($user->getError());
             }
 
+            $counts['users']++;
             $userId = $user->id;
         }
 
