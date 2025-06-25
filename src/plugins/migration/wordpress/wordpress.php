@@ -86,6 +86,17 @@ class PlgMigrationWordpress extends CMSPlugin
             $authorLogin = (string)$item->children($dc)->creator;
             $authorEmail = $authorEmailMap[$authorLogin] ?? null;
 
+            // Extract custom fields
+            $customFields = [];
+            foreach ($wp_ns->postmeta as $meta) {
+                $key = (string)$meta->meta_key;
+                $value = (string)$meta->meta_value;
+                if (substr($key, 0, 1) === '_') {
+                    continue;
+                }
+                $customFields[$key] = $value;
+            }
+
             // Build article
             $article = [
                 '@type' => 'Article',
@@ -98,7 +109,8 @@ class PlgMigrationWordpress extends CMSPlugin
                     '@type' => 'Person',
                     'name' => $authorLogin,
                     'email' => $authorEmail
-                ]
+                ],
+                'customFields' => $customFields
             ];
 
             // Add to list

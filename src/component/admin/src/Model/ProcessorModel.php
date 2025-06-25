@@ -12,6 +12,7 @@ use Joomla\CMS\User\UserHelper;
 use Joomla\Component\Users\Administrator\Model\UserModel;
 use Joomla\Component\Categories\Administrator\Model\CategoryModel;
 use Joomla\Component\Content\Administrator\Model\ArticleModel;
+use Joomla\Component\Fields\Administrator\Model\FieldModel;
 use Joomla\CMS\Filter\OutputFilter;
 
 class ProcessorModel extends BaseDatabaseModel
@@ -339,6 +340,14 @@ class ProcessorModel extends BaseDatabaseModel
                         throw new \RuntimeException('Failed to save article: ' . $articleModel->getError());
                     }
 
+                    $savedArticle = $articleModel->getItem();
+                    $articleId = $savedArticle->id;
+
+                    // Process custom fields if they exist
+                    if (!empty($article['customFields']) && is_array($article['customFields'])) {
+                        $this->processCustomFields($articleId, $article['customFields']);
+                    }
+
                     $result['counts']['articles']++;
 
                 } catch (\Exception $e) {
@@ -475,6 +484,163 @@ class ProcessorModel extends BaseDatabaseModel
             return $date->toSql();
         } catch (\Exception $e) {
             return Factory::getDate()->toSql();
+        }
+    }
+
+    /**
+     * Process custom fields for an article
+     *
+     * @param int   $articleId     The article ID
+     * @param array $customFields  Array of custom field key-value pairs
+     * @return void
+     */
+    protected function processCustomFields(int $articleId, array $customFields): void
+    {
+        foreach ($customFields as $fieldName => $fieldValue) {
+            if (empty($fieldValue)) {
+                continue;
+            }
+
+            try {
+                // Get or create the custom field
+                $fieldId = $this->getOrCreateCustomField($fieldName);
+                
+                if ($fieldId) {
+                    // Save the field value for this article
+                    $this->saveCustomFieldValue($fieldId, $articleId, $fieldValue);
+                }
+            } catch (\Exception $e) {
+                // Log the error but continue processing other fields
+                Factory::getApplication()->enqueueMessage(
+                    sprintf('Error processing custom field "%s": %s', $fieldName, $e->getMessage()),
+                    'warning'
+                );
+            }
+        }
+    }
+
+    /**
+     * Get existing custom field ID or create a new one
+     *
+     * @param string $fieldName The field name
+     * @return int The field ID or 0 on failure
+     */
+    protected function getOrCreateCustomField(string $fieldName): int
+    {
+        // Check if field already exists
+        $query = $this->db->getQuery(true)
+            ->select('id')
+            ->from('#__fields')
+            ->where([
+                'context = ' . $this->db->quote('com_content.article'),
+                'name = ' . $this->db->quote($fieldName),
+                'state = 1'
+            ]);
+
+        $fieldId = (int) $this->db->setQuery($query)->loadResult();
+
+        if (!$fieldId) {
+            try {
+                // Create new custom field
+                $fieldModel = new FieldModel(['ignore_request' => true]);
+                
+                $fieldData = [
+                    'id'          => 0,
+                    'title'       => ucwords(str_replace(['_', '-'], ' ', $fieldName)),
+                    'name'        => $fieldName,
+                    'type'        => 'text', // Default to text field
+                    'context'     => 'com_content.article',
+                    'group_id'    => 0,
+                    'description' => 'Imported from WordPress',
+                    'state'       => 1,
+                    'required'    => 0,
+                    'only_use_in_subform' => 0,
+                    'language'    => '*',
+                    'default_value' => '',
+                    'filter'      => 'safehtml',
+                    'access'      => 1,
+                    'params'      => [
+                        'hint' => '',
+                        'class' => '',
+                        'label_class' => '',
+                        'show_on' => '',
+                        'render_class' => '',
+                        'showlabel' => 1,
+                        'label_render_class' => '',
+                        'display' => 2,
+                        'layout' => '',
+                        'display_readonly' => 2
+                    ]
+                ];
+
+                if ($fieldModel->save($fieldData)) {
+                    $fieldId = $fieldModel->getItem()->id;
+                }
+            } catch (\Exception $e) {
+                // If field creation fails, log it but don't break the import
+                Factory::getApplication()->enqueueMessage(
+                    sprintf('Failed to create custom field "%s": %s', $fieldName, $e->getMessage()),
+                    'warning'
+                );
+                return 0;
+            }
+        }
+
+        return $fieldId;
+    }
+
+    /**
+     * Save custom field value for an article
+     *
+     * @param int    $fieldId    The field ID
+     * @param int    $articleId  The article ID
+     * @param string $value      The field value
+     * @return bool
+     */
+    protected function saveCustomFieldValue(int $fieldId, int $articleId, string $value): bool
+    {
+        // Check if value already exists
+        $query = $this->db->getQuery(true)
+            ->select('COUNT(*)')
+            ->from('#__fields_values')
+            ->where([
+                'field_id = ' . (int) $fieldId,
+                'item_id = ' . (int) $articleId
+            ]);
+
+        $exists = (bool) $this->db->setQuery($query)->loadResult();
+
+        if ($exists) {
+            // Update existing value
+            $query = $this->db->getQuery(true)
+                ->update('#__fields_values')
+                ->set('value = ' . $this->db->quote($value))
+                ->where([
+                    'field_id = ' . (int) $fieldId,
+                    'item_id = ' . (int) $articleId
+                ]);
+        } else {
+            // Insert new value
+            $query = $this->db->getQuery(true)
+                ->insert('#__fields_values')
+                ->columns(['field_id', 'item_id', 'value'])
+                ->values(implode(',', [
+                    (int) $fieldId,
+                    (int) $articleId,
+                    $this->db->quote($value)
+                ]));
+        }
+
+        try {
+            $this->db->setQuery($query)->execute();
+            return true;
+        } catch (\Exception $e) {
+            // Log the error for debugging
+            Factory::getApplication()->enqueueMessage(
+                'Custom field save error: ' . $e->getMessage(), 
+                'warning'
+            );
+            return false;
         }
     }
 } 
