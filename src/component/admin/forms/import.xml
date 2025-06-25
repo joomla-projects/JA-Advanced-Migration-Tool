@@ -9,7 +9,7 @@
             default="">
             <option value="">Select Source</option>
             <option value="wordpress">WordPress</option>
-            <option value="json">JSON</option>
+            <option value="json">WP JSON</option>
         </field>
 
         <field

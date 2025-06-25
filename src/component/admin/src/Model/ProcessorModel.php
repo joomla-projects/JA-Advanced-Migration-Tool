@@ -12,6 +12,7 @@ use Joomla\CMS\User\UserHelper;
 use Joomla\Component\Users\Administrator\Model\UserModel;
 use Joomla\Component\Categories\Administrator\Model\CategoryModel;
 use Joomla\Component\Content\Administrator\Model\ArticleModel;
+use Joomla\CMS\Filter\OutputFilter;
 
 class ProcessorModel extends BaseDatabaseModel
 {
@@ -255,6 +256,219 @@ class ProcessorModel extends BaseDatabaseModel
 
     private function processWordpress(array $data): array
     {
-        return ['success' => true, 'imported' => 0, 'errors' => ['WordPress import is not part of this feature.']];
+        $result = [
+            'success' => true,
+            'imported' => 0,
+            'errors' => []
+        ];
+
+        if (!isset($data['itemListElement']) || !is_array($data['itemListElement'])) {
+            $result['success'] = false;
+            $result['errors'][] = 'Invalid WordPress JSON format';
+            return $result;
+        }
+
+        $articleModel = new ArticleModel(['ignore_request' => true]);
+
+        if (!$articleModel) {
+            $result['success'] = false;
+            $result['errors'][] = 'Could not get Article model';
+            return $result;
+        }
+
+        try {
+            $this->db->transactionStart();
+
+            $defaultCategoryId = $this->getDefaultCategoryId();
+
+            foreach ($data['itemListElement'] as $element) {
+                try {
+                    if (!isset($element['item'])) {
+                        continue;
+                    }
+
+                    $article = $element['item'];
+
+                    $content = $this->cleanWordPressContent($article['articleBody'] ?? '');
+
+                    // Handle introtext/fulltext split
+                    $introtext = $content;
+                    $fulltext = '';
+                    if (strpos($content, '<!--more-->') !== false) {
+                        [$introtext, $fulltext] = explode('<!--more-->', $content, 2);
+                    }
+
+                    // Resolve category and author
+                    $categoryId = $this->getOrCreateCategory($article['articleSection'][0] ?? 'Uncategorized');
+                    $authorName = $article['author']['name'] ?? 'admin';
+                    $authorEmail = $article['author']['email'] ?? strtolower(str_replace(' ', '', $authorName)) . '@example.com';
+                    $authorId = $this->getOrCreateUser($authorName, $authorEmail);
+
+
+                    // Build article data object
+                    $articleData = [
+                        'id'          => 0,
+                        'title'       => $article['headline'],
+                        'alias'       => OutputFilter::stringURLSafe($article['headline']),
+                        'introtext'   => $introtext,
+                        'fulltext'    => $fulltext,
+                        'state'       => 1, // Published
+                        'catid'       => $categoryId ?: $defaultCategoryId,
+                        'created'     => $this->formatDate($article['datePublished'] ?? null),
+                        'created_by'  => $authorId,
+                        'created_by_alias' => $article['author']['name'] ?? '',
+                        'publish_up'  => $this->formatDate($article['datePublished'] ?? null),
+                        'language'    => '*',
+                        'access'      => 1,
+                        'featured'    => 0,
+                        'metadata'    => [
+                            'robots' => '',
+                            'author' => $article['author']['name'] ?? '',
+                            'rights' => '',
+                            'xreference' => ''
+                        ],
+                        'images'      => '{}',
+                        'urls'        => '{}',
+                    ];
+
+                    if (!$articleModel->save($articleData)) {
+                        throw new \RuntimeException('Failed to save article: ' . $articleModel->getError());
+                    }
+
+                    $result['imported']++;
+
+                } catch (\Exception $e) {
+                    $result['errors'][] = sprintf(
+                        'Error importing article "%s": %s',
+                        $article['headline'] ?? 'Unknown',
+                        $e->getMessage()
+                    );
+                }
+            }
+
+            if (empty($result['errors'])) {
+                $this->db->transactionCommit();
+            } else {
+                $this->db->transactionRollback();
+                $result['success'] = false;
+            }
+
+        } catch (\Exception $e) {
+            $this->db->transactionRollback();
+            $result['success'] = false;
+            $result['errors'][] = 'Import failed: ' . $e->getMessage();
+        }
+
+        return $result;
+    }
+
+    protected function getOrCreateCategory(string $categoryName): int
+    {
+        $categoryTable = Table::getInstance('Category');
+        $alias = OutputFilter::stringURLSafe($categoryName);
+
+        // Try to find existing category by alias
+        $query = $this->db->getQuery(true)
+            ->select('id')
+            ->from('#__categories')
+            ->where([
+                'extension = ' . $this->db->quote('com_content'),
+                'alias = ' . $this->db->quote($alias)
+            ]);
+
+        $categoryId = $this->db->setQuery($query)->loadResult();
+
+        if (!$categoryId) {
+            // Create new category
+            $categoryData = [
+                'title' => $categoryName,
+                'alias' => $alias,
+                'extension' => 'com_content',
+                'published' => 1,
+                'access' => 1,
+                'params' => [],
+                'metadata' => [],
+                'language' => '*'
+            ];
+
+            if (!$categoryTable->bind($categoryData)) {
+                throw new \RuntimeException($categoryTable->getError());
+            }
+
+            if (!$categoryTable->check()) {
+                throw new \RuntimeException($categoryTable->getError());
+            }
+
+            if (!$categoryTable->store()) {
+                throw new \RuntimeException($categoryTable->getError());
+            }
+
+            $categoryId = $categoryTable->id;
+        }
+
+        return (int) $categoryId;
+    }
+
+    protected function getOrCreateUser(string $username, string $email): int
+    {
+        $userTable = Table::getInstance('User');
+
+        $userId = UserHelper::getUserId($username);
+
+        if (!$userId) {
+            // Create new user
+            $userData = [
+                'name' => $username,
+                'username' => $username,
+                'email' => $email,
+                'password' => UserHelper::hashPassword(UserHelper::genRandomPassword()),
+                'block' => 0,
+                'sendEmail' => 0,
+                'registerDate' => Factory::getDate()->toSql(),
+                'groups' => [2], // Registered
+                'params' => []
+            ];
+
+            $user = new \Joomla\CMS\User\User;
+            $user->set('sendEmail', 0);
+
+            if (!$user->bind($userData)) {
+                throw new \RuntimeException($user->getError());
+            }
+
+            if (!$user->save()) {
+                throw new \RuntimeException($user->getError());
+            }
+
+            $userId = $user->id;
+        }
+
+        return (int) $userId;
+    }
+
+    protected function cleanWordPressContent(string $content): string
+    {
+        // Remove WordPress specific tags
+        $content = preg_replace('/<!-- wp:.*?-->/', '', $content);
+        $content = preg_replace('/<!-- \/wp:.*?-->/', '', $content);
+        
+        // Clean up HTML
+        $content = strip_tags($content, '<p><a><h1><h2><h3><h4><h5><h6><ul><ol><li><blockquote><img><hr><br>');
+        
+        return trim($content);
+    }
+
+    protected function formatDate(?string $dateString): string
+    {
+        if (empty($dateString)) {
+            return Factory::getDate()->toSql();
+        }
+
+        try {
+            $date = new Date($dateString);
+            return $date->toSql();
+        } catch (\Exception $e) {
+            return Factory::getDate()->toSql();
+        }
     }
 } 

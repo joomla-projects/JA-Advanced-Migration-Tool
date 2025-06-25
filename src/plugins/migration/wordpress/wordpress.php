@@ -35,6 +35,14 @@ class PlgMigrationWordpress extends CMSPlugin
         $content = $namespaces['content'] ?? 'content';
         $dc = $namespaces['dc'] ?? 'dc';
 
+        // Map author login to email
+        $authorEmailMap = [];
+        foreach ($xml->channel->children($wp)->author as $authorNode) {
+            $login = (string)$authorNode->children($wp)->author_login;
+            $email = (string)$authorNode->children($wp)->author_email;
+            $authorEmailMap[$login] = $email;
+        }
+
         $itemList = [];
         $position = 1;
 
@@ -74,6 +82,10 @@ class PlgMigrationWordpress extends CMSPlugin
             $pubDate = new DateTime((string)$item->pubDate);
             $isoDate = $pubDate->format(DateTime::ATOM);
 
+            // Get author info
+            $authorLogin = (string)$item->children($dc)->creator;
+            $authorEmail = $authorEmailMap[$authorLogin] ?? null;
+
             // Build article
             $article = [
                 '@type' => 'Article',
@@ -84,7 +96,8 @@ class PlgMigrationWordpress extends CMSPlugin
                 'datePublished' => $isoDate,
                 'author' => [
                     '@type' => 'Person',
-                    'name' => (string)$item->children($dc)->creator
+                    'name' => $authorLogin,
+                    'email' => $authorEmail
                 ]
             ];
 
