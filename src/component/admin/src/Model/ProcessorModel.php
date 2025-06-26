@@ -14,6 +14,7 @@ use Joomla\Component\Categories\Administrator\Model\CategoryModel;
 use Joomla\Component\Content\Administrator\Model\ArticleModel;
 use Joomla\Component\Fields\Administrator\Model\FieldModel;
 use Joomla\CMS\Filter\OutputFilter;
+use Binary\Component\CmsMigrator\Administrator\Model\MediaModel;
 
 class ProcessorModel extends BaseDatabaseModel
 {
@@ -25,27 +26,28 @@ class ProcessorModel extends BaseDatabaseModel
         $this->db = Factory::getDbo();
     }
 
-    public function process(array $data): array
+    public function process(array $data, string $sourceUrl = '', array $ftpConfig = []): array
     {
         if (isset($data['users']) && isset($data['post_types'])) {
-            return $this->processJson($data);
+            return $this->processJson($data, $sourceUrl, $ftpConfig);
         }
 
         if (isset($data['itemListElement'])) {
-            return $this->processWordpress($data);
+            return $this->processWordpress($data, $sourceUrl, $ftpConfig);
         }
 
         throw new \RuntimeException('Invalid data format');
     }
 
-    private function processJson(array $data): array
+    private function processJson(array $data, string $sourceUrl = '', array $ftpConfig = []): array
     {
         $result = [
             'success' => true,
             'counts' => [
                 'users' => 0,
                 'taxonomies' => 0,
-                'articles' => 0
+                'articles' => 0,
+                'media' => 0
             ],
             'errors' => []
         ];
@@ -53,6 +55,12 @@ class ProcessorModel extends BaseDatabaseModel
         $this->db->transactionStart();
 
         try {
+            // Initialize MediaModel if FTP config is provided
+            $mediaModel = null;
+            if (!empty($ftpConfig) && !empty($ftpConfig['host'])) {
+                $mediaModel = new MediaModel();
+            }
+
             $userMap = [];
             if (!empty($data['users'])) {
                 $userResult = $this->processUsers($data['users']);
@@ -72,11 +80,17 @@ class ProcessorModel extends BaseDatabaseModel
             if (!empty($data['post_types'])) {
                 foreach ($data['post_types'] as $postType => $posts) {
                     if ($postType === 'post' || $postType === 'page') {
-                        $postResult = $this->processPosts($posts, $postType, $userMap, $categoryMap);
+                        $postResult = $this->processPosts($posts, $postType, $userMap, $categoryMap, $mediaModel, $ftpConfig, $sourceUrl);
                         $result['counts']['articles'] += $postResult['imported'];
                         $result['errors'] = array_merge($result['errors'], $postResult['errors']);
                     }
                 }
+            }
+
+            // Get media statistics if MediaModel was used
+            if ($mediaModel) {
+                $mediaStats = $mediaModel->getMediaStats();
+                $result['counts']['media'] = $mediaStats['downloaded'];
             }
 
             if (empty($result['errors'])) {
@@ -177,7 +191,7 @@ class ProcessorModel extends BaseDatabaseModel
         return $result;
     }
     
-    private function processPosts(array $posts, string $postType, array $userMap, array $categoryMap): array
+    private function processPosts(array $posts, string $postType, array $userMap, array $categoryMap, $mediaModel = null, array $ftpConfig = [], string $sourceUrl = ''): array
     {
         $result = ['imported' => 0, 'errors' => []];
         $articleModel = new ArticleModel(['ignore_request' => true]);
@@ -198,12 +212,22 @@ class ProcessorModel extends BaseDatabaseModel
                          $categoryId = $categoryMap[$primaryCategory['term_id']];
                     }
                 }
+                // Process media migration if enabled
+                $content = $post['post_content'];
+                if ($mediaModel && !empty($ftpConfig)) {
+                    try {
+                        $content = $mediaModel->migrateMediaInContent($ftpConfig, $content, $sourceUrl);
+                    } catch (\Exception $e) {
+                        $result['errors'][] = sprintf('Media migration error in post "%s": %s', $post['post_title'], $e->getMessage());
+                    }
+                }
+
                 //For Now ignores post_parent but will consider...
                 $articleData = [
                     'id' => 0,
                     'title' => $post['post_title'],
                     'alias' => $post['post_name'] ?? \Joomla\CMS\Filter\OutputFilter::stringURLSafe($post['post_title']),
-                    'introtext' => $post['post_content'],
+                    'introtext' => $content,
                     'fulltext' => '',
                     'state' => ($post['post_status'] === 'publish') ? 1 : 0,
                     'catid' => $categoryId,
@@ -255,14 +279,15 @@ class ProcessorModel extends BaseDatabaseModel
         return (int) $this->db->setQuery($query)->loadResult() ?: 2;
     }
 
-    private function processWordpress(array $data): array
+    private function processWordpress(array $data, string $sourceUrl = '', array $ftpConfig = []): array
     {
         $result = [
             'success' => true,
             'counts' => [
                 'users' => 0,
                 'taxonomies' => 0,
-                'articles' => 0
+                'articles' => 0,
+                'media' => 0
             ],
             'errors' => []
         ];
@@ -283,6 +308,12 @@ class ProcessorModel extends BaseDatabaseModel
 
         try {
             $this->db->transactionStart();
+            
+            // Initialize MediaModel if FTP config is provided
+            $mediaModel = null;
+            if (!empty($ftpConfig) && !empty($ftpConfig['host'])) {
+                $mediaModel = new MediaModel();
+            }
 
             $defaultCategoryId = $this->getDefaultCategoryId();
 
@@ -295,6 +326,15 @@ class ProcessorModel extends BaseDatabaseModel
                     $article = $element['item'];
 
                     $content = $this->cleanWordPressContent($article['articleBody'] ?? '');
+                    
+                    // Process media migration if enabled
+                    if ($mediaModel && !empty($ftpConfig)) {
+                        try {
+                            $content = $mediaModel->migrateMediaInContent($ftpConfig, $content, $sourceUrl);
+                        } catch (\Exception $e) {
+                            $result['errors'][] = sprintf('Media migration error in article "%s": %s', $article['headline'], $e->getMessage());
+                        }
+                    }
 
                     // Handle introtext/fulltext split
                     $introtext = $content;
@@ -357,6 +397,12 @@ class ProcessorModel extends BaseDatabaseModel
                         $e->getMessage()
                     );
                 }
+            }
+            
+            // Get media statistics if MediaModel was used
+            if ($mediaModel) {
+                $mediaStats = $mediaModel->getMediaStats();
+                $result['counts']['media'] = $mediaStats['downloaded'];
             }
 
             if (empty($result['errors'])) {
@@ -440,7 +486,8 @@ class ProcessorModel extends BaseDatabaseModel
                 'sendEmail' => 0,
                 'registerDate' => Factory::getDate()->toSql(),
                 'groups' => [2], // Registered
-                'params' => []
+                'params' => [],
+                'requireReset' => 1
             ];
 
             $user = new \Joomla\CMS\User\User;

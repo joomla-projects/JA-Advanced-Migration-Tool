@@ -18,7 +18,7 @@ use Joomla\CMS\Filesystem\Folder;
 class ImportModel extends BaseDatabaseModel
 {
     //Our importFunction doesn't know how to convert/parse this data
-    public function import($file, $sourceCms, $sourceUrl = '')
+    public function import($file, $sourceCms, $sourceUrl = '', $ftpConfig = [])
     {
          // Load plugins "migration"
         PluginHelper::importPlugin('migration');
@@ -72,14 +72,15 @@ class ImportModel extends BaseDatabaseModel
         try {
             $processor = new ProcessorModel();
             //Processor function to process data to Joomla Tables
-            $result = $processor->process($data);
+            $result = $processor->process($data, $sourceUrl, $ftpConfig);
          
             if ($result['success']) {
                 $app = Factory::getApplication();
                 $message = Text::_('COM_CMSMIGRATOR_IMPORT_SUCCESS') . "\n" .
                           Text::sprintf('COM_CMSMIGRATOR_IMPORT_USERS_COUNT', $result['counts']['users']) . "\n" .
                           Text::sprintf('COM_CMSMIGRATOR_IMPORT_ARTICLES_COUNT', $result['counts']['articles']) . "\n" .
-                          Text::sprintf('COM_CMSMIGRATOR_IMPORT_TAXONOMIES_COUNT', $result['counts']['taxonomies']);
+                          Text::sprintf('COM_CMSMIGRATOR_IMPORT_TAXONOMIES_COUNT', $result['counts']['taxonomies']) . "\n" .
+                          Text::sprintf('COM_CMSMIGRATOR_IMPORT_MEDIA_COUNT', $result['counts']['media'] ?? 0);
                 $app->enqueueMessage($message, 'message');
             } else {
                 $app = Factory::getApplication();
@@ -87,6 +88,7 @@ class ImportModel extends BaseDatabaseModel
                           Text::sprintf('COM_CMSMIGRATOR_IMPORT_USERS_COUNT', $result['counts']['users']) . "\n" .
                           Text::sprintf('COM_CMSMIGRATOR_IMPORT_ARTICLES_COUNT', $result['counts']['articles']) . "\n" .
                           Text::sprintf('COM_CMSMIGRATOR_IMPORT_TAXONOMIES_COUNT', $result['counts']['taxonomies']) . "\n" .
+                          Text::sprintf('COM_CMSMIGRATOR_IMPORT_MEDIA_COUNT', $result['counts']['media'] ?? 0) . "\n" .
                           implode("\n", $result['errors']);
                 $app->enqueueMessage($message, 'warning');
                 return false;

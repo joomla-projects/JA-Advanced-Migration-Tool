@@ -44,10 +44,23 @@ class PlgMigrationWordpress extends CMSPlugin
         }
 
         $itemList = [];
+        $mediaItems = [];
         $position = 1;
 
         foreach ($xml->channel->item as $item) {
             $wp_ns = $item->children($wp);
+            if ((string)$wp_ns->post_type === 'attachment') {
+                $mediaItem = [
+                    '@type' => 'MediaObject',
+                    'name' => (string)$item->title,
+                    'url' => (string)$wp_ns->attachment_url,
+                    'description' => (string)$item->description,
+                    'mediaType' => (string)$item->children($dc)->format ?? null,
+                    'dateUploaded' => (new DateTime((string)$item->pubDate))->format(DateTime::ATOM)
+                ];
+                $mediaItems[] = $mediaItem;
+                continue; // Skip further processing for attachments
+            }
             $postType = (string)$wp_ns->post_type;
 
             // Only process posts and pages
@@ -124,7 +137,8 @@ class PlgMigrationWordpress extends CMSPlugin
         $final = [
             '@context' => 'http://schema.org',
             '@type' => 'ItemList',
-            'itemListElement' => $itemList
+            'itemListElement' => $itemList,
+            'mediaItems' => $mediaItems
         ];
 
         $event->addResult(json_encode($final, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
