@@ -7,12 +7,25 @@ namespace Binary\Component\CmsMigrator\Administrator\Controller;
 use Joomla\CMS\MVC\Controller\BaseController;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
+use Joomla\CMS\Filesystem\File;
 
 class ImportController extends BaseController
 {
     public function import()
     {
         $this->checkToken();
+        
+        // Reset progress file at the start of new migration
+        $progressFile = JPATH_SITE . '/media/com_cmsmigrator/imports/progress.json';
+        if (file_exists($progressFile)) {
+            File::delete($progressFile);
+        }
+        File::write($progressFile, json_encode([
+            'percent' => 0,
+            'status' => 'Starting migration...',
+            'timestamp' => time()
+        ]));
+        
         // Retrieves form data (jform) and uploaded files.
         $app = Factory::getApplication();
         $input = $app->input;
@@ -52,5 +65,18 @@ class ImportController extends BaseController
 
         // $app->enqueueMessage(Text::_('COM_CMSMIGRATOR_IMPORT_SUCCESS'), 'message');
         $this->setRedirect('index.php?option=com_cmsmigrator');
+    }
+
+    public function progress()
+    {
+        $progressFile = JPATH_SITE . '/media/com_cmsmigrator/imports/progress.json';
+        if (file_exists($progressFile)) {
+            header('Content-Type: application/json');
+            echo file_get_contents($progressFile);
+        } else {
+            header('Content-Type: application/json');
+            echo json_encode(['percent' => 0, 'status' => 'Not started', 'timestamp' => time()]);
+        }
+        exit;
     }
 } 

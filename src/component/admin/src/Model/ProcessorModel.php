@@ -316,6 +316,8 @@ class ProcessorModel extends BaseDatabaseModel
             }
 
             $defaultCategoryId = $this->getDefaultCategoryId();
+            $total = count($data['itemListElement']);
+            $current = 0;
 
             foreach ($data['itemListElement'] as $element) {
                 try {
@@ -389,7 +391,6 @@ class ProcessorModel extends BaseDatabaseModel
                     }
 
                     $result['counts']['articles']++;
-
                 } catch (\Exception $e) {
                     $result['errors'][] = sprintf(
                         'Error importing article "%s": %s',
@@ -397,12 +398,18 @@ class ProcessorModel extends BaseDatabaseModel
                         $e->getMessage()
                     );
                 }
+                $current++;
+                $percent = (int)(($current / $total) * 100);
+                $this->updateProgress($percent, "Migrating articles: $current / $total");
             }
             
             // Get media statistics if MediaModel was used
             if ($mediaModel) {
                 $mediaStats = $mediaModel->getMediaStats();
                 $result['counts']['media'] = $mediaStats['downloaded'];
+                $this->updateProgress(100, 'Migration complete!');
+            } else {
+                $this->updateProgress(100, 'Migration complete!');
             }
 
             if (empty($result['errors'])) {
@@ -416,6 +423,7 @@ class ProcessorModel extends BaseDatabaseModel
             $this->db->transactionRollback();
             $result['success'] = false;
             $result['errors'][] = 'Import failed: ' . $e->getMessage();
+            $this->updateProgress(100, 'Migration failed!');
         }
 
         return $result;
@@ -689,5 +697,15 @@ class ProcessorModel extends BaseDatabaseModel
             );
             return false;
         }
+    }
+
+    private function updateProgress($percent, $status = '') {
+        $progressFile = JPATH_SITE . '/media/com_cmsmigrator/imports/progress.json';
+        $data = [
+            'percent' => $percent,
+            'status' => $status,
+            'timestamp' => time()
+        ];
+        \Joomla\CMS\Filesystem\File::write($progressFile, json_encode($data));
     }
 } 
