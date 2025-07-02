@@ -14,6 +14,7 @@ use Joomla\Component\Categories\Administrator\Model\CategoryModel;
 use Joomla\Component\Content\Administrator\Model\ArticleModel;
 use Joomla\Component\Fields\Administrator\Model\FieldModel;
 use Joomla\CMS\Filter\OutputFilter;
+use Binary\Component\CmsMigrator\Administrator\Model\MediaModel;
 
 class ProcessorModel extends BaseDatabaseModel
 {
@@ -25,27 +26,28 @@ class ProcessorModel extends BaseDatabaseModel
         $this->db = Factory::getDbo();
     }
 
-    public function process(array $data): array
+    public function process(array $data, string $sourceUrl = '', array $ftpConfig = []): array
     {
         if (isset($data['users']) && isset($data['post_types'])) {
-            return $this->processJson($data);
+            return $this->processJson($data, $sourceUrl, $ftpConfig);
         }
 
         if (isset($data['itemListElement'])) {
-            return $this->processWordpress($data);
+            return $this->processWordpress($data, $sourceUrl, $ftpConfig);
         }
 
         throw new \RuntimeException('Invalid data format');
     }
 
-    private function processJson(array $data): array
+    private function processJson(array $data, string $sourceUrl = '', array $ftpConfig = []): array
     {
         $result = [
             'success' => true,
             'counts' => [
                 'users' => 0,
                 'taxonomies' => 0,
-                'articles' => 0
+                'articles' => 0,
+                'media' => 0
             ],
             'errors' => []
         ];
@@ -53,6 +55,12 @@ class ProcessorModel extends BaseDatabaseModel
         $this->db->transactionStart();
 
         try {
+            // Initialize MediaModel if FTP config is provided
+            $mediaModel = null;
+            if (!empty($ftpConfig) && !empty($ftpConfig['host'])) {
+                $mediaModel = new MediaModel();
+            }
+
             $userMap = [];
             if (!empty($data['users'])) {
                 $userResult = $this->processUsers($data['users']);
@@ -72,11 +80,17 @@ class ProcessorModel extends BaseDatabaseModel
             if (!empty($data['post_types'])) {
                 foreach ($data['post_types'] as $postType => $posts) {
                     if ($postType === 'post' || $postType === 'page') {
-                        $postResult = $this->processPosts($posts, $postType, $userMap, $categoryMap);
+                        $postResult = $this->processPosts($posts, $postType, $userMap, $categoryMap, $mediaModel, $ftpConfig, $sourceUrl);
                         $result['counts']['articles'] += $postResult['imported'];
                         $result['errors'] = array_merge($result['errors'], $postResult['errors']);
                     }
                 }
+            }
+
+            // Get media statistics if MediaModel was used
+            if ($mediaModel) {
+                $mediaStats = $mediaModel->getMediaStats();
+                $result['counts']['media'] = $mediaStats['downloaded'];
             }
 
             if (empty($result['errors'])) {
@@ -177,15 +191,21 @@ class ProcessorModel extends BaseDatabaseModel
         return $result;
     }
     
-    private function processPosts(array $posts, string $postType, array $userMap, array $categoryMap): array
+    private function processPosts(array $posts, string $postType, array $userMap, array $categoryMap, $mediaModel = null, array $ftpConfig = [], string $sourceUrl = ''): array
     {
-        $result = ['imported' => 0, 'errors' => []];
+        $result = ['imported' => 0, 'errors' => [], 'skipped' => 0];
         $articleModel = new ArticleModel(['ignore_request' => true]);
         
         $defaultCategoryId = $this->getDefaultCategoryId();
 
         foreach ($posts as $post) {
             try {
+                // Skip if article already exists
+                if ($this->articleExists($post['post_title'])) {
+                    $result['skipped']++;
+                    continue;
+                }
+
                 $authorId = 42; // Fallback to admin
                 if (isset($post['post_author']) && isset($userMap[$post['post_author']])) {
                     $authorId = $userMap[$post['post_author']];
@@ -198,12 +218,25 @@ class ProcessorModel extends BaseDatabaseModel
                          $categoryId = $categoryMap[$primaryCategory['term_id']];
                     }
                 }
-                //For Now ignores post_parent but will consider...
+                // Process media migration if enabled
+                $content = $post['post_content'];
+                if ($mediaModel && !empty($ftpConfig)) {
+                    try {
+                        $content = $mediaModel->migrateMediaInContent($ftpConfig, $content, $sourceUrl);
+                    } catch (\Exception $e) {
+                        $result['errors'][] = sprintf('Media migration error in post "%s": %s', $post['post_title'], $e->getMessage());
+                    }
+                }
+
+                // Generate unique alias
+                $baseAlias = $post['post_name'] ?? \Joomla\CMS\Filter\OutputFilter::stringURLSafe($post['post_title']);
+                $uniqueAlias = $this->getUniqueAlias($baseAlias, $post['post_title']);
+
                 $articleData = [
                     'id' => 0,
                     'title' => $post['post_title'],
-                    'alias' => $post['post_name'] ?? \Joomla\CMS\Filter\OutputFilter::stringURLSafe($post['post_title']),
-                    'introtext' => $post['post_content'],
+                    'alias' => $uniqueAlias,
+                    'introtext' => $content,
                     'fulltext' => '',
                     'state' => ($post['post_status'] === 'publish') ? 1 : 0,
                     'catid' => $categoryId,
@@ -255,14 +288,16 @@ class ProcessorModel extends BaseDatabaseModel
         return (int) $this->db->setQuery($query)->loadResult() ?: 2;
     }
 
-    private function processWordpress(array $data): array
+    private function processWordpress(array $data, string $sourceUrl = '', array $ftpConfig = []): array
     {
         $result = [
             'success' => true,
             'counts' => [
                 'users' => 0,
                 'taxonomies' => 0,
-                'articles' => 0
+                'articles' => 0,
+                'media' => 0,
+                'skipped' => 0
             ],
             'errors' => []
         ];
@@ -283,8 +318,16 @@ class ProcessorModel extends BaseDatabaseModel
 
         try {
             $this->db->transactionStart();
+            
+            // Initialize MediaModel if FTP config is provided
+            $mediaModel = null;
+            if (!empty($ftpConfig) && !empty($ftpConfig['host'])) {
+                $mediaModel = new MediaModel();
+            }
 
             $defaultCategoryId = $this->getDefaultCategoryId();
+            $total = count($data['itemListElement']);
+            $current = 0;
 
             foreach ($data['itemListElement'] as $element) {
                 try {
@@ -294,7 +337,25 @@ class ProcessorModel extends BaseDatabaseModel
 
                     $article = $element['item'];
 
+                    // Skip if article already exists
+                    if ($this->articleExists($article['headline'])) {
+                        $result['counts']['skipped']++;
+                        $current++;
+                        $percent = (int)(($current / $total) * 100);
+                        $this->updateProgress($percent, "Migrating articles: $current / $total (Skipped: {$result['counts']['skipped']})");
+                        continue;
+                    }
+
                     $content = $this->cleanWordPressContent($article['articleBody'] ?? '');
+                    
+                    // Process media migration if enabled
+                    if ($mediaModel && !empty($ftpConfig)) {
+                        try {
+                            $content = $mediaModel->migrateMediaInContent($ftpConfig, $content, $sourceUrl);
+                        } catch (\Exception $e) {
+                            $result['errors'][] = sprintf('Media migration error in article "%s": %s', $article['headline'], $e->getMessage());
+                        }
+                    }
 
                     // Handle introtext/fulltext split
                     $introtext = $content;
@@ -309,12 +370,15 @@ class ProcessorModel extends BaseDatabaseModel
                     $authorEmail = $article['author']['email'] ?? strtolower(str_replace(' ', '', $authorName)) . '@example.com';
                     $authorId = $this->getOrCreateUser($authorName, $authorEmail, $result['counts']);
 
+                    // Generate unique alias
+                    $baseAlias = OutputFilter::stringURLSafe($article['headline']);
+                    $uniqueAlias = $this->getUniqueAlias($baseAlias, $article['headline']);
 
                     // Build article data object
                     $articleData = [
                         'id'          => 0,
                         'title'       => $article['headline'],
-                        'alias'       => OutputFilter::stringURLSafe($article['headline']),
+                        'alias'       => $uniqueAlias,
                         'introtext'   => $introtext,
                         'fulltext'    => $fulltext,
                         'state'       => 1, // Published
@@ -333,7 +397,7 @@ class ProcessorModel extends BaseDatabaseModel
                             'xreference' => ''
                         ],
                         'images'      => '{}',
-                        'urls'        => '{}',
+                        'urls'        => '{}'
                     ];
 
                     if (!$articleModel->save($articleData)) {
@@ -349,7 +413,6 @@ class ProcessorModel extends BaseDatabaseModel
                     }
 
                     $result['counts']['articles']++;
-
                 } catch (\Exception $e) {
                     $result['errors'][] = sprintf(
                         'Error importing article "%s": %s',
@@ -357,6 +420,18 @@ class ProcessorModel extends BaseDatabaseModel
                         $e->getMessage()
                     );
                 }
+                $current++;
+                $percent = (int)(($current / $total) * 100);
+                $this->updateProgress($percent, "Migrating articles: $current / $total (Skipped: {$result['counts']['skipped']})");
+            }
+            
+            // Get media statistics if MediaModel was used
+            if ($mediaModel) {
+                $mediaStats = $mediaModel->getMediaStats();
+                $result['counts']['media'] = $mediaStats['downloaded'];
+                $this->updateProgress(100, sprintf('Migration complete! (Imported: %d, Skipped: %d)', $result['counts']['articles'], $result['counts']['skipped']));
+            } else {
+                $this->updateProgress(100, sprintf('Migration complete! (Imported: %d, Skipped: %d)', $result['counts']['articles'], $result['counts']['skipped']));
             }
 
             if (empty($result['errors'])) {
@@ -370,6 +445,7 @@ class ProcessorModel extends BaseDatabaseModel
             $this->db->transactionRollback();
             $result['success'] = false;
             $result['errors'][] = 'Import failed: ' . $e->getMessage();
+            $this->updateProgress(100, 'Migration failed!');
         }
 
         return $result;
@@ -440,7 +516,8 @@ class ProcessorModel extends BaseDatabaseModel
                 'sendEmail' => 0,
                 'registerDate' => Factory::getDate()->toSql(),
                 'groups' => [2], // Registered
-                'params' => []
+                'params' => [],
+                'requireReset' => 1
             ];
 
             $user = new \Joomla\CMS\User\User;
@@ -642,5 +719,54 @@ class ProcessorModel extends BaseDatabaseModel
             );
             return false;
         }
+    }
+
+    private function updateProgress($percent, $status = '') {
+        $progressFile = JPATH_SITE . '/media/com_cmsmigrator/imports/progress.json';
+        $data = [
+            'percent' => $percent,
+            'status' => $status,
+            'timestamp' => time()
+        ];
+        \Joomla\CMS\Filesystem\File::write($progressFile, json_encode($data));
+    }
+
+    protected function getUniqueAlias(string $alias, string $title): string
+    {
+        $db = Factory::getDbo();
+        $originalAlias = $alias;
+        $counter = 1;
+
+        while (true) {
+            $query = $db->getQuery(true)
+                ->select('COUNT(*)')
+                ->from('#__content')
+                ->where('alias = ' . $db->quote($alias));
+
+            if ((int) $db->setQuery($query)->loadResult() === 0) {
+                return $alias;
+            }
+
+            // If alias exists, append counter
+            $alias = $originalAlias . '-' . $counter;
+            $counter++;
+
+            // Safety check to prevent infinite loops
+            if ($counter > 100) {
+                // If we somehow get here, generate a completely unique alias
+                return $originalAlias . '-' . uniqid();
+            }
+        }
+    }
+
+    protected function articleExists(string $title): bool
+    {
+        $db = Factory::getDbo();
+        $query = $db->getQuery(true)
+            ->select('COUNT(*)')
+            ->from('#__content')
+            ->where('title = ' . $db->quote($title));
+
+        return (int) $db->setQuery($query)->loadResult() > 0;
     }
 } 
