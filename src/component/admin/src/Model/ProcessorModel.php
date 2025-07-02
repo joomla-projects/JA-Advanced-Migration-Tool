@@ -193,13 +193,19 @@ class ProcessorModel extends BaseDatabaseModel
     
     private function processPosts(array $posts, string $postType, array $userMap, array $categoryMap, $mediaModel = null, array $ftpConfig = [], string $sourceUrl = ''): array
     {
-        $result = ['imported' => 0, 'errors' => []];
+        $result = ['imported' => 0, 'errors' => [], 'skipped' => 0];
         $articleModel = new ArticleModel(['ignore_request' => true]);
         
         $defaultCategoryId = $this->getDefaultCategoryId();
 
         foreach ($posts as $post) {
             try {
+                // Skip if article already exists
+                if ($this->articleExists($post['post_title'])) {
+                    $result['skipped']++;
+                    continue;
+                }
+
                 $authorId = 42; // Fallback to admin
                 if (isset($post['post_author']) && isset($userMap[$post['post_author']])) {
                     $authorId = $userMap[$post['post_author']];
@@ -222,11 +228,14 @@ class ProcessorModel extends BaseDatabaseModel
                     }
                 }
 
-                //For Now ignores post_parent but will consider...
+                // Generate unique alias
+                $baseAlias = $post['post_name'] ?? \Joomla\CMS\Filter\OutputFilter::stringURLSafe($post['post_title']);
+                $uniqueAlias = $this->getUniqueAlias($baseAlias, $post['post_title']);
+
                 $articleData = [
                     'id' => 0,
                     'title' => $post['post_title'],
-                    'alias' => $post['post_name'] ?? \Joomla\CMS\Filter\OutputFilter::stringURLSafe($post['post_title']),
+                    'alias' => $uniqueAlias,
                     'introtext' => $content,
                     'fulltext' => '',
                     'state' => ($post['post_status'] === 'publish') ? 1 : 0,
@@ -287,7 +296,8 @@ class ProcessorModel extends BaseDatabaseModel
                 'users' => 0,
                 'taxonomies' => 0,
                 'articles' => 0,
-                'media' => 0
+                'media' => 0,
+                'skipped' => 0
             ],
             'errors' => []
         ];
@@ -327,6 +337,15 @@ class ProcessorModel extends BaseDatabaseModel
 
                     $article = $element['item'];
 
+                    // Skip if article already exists
+                    if ($this->articleExists($article['headline'])) {
+                        $result['counts']['skipped']++;
+                        $current++;
+                        $percent = (int)(($current / $total) * 100);
+                        $this->updateProgress($percent, "Migrating articles: $current / $total (Skipped: {$result['counts']['skipped']})");
+                        continue;
+                    }
+
                     $content = $this->cleanWordPressContent($article['articleBody'] ?? '');
                     
                     // Process media migration if enabled
@@ -351,12 +370,15 @@ class ProcessorModel extends BaseDatabaseModel
                     $authorEmail = $article['author']['email'] ?? strtolower(str_replace(' ', '', $authorName)) . '@example.com';
                     $authorId = $this->getOrCreateUser($authorName, $authorEmail, $result['counts']);
 
+                    // Generate unique alias
+                    $baseAlias = OutputFilter::stringURLSafe($article['headline']);
+                    $uniqueAlias = $this->getUniqueAlias($baseAlias, $article['headline']);
 
                     // Build article data object
                     $articleData = [
                         'id'          => 0,
                         'title'       => $article['headline'],
-                        'alias'       => OutputFilter::stringURLSafe($article['headline']),
+                        'alias'       => $uniqueAlias,
                         'introtext'   => $introtext,
                         'fulltext'    => $fulltext,
                         'state'       => 1, // Published
@@ -375,7 +397,7 @@ class ProcessorModel extends BaseDatabaseModel
                             'xreference' => ''
                         ],
                         'images'      => '{}',
-                        'urls'        => '{}',
+                        'urls'        => '{}'
                     ];
 
                     if (!$articleModel->save($articleData)) {
@@ -400,16 +422,16 @@ class ProcessorModel extends BaseDatabaseModel
                 }
                 $current++;
                 $percent = (int)(($current / $total) * 100);
-                $this->updateProgress($percent, "Migrating articles: $current / $total");
+                $this->updateProgress($percent, "Migrating articles: $current / $total (Skipped: {$result['counts']['skipped']})");
             }
             
             // Get media statistics if MediaModel was used
             if ($mediaModel) {
                 $mediaStats = $mediaModel->getMediaStats();
                 $result['counts']['media'] = $mediaStats['downloaded'];
-                $this->updateProgress(100, 'Migration complete!');
+                $this->updateProgress(100, sprintf('Migration complete! (Imported: %d, Skipped: %d)', $result['counts']['articles'], $result['counts']['skipped']));
             } else {
-                $this->updateProgress(100, 'Migration complete!');
+                $this->updateProgress(100, sprintf('Migration complete! (Imported: %d, Skipped: %d)', $result['counts']['articles'], $result['counts']['skipped']));
             }
 
             if (empty($result['errors'])) {
@@ -707,5 +729,44 @@ class ProcessorModel extends BaseDatabaseModel
             'timestamp' => time()
         ];
         \Joomla\CMS\Filesystem\File::write($progressFile, json_encode($data));
+    }
+
+    protected function getUniqueAlias(string $alias, string $title): string
+    {
+        $db = Factory::getDbo();
+        $originalAlias = $alias;
+        $counter = 1;
+
+        while (true) {
+            $query = $db->getQuery(true)
+                ->select('COUNT(*)')
+                ->from('#__content')
+                ->where('alias = ' . $db->quote($alias));
+
+            if ((int) $db->setQuery($query)->loadResult() === 0) {
+                return $alias;
+            }
+
+            // If alias exists, append counter
+            $alias = $originalAlias . '-' . $counter;
+            $counter++;
+
+            // Safety check to prevent infinite loops
+            if ($counter > 100) {
+                // If we somehow get here, generate a completely unique alias
+                return $originalAlias . '-' . uniqid();
+            }
+        }
+    }
+
+    protected function articleExists(string $title): bool
+    {
+        $db = Factory::getDbo();
+        $query = $db->getQuery(true)
+            ->select('COUNT(*)')
+            ->from('#__content')
+            ->where('title = ' . $db->quote($title));
+
+        return (int) $db->setQuery($query)->loadResult() > 0;
     }
 } 
