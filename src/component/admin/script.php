@@ -166,6 +166,7 @@ class Com_CmsMigratorInstallerScript
     {
         $mediaPath = JPATH_ROOT . '/media/com_cmsmigrator';
         $importsPath = $mediaPath . '/imports';
+        $imagesPath = $mediaPath . '/images';
 
         if (!file_exists($mediaPath)) {
             mkdir($mediaPath, 0755, true);
@@ -173,6 +174,10 @@ class Com_CmsMigratorInstallerScript
 
         if (!file_exists($importsPath)) {
             mkdir($importsPath, 0755, true);
+        }
+
+        if (!file_exists($imagesPath)) {
+            mkdir($imagesPath, 0755, true);
         }
     }
 }

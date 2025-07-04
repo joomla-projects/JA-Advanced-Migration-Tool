@@ -6,14 +6,16 @@
             type="list"
             label="Source CMS"
             class="form-select"
-            default="wordpress">
+            default="">
+            <option value="">Select Source</option>
             <option value="wordpress">WordPress</option>
+            <option value="json">WP JSON</option>
         </field>
 
         <field
             name="import_file"
             type="file"
-            label="Import File (XML/JSON)"
+            label="Import File"
             class="form-control"
             accept=".xml,.json"
         />
@@ -26,5 +28,65 @@
             class="form-control"
             filter="url"
         />
+
+        <field
+            name="enable_media_migration"
+            type="radio"
+            label="Enable Media Migration"
+            description="Enable FTP-based media migration from WordPress wp-content/uploads folder"
+            class="btn-group btn-group-yesno"
+            default="0">
+            <option value="1">JYES</option>
+            <option value="0">JNO</option>
+        </field>
+
+        <field
+            name="ftp_host"
+            type="text"
+            label="FTP Host"
+            description="FTP server hostname or IP address (e.g., ftp.yourwordpresssite.com)"
+            class="form-control"
+            showon="enable_media_migration:1"
+        />
+
+        <field
+            name="ftp_port"
+            type="number"
+            label="FTP Port"
+            description="FTP server port (default: 21)"
+            class="form-control"
+            default="21"
+            showon="enable_media_migration:1"
+        />
+
+        <field
+            name="ftp_username"
+            type="text"
+            label="FTP Username"
+            description="FTP login username"
+            class="form-control"
+            showon="enable_media_migration:1"
+        />
+
+        <field
+            name="ftp_password"
+            type="password"
+            label="FTP Password"
+            description="FTP login password"
+            class="form-control"
+            showon="enable_media_migration:1"
+        />
+
+        <field
+            name="ftp_passive"
+            type="radio"
+            label="Use Passive FTP"
+            description="Enable passive FTP mode (recommended for most servers)"
+            class="btn-group btn-group-yesno"
+            default="1"
+            showon="enable_media_migration:1">
+            <option value="1">JYES</option>
+            <option value="0">JNO</option>
+        </field>
     </fieldset>
 </form> 

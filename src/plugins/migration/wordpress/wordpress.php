@@ -35,11 +35,32 @@ class PlgMigrationWordpress extends CMSPlugin
         $content = $namespaces['content'] ?? 'content';
         $dc = $namespaces['dc'] ?? 'dc';
 
+        // Map author login to email
+        $authorEmailMap = [];
+        foreach ($xml->channel->children($wp)->author as $authorNode) {
+            $login = (string)$authorNode->children($wp)->author_login;
+            $email = (string)$authorNode->children($wp)->author_email;
+            $authorEmailMap[$login] = $email;
+        }
+
         $itemList = [];
+        $mediaItems = [];
         $position = 1;
 
         foreach ($xml->channel->item as $item) {
             $wp_ns = $item->children($wp);
+            if ((string)$wp_ns->post_type === 'attachment') {
+                $mediaItem = [
+                    '@type' => 'MediaObject',
+                    'name' => (string)$item->title,
+                    'url' => (string)$wp_ns->attachment_url,
+                    'description' => (string)$item->description,
+                    'mediaType' => (string)$item->children($dc)->format ?? null,
+                    'dateUploaded' => (new DateTime((string)$item->pubDate))->format(DateTime::ATOM)
+                ];
+                $mediaItems[] = $mediaItem;
+                continue; // Skip further processing for attachments
+            }
             $postType = (string)$wp_ns->post_type;
 
             // Only process posts and pages
@@ -74,6 +95,21 @@ class PlgMigrationWordpress extends CMSPlugin
             $pubDate = new DateTime((string)$item->pubDate);
             $isoDate = $pubDate->format(DateTime::ATOM);
 
+            // Get author info
+            $authorLogin = (string)$item->children($dc)->creator;
+            $authorEmail = $authorEmailMap[$authorLogin] ?? null;
+
+            // Extract custom fields
+            $customFields = [];
+            foreach ($wp_ns->postmeta as $meta) {
+                $key = (string)$meta->meta_key;
+                $value = (string)$meta->meta_value;
+                if (substr($key, 0, 1) === '_') {
+                    continue;
+                }
+                $customFields[$key] = $value;
+            }
+
             // Build article
             $article = [
                 '@type' => 'Article',
@@ -84,8 +120,10 @@ class PlgMigrationWordpress extends CMSPlugin
                 'datePublished' => $isoDate,
                 'author' => [
                     '@type' => 'Person',
-                    'name' => (string)$item->children($dc)->creator
-                ]
+                    'name' => $authorLogin,
+                    'email' => $authorEmail
+                ],
+                'customFields' => $customFields
             ];
 
             // Add to list
@@ -99,7 +137,8 @@ class PlgMigrationWordpress extends CMSPlugin
         $final = [
             '@context' => 'http://schema.org',
             '@type' => 'ItemList',
-            'itemListElement' => $itemList
+            'itemListElement' => $itemList,
+            'mediaItems' => $mediaItems
         ];
 
         $event->addResult(json_encode($final, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
