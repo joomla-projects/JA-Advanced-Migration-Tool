@@ -39,6 +39,13 @@ use Joomla\CMS\Factory;
                             </div>
                         </div>
 
+                        <!-- Import All Articles as Current Super User -->
+                        <div class="row">
+                            <div class="col-md-12">
+                                <?php echo $this->form->renderField('import_as_super_user'); ?>
+                            </div>
+                        </div>
+
                         <!-- Media Migration Section -->
                         <hr>
                         <h4>

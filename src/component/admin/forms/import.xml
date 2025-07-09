@@ -109,5 +109,16 @@
             class="form-control"
             showon="media_storage_mode:custom"
         />
+
+        <field
+            name="import_as_super_user"
+            type="radio"
+            label="Import All Articles as Current Super User"
+            description="If enabled, all imported articles will be assigned to you (the current super user). Otherwise, original authors will be used or created."
+            class="btn-group btn-group-yesno"
+            default="0">
+            <option value="1">JYES</option>
+            <option value="0">JNO</option>
+        </field>
     </fieldset>
 </form>

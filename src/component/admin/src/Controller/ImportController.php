@@ -66,10 +66,11 @@ class ImportController extends BaseController
             $this->setRedirect('index.php?option=com_cmsmigrator');
             return;
         }
+        $importAsSuperUser = !empty($jform['import_as_super_user']) && $jform['import_as_super_user'] == '1';
         //Passes the data to ImportModel Function
         $model = $this->getModel('Import');
 
-        if (!$model->import($file, $sourceCms, $sourceUrl, $ftpConfig)) {
+        if (!$model->import($file, $sourceCms, $sourceUrl, $ftpConfig, $importAsSuperUser)) {
             $app->enqueueMessage($model->getError(), 'error');
             $this->setRedirect('index.php?option=com_cmsmigrator');
             return;
