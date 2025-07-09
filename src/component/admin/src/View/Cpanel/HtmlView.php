@@ -58,13 +58,23 @@ class HtmlView extends BaseHtmlView
         $script = "
         document.addEventListener('DOMContentLoaded', function() {
             const mediaToggle = document.querySelector('[name=\"jform[enable_media_migration]\"]');
-            const ftpFields = document.querySelectorAll('.ftp-field');
+            const ftpFields = document.querySelectorAll('[name^=\"jform[ftp_\"]');
+            const testFtpButton = document.getElementById('test-ftp-button');
+            const testFtpResult = document.getElementById('test-ftp-result');
 
             function toggleFtpFields() {
                 const isEnabled = mediaToggle && (mediaToggle.checked || mediaToggle.value === '1');
                 ftpFields.forEach(function(field) {
                     field.closest('div.control-group, .control-wrapper, .field-box').style.display = isEnabled ? 'block' : 'none';
                 });
+                
+                if (testFtpButton) {
+                    testFtpButton.closest('.control-group, .control-wrapper, .field-box').style.display = isEnabled ? 'block' : 'none';
+                }
+                
+                if (testFtpResult) {
+                    testFtpResult.innerHTML = '';
+                }
             }
 
             if (mediaToggle) {

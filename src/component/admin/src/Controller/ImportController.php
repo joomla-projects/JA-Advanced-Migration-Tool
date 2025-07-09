@@ -8,6 +8,8 @@ use Joomla\CMS\MVC\Controller\BaseController;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Filesystem\File;
+use Binary\Component\CmsMigrator\Administrator\Model\MediaModel;
+use Joomla\CMS\Response\JsonResponse;
 
 class ImportController extends BaseController
 {
@@ -65,6 +67,39 @@ class ImportController extends BaseController
 
         // $app->enqueueMessage(Text::_('COM_CMSMIGRATOR_IMPORT_SUCCESS'), 'message');
         $this->setRedirect('index.php?option=com_cmsmigrator');
+    }
+
+    /**
+     * Test FTP connection
+     *
+     * @return void
+     */
+    public function testFtp()
+    {
+        // Check for request forgeries
+        $this->checkToken();
+        
+        $app = Factory::getApplication();
+        $input = $app->input;
+        
+        // Get FTP configuration
+        $ftpConfig = [
+            'host' => $input->getString('host', ''),
+            'port' => $input->getInt('port', 21),
+            'username' => $input->getString('username', ''),
+            'password' => $input->getString('password', ''),
+            'passive' => $input->getBool('passive', true)
+        ];
+        
+        // Test connection
+        $mediaModel = new MediaModel();
+        $result = $mediaModel->testConnection($ftpConfig);
+        
+        // Send JSON response
+        $app->setHeader('Content-Type', 'application/json');
+        $app->sendHeaders();
+        echo json_encode($result);
+        $app->close();
     }
 
     public function progress()

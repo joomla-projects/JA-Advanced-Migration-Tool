@@ -227,6 +227,58 @@ class MediaModel extends BaseDatabaseModel
         ];
     }
 
+    /**
+     * Test FTP connection without actually downloading files
+     *
+     * @param   array  $config  The FTP configuration
+     * 
+     * @return  array  Result containing success status and message
+     */
+    public function testConnection(array $config): array
+    {
+        $result = [
+            'success' => false,
+            'message' => ''
+        ];
+
+        // Validate configuration
+        if (empty($config['host']) || empty($config['username']) || empty($config['password'])) {
+            $result['message'] = Text::_('COM_CMSMIGRATOR_MEDIA_FTP_FIELDS_REQUIRED');
+            return $result;
+        }
+
+        // Try to connect
+        $connection = @ftp_connect($config['host'], $config['port'] ?? 21, 15);
+        
+        if (!$connection) {
+            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_FAILED', 'Could not connect to server');
+            return $result;
+        }
+
+        // Try to login
+        $loginResult = @ftp_login($connection, $config['username'], $config['password']);
+        
+        if (!$loginResult) {
+            ftp_close($connection);
+            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_FAILED', 'Invalid credentials');
+            return $result;
+        }
+
+        // Set passive mode if requested
+        if (!empty($config['passive'])) {
+            ftp_pasv($connection, true);
+        }
+
+        // Close the connection
+        ftp_close($connection);
+        
+        // Return success
+        $result['success'] = true;
+        $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']);
+        
+        return $result;
+    }
+
     public function clearCache(): void
     {
         $this->downloadedFiles = [];
