@@ -91,8 +91,89 @@ use Joomla\CMS\Factory;
                                 </div>
                             </div>
 
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <div class="form-group">
+                                        <label for="jform_media_storage_mode" class="form-label">
+                                            <?php echo Text::_('COM_CMSMIGRATOR_FIELD_MEDIA_STORAGE_MODE_LABEL'); ?>
+                                        </label>
+                                        <div id="media-storage-mode-group" class="btn-group" role="group" aria-label="Media Storage Mode">
+                                            <?php
+                                            $mediaStorageOptions = $this->form->getField('media_storage_mode')->options;
+                                            $selected = $this->form->getValue('media_storage_mode', null, 'root');
+                                            foreach ($mediaStorageOptions as $option) :
+                                                $isActive = ($selected == $option->value) ? 'active' : '';
+                                            ?>
+                                                <input type="radio" class="btn-check" name="jform[media_storage_mode]" id="media_storage_mode_<?php echo $option->value; ?>" value="<?php echo $option->value; ?>" autocomplete="off" <?php echo ($selected == $option->value) ? 'checked' : ''; ?>>
+                                                <label class="btn btn-outline-primary <?php echo $isActive; ?>" for="media_storage_mode_<?php echo $option->value; ?>">
+                                                    <?php echo $option->text; ?>
+                                                </label>
+                                            <?php endforeach; ?>
+                                        </div>
+                                        </br>
+                                        <small class="form-text text-muted mt-1"><?php echo Text::_('COM_CMSMIGRATOR_FIELD_MEDIA_STORAGE_MODE_DESC'); ?></small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row" id="media-custom-dir-row" style="display:none;">
+                                <div class="col-md-12">
+                                    <?php echo $this->form->renderField('media_custom_dir'); ?>
+                                </div>
+                            </div>
+                            <style>
+                                #media-storage-mode-group .btn {
+                                    min-width: 180px;
+                                    font-weight: 500;
+                                }
+                                #media-storage-mode-group .btn.active, #media-storage-mode-group .btn:active {
+                                    background: #007db0;
+                                    color: #fff;
+                                }
+                                #media-storage-mode-group .btn-check:checked + .btn {
+                                    background: #007db0;
+                                    color: #fff;
+                                }
+                            </style>
+                            <script>
+                            document.addEventListener('DOMContentLoaded', function () {
+                                const storageModeRadios = document.querySelectorAll('[name="jform[media_storage_mode]"]');
+                                const customDirRow = document.getElementById('media-custom-dir-row');
+                                const customDirInput = document.querySelector('[name="jform[media_custom_dir]"]');
+                                function toggleCustomDir() {
+                                    const selectedMode = document.querySelector('[name="jform[media_storage_mode]"]:checked');
+                                    if (customDirRow) {
+                                        if (selectedMode && selectedMode.value === 'custom') {
+                                            customDirRow.style.display = 'block';
+                                        } else {
+                                            customDirRow.style.display = 'none';
+                                            if (customDirInput) {
+                                                customDirInput.value = '';
+                                            }
+                                        }
+                                    }
+                                    // Update button active state
+                                    storageModeRadios.forEach(function(radio) {
+                                        const label = document.querySelector('label[for="media_storage_mode_' + radio.value + '"]');
+                                        if (label) {
+                                            if (radio.checked) {
+                                                label.classList.add('active');
+                                            } else {
+                                                label.classList.remove('active');
+                                            }
+                                        }
+                                    });
+                                }
+                                if (storageModeRadios.length) {
+                                    storageModeRadios.forEach(function(radio) {
+                                        radio.addEventListener('change', toggleCustomDir);
+                                    });
+                                    toggleCustomDir();
+                                }
+                            });
+                            </script>
+
                             <!-- Media Migration Info -->
-                            <div class="alert alert-info">
+                            <div class="alert alert-info mt-3">
                                 <h5><span class="fa fa-info-circle" aria-hidden="true"></span> <?php echo Text::_('COM_CMSMIGRATOR_MEDIA_INFO_TITLE'); ?></h5>
                                 <ul class="mb-0">
                                     <li><?php echo Text::_('COM_CMSMIGRATOR_MEDIA_INFO_RESOLUTION'); ?></li>
@@ -223,6 +304,32 @@ document.addEventListener('DOMContentLoaded', function () {
       el.addEventListener('change', toggleFtpConfigSection)
     );
     toggleFtpConfigSection();
+
+    // Show/hide Custom Directory field based on Media Storage Location
+    const storageModeRadios = document.querySelectorAll('[name="jform[media_storage_mode]"]');
+    const customDirRow = document.getElementById('media-custom-dir-row');
+    const customDirInput = document.querySelector('[name="jform[media_custom_dir]"]');
+
+    function toggleCustomDir() {
+        const selectedMode = document.querySelector('[name="jform[media_storage_mode]"]:checked');
+        if (customDirRow) {
+            if (selectedMode && selectedMode.value === 'custom') {
+                customDirRow.style.display = 'block';
+            } else {
+                customDirRow.style.display = 'none';
+                if (customDirInput) {
+                    customDirInput.value = '';
+                }
+            }
+        }
+    }
+
+    if (storageModeRadios.length) {
+        storageModeRadios.forEach(function(radio) {
+            radio.addEventListener('change', toggleCustomDir);
+        });
+        toggleCustomDir();
+    }
 
     // Migration form submit + progress polling
     if (form) {

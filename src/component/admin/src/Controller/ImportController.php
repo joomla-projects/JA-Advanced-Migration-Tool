@@ -40,13 +40,23 @@ class ImportController extends BaseController
         
         // Get FTP configuration for media migration
         $ftpConfig = [];
+        $mediaStorageMode = $jform['media_storage_mode'] ?? 'root';
+        $mediaCustomDir = $jform['media_custom_dir'] ?? '';
         if (!empty($jform['enable_media_migration'])) {
+            // Validation: If custom directory is selected, it must not be empty
+            if ($mediaStorageMode === 'custom' && empty($mediaCustomDir)) {
+                $app->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_CUSTOM_DIR_REQUIRED'), 'error');
+                $this->setRedirect('index.php?option=com_cmsmigrator');
+                return;
+            }
             $ftpConfig = [
                 'host' => $jform['ftp_host'] ?? '',
                 'port' => (int) ($jform['ftp_port'] ?? 21),
                 'username' => $jform['ftp_username'] ?? '',
                 'password' => $jform['ftp_password'] ?? '',
-                'passive' => !empty($jform['ftp_passive'])
+                'passive' => !empty($jform['ftp_passive']),
+                'media_storage_mode' => $mediaStorageMode,
+                'media_custom_dir' => $mediaCustomDir
             ];
         }
         
@@ -114,4 +124,4 @@ class ImportController extends BaseController
         }
         exit;
     }
-} 
+}

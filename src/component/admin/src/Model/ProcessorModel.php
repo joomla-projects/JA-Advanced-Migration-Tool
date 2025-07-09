@@ -59,6 +59,12 @@ class ProcessorModel extends BaseDatabaseModel
             $mediaModel = null;
             if (!empty($ftpConfig) && !empty($ftpConfig['host'])) {
                 $mediaModel = new MediaModel();
+                // Set storage directory based on user selection
+                if (($ftpConfig['media_storage_mode'] ?? 'root') === 'custom' && !empty($ftpConfig['media_custom_dir'])) {
+                    $mediaModel->setStorageDirectory($ftpConfig['media_custom_dir']);
+                } else {
+                    $mediaModel->setStorageDirectory('imports');
+                }
             }
 
             $userMap = [];
@@ -323,6 +329,12 @@ class ProcessorModel extends BaseDatabaseModel
             $mediaModel = null;
             if (!empty($ftpConfig) && !empty($ftpConfig['host'])) {
                 $mediaModel = new MediaModel();
+                // Set storage directory based on user selection
+                if (($ftpConfig['media_storage_mode'] ?? 'root') === 'custom' && !empty($ftpConfig['media_custom_dir'])) {
+                    $mediaModel->setStorageDirectory($ftpConfig['media_custom_dir']);
+                } else {
+                    $mediaModel->setStorageDirectory('imports');
+                }
             }
 
             $defaultCategoryId = $this->getDefaultCategoryId();

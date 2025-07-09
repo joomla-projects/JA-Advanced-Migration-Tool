@@ -18,17 +18,23 @@ class MediaModel extends BaseDatabaseModel
     protected $mediaBaseUrl;
     protected $mediaBasePath;
     protected $downloadedFiles = [];
+    protected $storageDir = 'imports'; // Default directory
+
+    public function setStorageDirectory(string $dir = 'imports')
+    {
+        $this->storageDir = preg_replace('/[^a-zA-Z0-9_-]/', '', $dir) ?: 'imports';
+        $this->mediaBaseUrl = Uri::root() . 'images/' . $this->storageDir . '/';
+        $this->mediaBasePath = JPATH_ROOT . '/images/' . $this->storageDir . '/';
+        if (!Folder::exists($this->mediaBasePath)) {
+            Folder::create($this->mediaBasePath);
+        }
+    }
 
     public function __construct(array $config = [])
     {
         parent::__construct($config);
         $this->db = Factory::getDbo();
-        $this->mediaBaseUrl = Uri::root() . 'media/com_cmsmigrator/images/';
-        $this->mediaBasePath = JPATH_ROOT . '/media/com_cmsmigrator/images/';
-        
-        if (!Folder::exists($this->mediaBasePath)) {
-            Folder::create($this->mediaBasePath);
-        }
+        $this->setStorageDirectory('imports'); // Default to imports
     }
 
     public function migrateMediaInContent(array $ftpConfig, string $content, string $sourceUrl = ''): string
