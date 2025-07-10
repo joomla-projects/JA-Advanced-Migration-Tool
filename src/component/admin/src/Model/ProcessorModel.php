@@ -26,14 +26,14 @@ class ProcessorModel extends BaseDatabaseModel
         $this->db = Factory::getDbo();
     }
 
-    public function process(array $data, string $sourceUrl = '', array $ftpConfig = []): array
+    public function process(array $data, string $sourceUrl = '', array $ftpConfig = [], bool $importAsSuperUser = false): array
     {
         if (isset($data['users']) && isset($data['post_types'])) {
             return $this->processJson($data, $sourceUrl, $ftpConfig);
         }
 
         if (isset($data['itemListElement'])) {
-            return $this->processWordpress($data, $sourceUrl, $ftpConfig);
+            return $this->processWordpress($data, $sourceUrl, $ftpConfig, $importAsSuperUser);
         }
 
         throw new \RuntimeException('Invalid data format');
@@ -59,6 +59,12 @@ class ProcessorModel extends BaseDatabaseModel
             $mediaModel = null;
             if (!empty($ftpConfig) && !empty($ftpConfig['host'])) {
                 $mediaModel = new MediaModel();
+                // Set storage directory based on user selection
+                if (($ftpConfig['media_storage_mode'] ?? 'root') === 'custom' && !empty($ftpConfig['media_custom_dir'])) {
+                    $mediaModel->setStorageDirectory($ftpConfig['media_custom_dir']);
+                } else {
+                    $mediaModel->setStorageDirectory('imports');
+                }
             }
 
             $userMap = [];
@@ -288,7 +294,7 @@ class ProcessorModel extends BaseDatabaseModel
         return (int) $this->db->setQuery($query)->loadResult() ?: 2;
     }
 
-    private function processWordpress(array $data, string $sourceUrl = '', array $ftpConfig = []): array
+    private function processWordpress(array $data, string $sourceUrl = '', array $ftpConfig = [], bool $importAsSuperUser = false): array
     {
         $result = [
             'success' => true,
@@ -323,12 +329,22 @@ class ProcessorModel extends BaseDatabaseModel
             $mediaModel = null;
             if (!empty($ftpConfig) && !empty($ftpConfig['host'])) {
                 $mediaModel = new MediaModel();
+                // Set storage directory based on user selection
+                if (($ftpConfig['media_storage_mode'] ?? 'root') === 'custom' && !empty($ftpConfig['media_custom_dir'])) {
+                    $mediaModel->setStorageDirectory($ftpConfig['media_custom_dir']);
+                } else {
+                    $mediaModel->setStorageDirectory('imports');
+                }
             }
 
             $defaultCategoryId = $this->getDefaultCategoryId();
             $total = count($data['itemListElement']);
             $current = 0;
-
+            // Get current super user ID if needed
+            $superUserId = null;
+            if ($importAsSuperUser) {
+                $superUserId = Factory::getUser()->id;
+            }
             foreach ($data['itemListElement'] as $element) {
                 try {
                     if (!isset($element['item'])) {
@@ -366,9 +382,13 @@ class ProcessorModel extends BaseDatabaseModel
 
                     // Resolve category and author
                     $categoryId = $this->getOrCreateCategory($article['articleSection'][0] ?? 'Uncategorized', $result['counts']);
-                    $authorName = $article['author']['name'] ?? 'admin';
-                    $authorEmail = $article['author']['email'] ?? strtolower(str_replace(' ', '', $authorName)) . '@example.com';
-                    $authorId = $this->getOrCreateUser($authorName, $authorEmail, $result['counts']);
+                    if ($importAsSuperUser && $superUserId) {
+                        $authorId = $superUserId;
+                    } else {
+                        $authorName = $article['author']['name'] ?? 'admin';
+                        $authorEmail = $article['author']['email'] ?? strtolower(str_replace(' ', '', $authorName)) . '@example.com';
+                        $authorId = $this->getOrCreateUser($authorName, $authorEmail, $result['counts']);
+                    }
 
                     // Generate unique alias
                     $baseAlias = OutputFilter::stringURLSafe($article['headline']);
@@ -385,7 +405,7 @@ class ProcessorModel extends BaseDatabaseModel
                         'catid'       => $categoryId ?: $defaultCategoryId,
                         'created'     => $this->formatDate($article['datePublished'] ?? null),
                         'created_by'  => $authorId,
-                        'created_by_alias' => $article['author']['name'] ?? '',
+                        'created_by_alias' => ($importAsSuperUser && $superUserId) ? Factory::getUser()->name : ($article['author']['name'] ?? ''),
                         'publish_up'  => $this->formatDate($article['datePublished'] ?? null),
                         'language'    => '*',
                         'access'      => 1,
@@ -769,4 +789,4 @@ class ProcessorModel extends BaseDatabaseModel
 
         return (int) $db->setQuery($query)->loadResult() > 0;
     }
-} 
+}

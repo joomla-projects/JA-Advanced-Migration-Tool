@@ -58,18 +58,45 @@ class HtmlView extends BaseHtmlView
         $script = "
         document.addEventListener('DOMContentLoaded', function() {
             const mediaToggle = document.querySelector('[name=\"jform[enable_media_migration]\"]');
-            const ftpFields = document.querySelectorAll('.ftp-field');
+            const storageMode = document.querySelector('[name=\"jform[media_storage_mode]\"]');
+            const customDirRow = document.getElementById('media-custom-dir-row');
+            const customDirInput = document.querySelector('[name=\"jform[media_custom_dir]\"]');
+            const ftpFields = document.querySelectorAll('[name^=\"jform[ftp_\"]');
+            const testFtpButton = document.getElementById('test-ftp-button');
+            const testFtpResult = document.getElementById('test-ftp-result');
 
             function toggleFtpFields() {
                 const isEnabled = mediaToggle && (mediaToggle.checked || mediaToggle.value === '1');
                 ftpFields.forEach(function(field) {
                     field.closest('div.control-group, .control-wrapper, .field-box').style.display = isEnabled ? 'block' : 'none';
                 });
+                
+                if (testFtpButton) {
+                    testFtpButton.closest('.control-group, .control-wrapper, .field-box').style.display = isEnabled ? 'block' : 'none';
+                }
+                
+                if (testFtpResult) {
+                    testFtpResult.innerHTML = '';
+                }
+            }
+
+            function toggleCustomDir() {
+                if (storageMode && storageMode.value === 'custom') {
+                    customDirRow.style.display = 'block';
+                } else {
+                    customDirRow.style.display = 'none';
+                    if (customDirInput) customDirInput.value = '';
+                }
             }
 
             if (mediaToggle) {
                 mediaToggle.addEventListener('change', toggleFtpFields);
                 toggleFtpFields(); // Initialize on load
+            }
+
+            if (storageMode) {
+                storageMode.addEventListener('change', toggleCustomDir);
+                toggleCustomDir();
             }
 
             const form = document.getElementById('migration-form');

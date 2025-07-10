@@ -18,7 +18,7 @@ use Joomla\CMS\Filesystem\Folder;
 class ImportModel extends BaseDatabaseModel
 {
     //Our importFunction doesn't know how to convert/parse this data
-    public function import($file, $sourceCms, $sourceUrl = '', $ftpConfig = [])
+    public function import($file, $sourceCms, $sourceUrl = '', $ftpConfig = [], $importAsSuperUser = false)
     {
          // Load plugins "migration"
         PluginHelper::importPlugin('migration');
@@ -72,7 +72,7 @@ class ImportModel extends BaseDatabaseModel
         try {
             $processor = new ProcessorModel();
             //Processor function to process data to Joomla Tables
-            $result = $processor->process($data, $sourceUrl, $ftpConfig);
+            $result = $processor->process($data, $sourceUrl, $ftpConfig, $importAsSuperUser);
          
             if ($result['success']) {
                 $app = Factory::getApplication();
