@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * @package     Joomla.Administrator
+ * @subpackage  com_cmsmigrator
+ * @copyright   Copyright (C) 2025 Open Source Matters, Inc.
+ * @license     GNU General Public License version 2 or later; see LICENSE.txt
+ */
+
 namespace Binary\Component\CmsMigrator\Administrator\Model;
 
 \defined('_JEXEC') or die;
@@ -16,16 +23,50 @@ use Joomla\Component\Fields\Administrator\Model\FieldModel;
 use Joomla\CMS\Filter\OutputFilter;
 use Binary\Component\CmsMigrator\Administrator\Model\MediaModel;
 
+/**
+ * Processor Model
+ *
+ * Handles the processing of migration data.
+ *
+ * @since  1.0.0
+ */
 class ProcessorModel extends BaseDatabaseModel
 {
+    /**
+     * Database object
+     *
+     * @var    \Joomla\Database\DatabaseDriver
+     * @since  1.0.0
+     */
     protected $db;
 
+    /**
+     * Constructor
+     *
+     * @param   array  $config  An optional associative array of configuration settings.
+     *
+     * @since   1.0.0
+     */
     public function __construct(array $config = [])
     {
         parent::__construct($config);
         $this->db = Factory::getDbo();
     }
 
+    /**
+     * Processes migration data.
+     *
+     * @param   array   $data               The migration data.
+     * @param   string  $sourceUrl          The source URL.
+     * @param   array   $ftpConfig          FTP configuration.
+     * @param   bool    $importAsSuperUser  Whether to import as a super user.
+     *
+     * @return  array  The result of the processing.
+     *
+     * @throws  \RuntimeException  If the data format is invalid.
+     *
+     * @since   1.0.0
+     */
     public function process(array $data, string $sourceUrl = '', array $ftpConfig = [], bool $importAsSuperUser = false): array
     {
         if (isset($data['users']) && isset($data['post_types'])) {

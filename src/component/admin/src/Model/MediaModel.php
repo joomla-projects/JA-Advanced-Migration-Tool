@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * @package     Joomla.Administrator
+ * @subpackage  com_cmsmigrator
+ * @copyright   Copyright (C) 2025 Open Source Matters, Inc.
+ * @license     GNU General Public License version 2 or later; see LICENSE.txt
+ */
+
 namespace Binary\Component\CmsMigrator\Administrator\Model;
 
 \defined('_JEXEC') or die;
@@ -11,15 +18,72 @@ use Joomla\CMS\Filesystem\Folder;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Uri\Uri;
 
+/**
+ * Media Model
+ *
+ * Handles media migration and processing.
+ *
+ * @since  1.0.0
+ */
 class MediaModel extends BaseDatabaseModel
 {
+    /**
+     * Database object
+     *
+     * @var    \Joomla\Database\DatabaseDriver
+     * @since  1.0.0
+     */
     protected $db;
-    protected $ftpConnection;
-    protected $mediaBaseUrl;
-    protected $mediaBasePath;
-    protected $downloadedFiles = [];
-    protected $storageDir = 'imports'; // Default directory
 
+    /**
+     * FTP connection resource
+     *
+     * @var    resource|null
+     * @since  1.0.0
+     */
+    protected $ftpConnection;
+
+    /**
+     * Base URL for media
+     *
+     * @var    string
+     * @since  1.0.0
+     */
+    protected $mediaBaseUrl;
+
+    /**
+     * Base path for media
+     *
+     * @var    string
+     * @since  1.0.0
+     */
+    protected $mediaBasePath;
+
+    /**
+     * List of downloaded files
+     *
+     * @var    array
+     * @since  1.0.0
+     */
+    protected $downloadedFiles = [];
+
+    /**
+     * Storage directory
+     *
+     * @var    string
+     * @since  1.0.0
+     */
+    protected $storageDir = 'imports';
+
+    /**
+     * Sets the storage directory.
+     *
+     * @param   string  $dir  The directory name.
+     *
+     * @return  void
+     *
+     * @since   1.0.0
+     */
     public function setStorageDirectory(string $dir = 'imports')
     {
         $this->storageDir = preg_replace('/[^a-zA-Z0-9_-]/', '', $dir) ?: 'imports';
@@ -30,13 +94,31 @@ class MediaModel extends BaseDatabaseModel
         }
     }
 
+    /**
+     * Constructor
+     *
+     * @param   array  $config  An optional associative array of configuration settings.
+     *
+     * @since   1.0.0
+     */
     public function __construct(array $config = [])
     {
         parent::__construct($config);
         $this->db = Factory::getDbo();
-        $this->setStorageDirectory('imports'); // Default to imports
+        $this->setStorageDirectory('imports');
     }
 
+    /**
+     * Migrate media in content
+     *
+     * @param   array   $ftpConfig  The FTP configuration
+     * @param   string  $content    The content with media URLs
+     * @param   string  $sourceUrl  The source URL (optional)
+     *
+     * @return  string  The content with migrated media URLs
+     *
+     * @since   1.0.0
+     */
     public function migrateMediaInContent(array $ftpConfig, string $content, string $sourceUrl = ''): string
     {
         if (empty($content)) {
@@ -74,6 +156,15 @@ class MediaModel extends BaseDatabaseModel
         return $updatedContent;
     }
 
+    /**
+     * Extract image URLs from content
+     *
+     * @param   string  $content  The content to extract URLs from
+     *
+     * @return  array   An array of image URLs
+     *
+     * @since   1.0.0
+     */
     protected function extractImageUrls(string $content): array
     {
         $imageUrls = [];
@@ -95,6 +186,15 @@ class MediaModel extends BaseDatabaseModel
         return array_unique($imageUrls);
     }
 
+    /**
+     * Download and process image
+     *
+     * @param   string  $imageUrl  The image URL to download and process
+     *
+     * @return  string|null  The new URL of the processed image, or null on failure
+     *
+     * @since   1.0.0
+     */
     protected function downloadAndProcessImage(string $imageUrl): ?string
     {
         $parsedUrl = parse_url($imageUrl);
@@ -154,6 +254,16 @@ class MediaModel extends BaseDatabaseModel
         return null;
     }
 
+    /**
+     * Download file via FTP
+     *
+     * @param   string  $remotePath  The remote file path
+     * @param   string  $localPath   The local file path
+     *
+     * @return  bool  True on success, false on failure
+     *
+     * @since   1.0.0
+     */
     protected function downloadFileViaFtp(string $remotePath, string $localPath): bool
     {
         if (!$this->ftpConnection) {
@@ -176,12 +286,30 @@ class MediaModel extends BaseDatabaseModel
         return false;
     }
 
+    /**
+     * Get local file name from remote path
+     *
+     * @param   string  $remotePath  The remote file path
+     *
+     * @return  string  The local file name
+     *
+     * @since   1.0.0
+     */
     protected function getLocalFileName(string $remotePath): string
     {
         $cleanPath = str_replace(['wp-content/uploads/', '/', '\\'], ['', '_', '_'], $remotePath);
         return preg_replace('/[^a-zA-Z0-9._-]/', '_', $cleanPath);
     }
 
+    /**
+     * Connect to FTP server
+     *
+     * @param   array  $config  The FTP configuration
+     *
+     * @return  bool  True on success, false on failure
+     *
+     * @since   1.0.0
+     */
     protected function connectFtp(array $config): bool
     {
         if ($this->ftpConnection) {
@@ -217,6 +345,13 @@ class MediaModel extends BaseDatabaseModel
         return true;
     }
 
+    /**
+     * Disconnect from FTP server
+     *
+     * @return  void
+     *
+     * @since   1.0.0
+     */
     protected function disconnectFtp(): void
     {
         if ($this->ftpConnection) {
@@ -225,6 +360,13 @@ class MediaModel extends BaseDatabaseModel
         }
     }
 
+    /**
+     * Get media statistics
+     *
+     * @return  array  An array containing the number of downloaded files and the list of files
+     *
+     * @since   1.0.0
+     */
     public function getMediaStats(): array
     {
         return [
@@ -239,6 +381,8 @@ class MediaModel extends BaseDatabaseModel
      * @param   array  $config  The FTP configuration
      * 
      * @return  array  Result containing success status and message
+     *
+     * @since   1.0.0
      */
     public function testConnection(array $config): array
     {
@@ -285,11 +429,25 @@ class MediaModel extends BaseDatabaseModel
         return $result;
     }
 
+    /**
+     * Clear the cached media data
+     *
+     * @return  void
+     *
+     * @since   1.0.0
+     */
     public function clearCache(): void
     {
         $this->downloadedFiles = [];
     }
 
+    /**
+     * Destructor
+     *
+     * Cleans up the FTP connection on object destruction.
+     *
+     * @since   1.0.0
+     */
     public function __destruct()
     {
         $this->disconnectFtp();

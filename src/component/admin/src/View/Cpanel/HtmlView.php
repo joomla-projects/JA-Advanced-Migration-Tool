@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * @package     Joomla.Administrator
+ * @subpackage  com_cmsmigrator
+ * @copyright   Copyright (C) 2025 Open Source Matters, Inc.
+ * @license     GNU General Public License version 2 or later; see LICENSE.txt
+ */
+
 namespace Binary\Component\CmsMigrator\Administrator\View\Cpanel;
 
 \defined('_JEXEC') or die;
@@ -11,11 +18,40 @@ use Joomla\CMS\Toolbar\ToolbarHelper;
 use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Factory;
 
+/**
+ * Cpanel View
+ *
+ * Provides the main control panel for the component.
+ *
+ * @since  1.0.0
+ */
 class HtmlView extends BaseHtmlView
 {
+    /**
+     * Form object
+     *
+     * @var    Form
+     * @since  1.0.0
+     */
     public $form;
+
+    /**
+     * Document object
+     *
+     * @var    \Joomla\CMS\Document\HtmlDocument
+     * @since  1.0.0
+     */
     public $document;
 
+    /**
+     * Display the view
+     *
+     * @param   string|null  $tpl  The name of the template file to parse; automatically searches through the template paths.
+     *
+     * @return  void
+     *
+     * @since   1.0.0
+     */
     public function display($tpl = null): void
     {
         // Load the form
@@ -39,6 +75,13 @@ class HtmlView extends BaseHtmlView
         parent::display($tpl);
     }
 
+    /**
+     * Add the toolbar
+     *
+     * @return  void
+     *
+     * @since   1.0.0
+     */
     protected function addToolbar(): void
     {
         ToolbarHelper::title(Text::_('COM_CMSMIGRATOR_MANAGER_CPANEL'));
@@ -47,6 +90,10 @@ class HtmlView extends BaseHtmlView
 
     /**
      * Adds necessary JavaScript behaviors and custom logic for the form
+     *
+     * @return  void
+     *
+     * @since   1.0.0
      */
     protected function addScripts(): void
     {
@@ -70,11 +117,11 @@ class HtmlView extends BaseHtmlView
                 ftpFields.forEach(function(field) {
                     field.closest('div.control-group, .control-wrapper, .field-box').style.display = isEnabled ? 'block' : 'none';
                 });
-                
+
                 if (testFtpButton) {
                     testFtpButton.closest('.control-group, .control-wrapper, .field-box').style.display = isEnabled ? 'block' : 'none';
                 }
-                
+
                 if (testFtpResult) {
                     testFtpResult.innerHTML = '';
                 }
