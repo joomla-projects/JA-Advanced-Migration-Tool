@@ -253,16 +253,18 @@ class ProcessorModel extends BaseDatabaseModel
             $authorEmail = $article['author']['email'] ?? strtolower(str_replace(' ', '', $authorName)) . '@example.com';
             $authorId = $this->getOrCreateUser($authorName, $authorEmail, $result['counts']);
         }
-        $categoryId = $this->getOrCreateCategory($article['articleSection'][0] ?? 'Uncategorized', $result['counts']);
+        
+        // Assume top-level category for WordPress import. Joomla's ROOT category ID is 1.
+        $joomlaParentId = 1;
+        $categoryId = $this->getOrCreateCategory($article['articleSection'][0] ?? 'Uncategorized', $joomlaParentId, $result['counts']);
 
-        // Prepare article data
         $articleData = [
             'id'               => 0,
             'title'            => $article['headline'],
             'alias'            => $this->getUniqueAlias(OutputFilter::stringURLSafe($article['headline'])),
             'introtext'        => $introtext,
             'fulltext'         => $fulltext,
-            'state'            => 1, // Published
+            'state'            => 1,
             'catid'            => $categoryId ?: $this->getDefaultCategoryId(),
             'created'          => $this->formatDate($article['datePublished'] ?? null),
             'created_by'       => $authorId,
@@ -313,7 +315,8 @@ class ProcessorModel extends BaseDatabaseModel
     }
 
     /**
-     * Processes a batch of taxonomies (categories) from the JSON import.
+     * Processes taxonomies in multiple passes to respect parent-child relationships.
+     * This version includes checks for duplicate source term IDs.
      *
      * @param   array $taxonomies Array of taxonomy data.
      * @param   array &$counts    The main counts array.
@@ -323,18 +326,58 @@ class ProcessorModel extends BaseDatabaseModel
     private function processTaxonomies(array $taxonomies, array &$counts): array
     {
         $result = ['errors' => [], 'map' => []];
+        $allTerms = [];
 
         foreach ($taxonomies as $taxonomyType => $terms) {
-            if ($taxonomyType !== 'category' && $taxonomyType !== 'post_tag') {
-                continue;
+            if ($taxonomyType === 'category' || $taxonomyType === 'post_tag') {
+                $allTerms = array_merge($allTerms, $terms);
             }
-            foreach ($terms as $term) {
-                try {
-                    $newCatId = $this->getOrCreateCategory($term['name'], $counts, $term);
-                    $result['map'][$term['term_id']] = $newCatId;
-                } catch (\Exception $e) {
-                    $result['errors'][] = sprintf('Error importing category "%s": %s', $term['name'], $e->getMessage());
+        }
+
+        $lastProcessedCount = -1;
+        while (count($allTerms) > 0 && count($allTerms) !== $lastProcessedCount) {
+            $lastProcessedCount = count($allTerms);
+            $remainingTerms = [];
+
+            foreach ($allTerms as $term) {
+                // Defensive check: Skip if this term_id has already been processed.
+                if (isset($result['map'][$term['term_id']])) {
+                    continue;
                 }
+
+                $sourceParentId = (int) ($term['parent'] ?? 0);
+                $canProcess = false;
+                $joomlaParentId = 1; // Default to Joomla's ROOT category
+
+                if ($sourceParentId === 0) {
+                    $canProcess = true;
+                } elseif (isset($result['map'][$sourceParentId])) {
+                    $canProcess = true;
+                    $joomlaParentId = $result['map'][$sourceParentId];
+                }
+
+                if ($canProcess) {
+                    try {
+                        $newCatId = $this->getOrCreateCategory($term['name'], $joomlaParentId, $counts, $term);
+                        $result['map'][$term['term_id']] = $newCatId;
+                    } catch (\Exception $e) {
+                        $result['errors'][] = $e->getMessage();
+                    }
+                } else {
+                    $remainingTerms[] = $term;
+                }
+            }
+            $allTerms = $remainingTerms;
+        }
+
+        if (!empty($allTerms)) {
+            foreach ($allTerms as $orphan) {
+                $result['errors'][] = sprintf(
+                    'Could not import category "%s" (Source ID: %d) because its parent (Source ID: %d) was not found or could not be imported.',
+                    $orphan['name'],
+                    $orphan['term_id'],
+                    $orphan['parent']
+                );
             }
         }
         return $result;
@@ -428,19 +471,18 @@ class ProcessorModel extends BaseDatabaseModel
         return $mediaModel;
     }
 
-    // --- "Get or Create" Helper Methods ---
-
     /**
-     * Gets an existing category ID by its name/alias or creates a new one.
+     * Gets an existing category ID or creates it, with improved validation and error reporting.
      *
      * @param   string $categoryName The category name.
+     * @param   int    $parentId     The Joomla ID of the parent category.
      * @param   array  &$counts      The counts array, passed by reference.
      * @param   ?array $sourceData   Optional array of source data (e.g., for slug, description).
      *
      * @return  int The category ID.
      * @throws  \RuntimeException If saving fails.
      */
-    protected function getOrCreateCategory(string $categoryName, array &$counts, ?array $sourceData = null): int
+    protected function getOrCreateCategory(string $categoryName, int $parentId, array &$counts, ?array $sourceData = null): int
     {
         $alias = $sourceData['slug'] ?? OutputFilter::stringURLSafe($categoryName);
 
@@ -448,6 +490,7 @@ class ProcessorModel extends BaseDatabaseModel
             ->select('id')
             ->from('#__categories')
             ->where('alias = ' . $this->db->quote($alias))
+            ->where('parent_id = ' . (int) $parentId)
             ->where('extension = ' . $this->db->quote('com_content'));
 
         $categoryId = $this->db->setQuery($query)->loadResult();
@@ -456,6 +499,7 @@ class ProcessorModel extends BaseDatabaseModel
             $categoryTable = Table::getInstance('Category');
             $categoryData = [
                 'id'          => 0,
+                'parent_id'   => $parentId,
                 'title'       => $categoryName,
                 'alias'       => $alias,
                 'description' => $sourceData['description'] ?? '',
@@ -465,9 +509,19 @@ class ProcessorModel extends BaseDatabaseModel
                 'language'    => '*',
             ];
 
-            if (!$categoryTable->save($categoryData)) {
-                throw new \RuntimeException($categoryTable->getError());
+            // Use Joomla's proper check/store methods for better validation
+            if (!$categoryTable->bind($categoryData) || !$categoryTable->check() || !$categoryTable->store()) {
+                // Throw a much more detailed error to help diagnose the exact problem
+                $error = sprintf(
+                    'Failed to save category. Attempted to create: [Name: "%s", Alias: "%s", Joomla ParentID: %d]. Joomla Core Error: %s',
+                    $categoryData['title'],
+                    $categoryData['alias'],
+                    $categoryData['parent_id'],
+                    $categoryTable->getError()
+                );
+                throw new \RuntimeException($error);
             }
+
             $counts['taxonomies']++;
             $categoryId = $categoryTable->id;
         }
@@ -481,7 +535,7 @@ class ProcessorModel extends BaseDatabaseModel
      * @param   string $username   The user's login name.
      * @param   string $email      The user's email.
      * @param   array  &$counts    The counts array, passed by reference.
-     * @param   ?array $sourceData Optional array of source data (e.g., for display name, registration date).
+     * @param   ?array $sourceData Optional array of source data.
      *
      * @return  int The user ID.
      * @throws  \RuntimeException If saving fails.
@@ -498,7 +552,7 @@ class ProcessorModel extends BaseDatabaseModel
                 'email'        => $email,
                 'password'     => UserHelper::hashPassword(UserHelper::genRandomPassword()),
                 'registerDate' => isset($sourceData['user_registered']) ? (new Date($sourceData['user_registered']))->toSql() : Factory::getDate()->toSql(),
-                'groups'       => [2], // Registered
+                'groups'       => [2],
                 'requireReset' => 1,
             ];
 
@@ -514,8 +568,6 @@ class ProcessorModel extends BaseDatabaseModel
 
         return (int) $userId;
     }
-
-    // --- Custom Fields & Utility Methods ---
 
     /**
      * Process custom fields for an article
@@ -562,23 +614,25 @@ class ProcessorModel extends BaseDatabaseModel
         if (!$fieldId) {
             $fieldModel = new FieldModel(['ignore_request' => true]);
             $fieldData = [
-                'id'        => 0,
-                'title'     => ucwords(str_replace(['_', '-'], ' ', $fieldName)),
-                'name'      => $fieldName,
-                'type'      => 'text',
-                'context'   => 'com_content.article',
-                'state'     => 1,
-                'language'  => '*',
+                'id'          => 0,
+                'title'       => ucwords(str_replace(['_', '-'], ' ', $fieldName)),
+                'name'        => $fieldName,
+                'type'        => 'text',
+                'context'     => 'com_content.article',
+                'description' => '', // <-- THE FIX
+                'state'       => 1,
+                'language'    => '*',
             ];
             if ($fieldModel->save($fieldData)) {
                 $fieldId = (int) $fieldModel->getItem()->id;
             } else {
-                 Factory::getApplication()->enqueueMessage(
+                Factory::getApplication()->enqueueMessage(
                     sprintf('Failed to create custom field "%s": %s', $fieldName, $fieldModel->getError()),
                     'warning'
                 );
             }
         }
+        
         return $fieldId;
     }
 
@@ -597,7 +651,17 @@ class ProcessorModel extends BaseDatabaseModel
         $fieldValue->item_id  = $articleId;
         $fieldValue->value    = $value;
 
-        $this->db->insertObject('#__fields_values', $fieldValue, ['field_id', 'item_id']);
+        try {
+            $this->db->insertObject('#__fields_values', $fieldValue);
+        } catch (\Exception $e) {
+            // Handle potential duplicate key error if re-importing
+            $query = $this->db->getQuery(true)
+                ->update($this->db->quoteName('#__fields_values'))
+                ->set($this->db->quoteName('value') . ' = ' . $this->db->quote($value))
+                ->where($this->db->quoteName('field_id') . ' = ' . (int) $fieldId)
+                ->where($this->db->quoteName('item_id') . ' = ' . (int) $articleId);
+            $this->db->setQuery($query)->execute();
+        }
     }
 
     /**
@@ -613,7 +677,7 @@ class ProcessorModel extends BaseDatabaseModel
             ->where($this->db->quoteName('path') . ' = ' . $this->db->quote('uncategorised'))
             ->where($this->db->quoteName('extension') . ' = ' . $this->db->quote('com_content'));
             
-        return (int) $this->db->setQuery($query)->loadResult() ?: 2; // Fallback to root
+        return (int) $this->db->setQuery($query)->loadResult() ?: 2; // Fallback to root's child
     }
 
     /**
@@ -656,9 +720,13 @@ class ProcessorModel extends BaseDatabaseModel
      */
     private function updateProgress(int $percent, string $status = ''): void
     {
-        $progressFile = JPATH_SITE . '/media/com_cmsmigrator/imports/progress.json';
-        $data = ['percent' => $percent, 'status' => $status, 'timestamp' => time()];
-        \Joomla\CMS\Filesystem\File::write($progressFile, json_encode($data));
+        try {
+            $progressFile = JPATH_SITE . '/media/com_cmsmigrator/imports/progress.json';
+            $data = ['percent' => $percent, 'status' => $status, 'timestamp' => time()];
+            \Joomla\CMS\Filesystem\File::write($progressFile, json_encode($data));
+        } catch (\Exception $e) {
+            // Fails silently if filesystem is not writable
+        }
     }
 
     /**
@@ -675,7 +743,7 @@ class ProcessorModel extends BaseDatabaseModel
 
         while ($this->aliasExists($alias)) {
             $alias = $originalAlias . '-' . $counter++;
-            if ($counter > 100) { // Safety break
+            if ($counter > 100) {
                 return $originalAlias . '-' . uniqid();
             }
         }
