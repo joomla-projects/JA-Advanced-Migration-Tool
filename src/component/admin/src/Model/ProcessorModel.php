@@ -1,10 +1,10 @@
 <?php
 
 /**
- * @package     Joomla.Administrator
- * @subpackage  com_cmsmigrator
- * @copyright   Copyright (C) 2025 Open Source Matters, Inc.
- * @license     GNU General Public License version 2 or later; see LICENSE.txt
+ * @package      Joomla.Administrator
+ * @subpackage   com_cmsmigrator
+ * @copyright    Copyright (C) 2025 Open Source Matters, Inc.
+ * @license      GNU General Public License version 2 or later; see LICENSE.txt
  */
 
 namespace Binary\Component\CmsMigrator\Administrator\Model;
@@ -54,18 +54,15 @@ class ProcessorModel extends BaseDatabaseModel
     }
 
     /**
-     * Processes migration data.
+     * Processes migration data by routing to the appropriate processor.
      *
-     * @param   array   $data               The migration data.
-     * @param   string  $sourceUrl          The source URL.
-     * @param   array   $ftpConfig          FTP configuration.
-     * @param   bool    $importAsSuperUser  Whether to import as a super user.
+     * @param   array   $data                 The migration data.
+     * @param   string  $sourceUrl            The source URL.
+     * @param   array   $ftpConfig            FTP configuration.
+     * @param   bool    $importAsSuperUser    Whether to import as a super user.
      *
-     * @return  array  The result of the processing.
-     *
+     * @return  array   The result of the processing.
      * @throws  \RuntimeException  If the data format is invalid.
-     *
-     * @since   1.0.0
      */
     public function process(array $data, string $sourceUrl = '', array $ftpConfig = [], bool $importAsSuperUser = false): array
     {
@@ -80,65 +77,19 @@ class ProcessorModel extends BaseDatabaseModel
         throw new \RuntimeException('Invalid data format');
     }
 
-    private function processJson(array $data, string $sourceUrl = '', array $ftpConfig = []): array
+    /**
+     * Executes a given processing function within a database transaction.
+     *
+     * @param   callable $processor The function containing the import logic.
+     * @param   array    &$result   The result array, passed by reference.
+     *
+     * @return  void
+     */
+    private function executeInTransaction(callable $processor, array &$result): void
     {
-        $result = [
-            'success' => true,
-            'counts' => [
-                'users' => 0,
-                'taxonomies' => 0,
-                'articles' => 0,
-                'media' => 0
-            ],
-            'errors' => []
-        ];
-
         $this->db->transactionStart();
-
         try {
-            // Initialize MediaModel if FTP config is provided
-            $mediaModel = null;
-            if (!empty($ftpConfig) && !empty($ftpConfig['host'])) {
-                $mediaModel = new MediaModel();
-                // Set storage directory based on user selection
-                if (($ftpConfig['media_storage_mode'] ?? 'root') === 'custom' && !empty($ftpConfig['media_custom_dir'])) {
-                    $mediaModel->setStorageDirectory($ftpConfig['media_custom_dir']);
-                } else {
-                    $mediaModel->setStorageDirectory('imports');
-                }
-            }
-
-            $userMap = [];
-            if (!empty($data['users'])) {
-                $userResult = $this->processUsers($data['users']);
-                $userMap = $userResult['map'];
-                $result['counts']['users'] = $userResult['imported'];
-                $result['errors'] = array_merge($result['errors'], $userResult['errors']);
-            }
-            
-            $categoryMap = [];
-            if (!empty($data['taxonomies'])) {
-                $taxonomyResult = $this->processTaxonomies($data['taxonomies']);
-                $categoryMap = $taxonomyResult['map'];
-                $result['counts']['taxonomies'] = $taxonomyResult['imported'];
-                $result['errors'] = array_merge($result['errors'], $taxonomyResult['errors']);
-            }
-
-            if (!empty($data['post_types'])) {
-                foreach ($data['post_types'] as $postType => $posts) {
-                    if ($postType === 'post' || $postType === 'page') {
-                        $postResult = $this->processPosts($posts, $postType, $userMap, $categoryMap, $mediaModel, $ftpConfig, $sourceUrl);
-                        $result['counts']['articles'] += $postResult['imported'];
-                        $result['errors'] = array_merge($result['errors'], $postResult['errors']);
-                    }
-                }
-            }
-
-            // Get media statistics if MediaModel was used
-            if ($mediaModel) {
-                $mediaStats = $mediaModel->getMediaStats();
-                $result['counts']['media'] = $mediaStats['downloaded'];
-            }
+            $processor();
 
             if (empty($result['errors'])) {
                 $this->db->transactionCommit();
@@ -151,85 +102,236 @@ class ProcessorModel extends BaseDatabaseModel
             $result['success'] = false;
             $result['errors'][] = 'Import failed: ' . $e->getMessage();
         }
+    }
+
+    /**
+     * Processes migration data from a generic JSON structure.
+     *
+     * @param   array   $data       The migration data.
+     * @param   string  $sourceUrl  The source URL.
+     * @param   array   $ftpConfig  FTP configuration.
+     *
+     * @return  array   The result of the processing.
+     */
+    private function processJson(array $data, string $sourceUrl = '', array $ftpConfig = []): array
+    {
+        $result = [
+            'success' => true,
+            'counts'  => ['users' => 0, 'taxonomies' => 0, 'articles' => 0, 'media' => 0, 'skipped' => 0],
+            'errors'  => []
+        ];
+
+        $this->executeInTransaction(function () use ($data, $sourceUrl, $ftpConfig, &$result) {
+            $mediaModel = $this->initializeMediaModel($ftpConfig);
+
+            $userMap = [];
+            if (!empty($data['users'])) {
+                $userResult = $this->processUsers($data['users'], $result['counts']);
+                $userMap = $userResult['map'];
+                $result['errors'] = array_merge($result['errors'], $userResult['errors']);
+            }
+            
+            $categoryMap = [];
+            if (!empty($data['taxonomies'])) {
+                $taxonomyResult = $this->processTaxonomies($data['taxonomies'], $result['counts']);
+                $categoryMap = $taxonomyResult['map'];
+                $result['errors'] = array_merge($result['errors'], $taxonomyResult['errors']);
+            }
+
+            if (!empty($data['post_types'])) {
+                foreach ($data['post_types'] as $postType => $posts) {
+                    if ($postType === 'post' || $postType === 'page') {
+                        $postResult = $this->processPosts($posts, $userMap, $categoryMap, $mediaModel, $ftpConfig, $sourceUrl);
+                        $result['counts']['articles'] += $postResult['imported'];
+                        $result['counts']['skipped'] += $postResult['skipped'];
+                        $result['errors'] = array_merge($result['errors'], $postResult['errors']);
+                    }
+                }
+            }
+
+            if ($mediaModel) {
+                $result['counts']['media'] = $mediaModel->getMediaStats()['downloaded'];
+            }
+        }, $result);
 
         return $result;
     }
 
-    private function processUsers(array $users): array
+    /**
+     * Processes migration data from a WordPress JSON-LD structure.
+     *
+     * @param   array   $data               The migration data.
+     * @param   string  $sourceUrl          The source URL.
+     * @param   array   $ftpConfig          FTP configuration.
+     * @param   bool    $importAsSuperUser  Whether to import as a super user.
+     *
+     * @return  array   The result of the processing.
+     */
+    private function processWordpress(array $data, string $sourceUrl = '', array $ftpConfig = [], bool $importAsSuperUser = false): array
     {
-        $result = ['imported' => 0, 'errors' => [], 'map' => []];
-        $userModel = new UserModel(['ignore_request' => true]);
+        $result = [
+            'success' => true,
+            'counts'  => ['users' => 0, 'taxonomies' => 0, 'articles' => 0, 'media' => 0, 'skipped' => 0],
+            'errors'  => []
+        ];
 
-        foreach ($users as $userData) {
-            try {
-                // Check if user already exists
-                $existingUserId = $this->getUserIdByUsername($userData['user_login']);
-                if ($existingUserId) {
-                    $result['map'][$userData['ID']] = $existingUserId;
-                    continue;
+        if (!isset($data['itemListElement']) || !is_array($data['itemListElement'])) {
+            $result['success'] = false;
+            $result['errors'][] = 'Invalid WordPress JSON format';
+            return $result;
+        }
+
+        $this->executeInTransaction(function () use ($data, $sourceUrl, $ftpConfig, $importAsSuperUser, &$result) {
+            $mediaModel = $this->initializeMediaModel($ftpConfig);
+            $superUserId = $importAsSuperUser ? Factory::getUser()->id : null;
+            $total = count($data['itemListElement']);
+            
+            foreach ($data['itemListElement'] as $index => $element) {
+                $current = $index + 1;
+                try {
+                    if (isset($element['item'])) {
+                        $this->processWordpressArticle($element['item'], $result, $mediaModel, $ftpConfig, $sourceUrl, $superUserId);
+                    }
+                } catch (\Exception $e) {
+                    $result['errors'][] = sprintf(
+                        'Error importing article "%s": %s',
+                        $element['item']['headline'] ?? 'Unknown',
+                        $e->getMessage()
+                    );
                 }
-
-                $joomlaUser = [
-                    'name' => $userData['display_name'],
-                    'username' => $userData['user_login'],
-                    'email' => $userData['user_email'],
-                    'password' => UserHelper::hashPassword(UserHelper::genRandomPassword()),
-                    'registerDate' => (new Date($userData['user_registered']))->toSql(),
-                    'groups' => [2]
-                ];
-
-                $user = new \Joomla\CMS\User\User;
-                $user->set('sendEmail', 0);
-                $user->bind($joomlaUser);
-                $user->requireReset = true;
-                
-                if (!$user->save()) {
-                    throw new \RuntimeException($user->getError());
-                }
-                
-                $result['map'][$userData['ID']] = $user->id;
-                $result['imported']++;
-            } catch (\Exception $e) {
-                $result['errors'][] = sprintf('Error importing user "%s": %s', $userData['user_login'], $e->getMessage());
+                $percent = (int) (($current / $total) * 100);
+                $this->updateProgress($percent, "Migrating articles: $current / $total (Imported: {$result['counts']['articles']}, Skipped: {$result['counts']['skipped']})");
             }
+
+            if ($mediaModel) {
+                $result['counts']['media'] = $mediaModel->getMediaStats()['downloaded'];
+            }
+        }, $result);
+
+        if (!$result['success']) {
+            $this->updateProgress(100, 'Migration failed!');
         }
 
         return $result;
     }
 
-    private function processTaxonomies(array $taxonomies): array
+    /**
+     * Processes a single WordPress article item.
+     *
+     * @param   array      $article        The article data array.
+     * @param   array      &$result        The result array, passed by reference.
+     * @param   ?MediaModel $mediaModel    The media model instance.
+     * @param   array      $ftpConfig      FTP configuration.
+     * @param   string     $sourceUrl      The source site URL.
+     * @param   ?int       $superUserId    The ID of the super user to assign articles to.
+     *
+     * @return  void
+     * @throws  \Exception
+     */
+    private function processWordpressArticle(array $article, array &$result, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, ?int $superUserId): void
     {
-        $result = ['imported' => 0, 'errors' => [], 'map' => []];
-        $categoryModel = new CategoryModel(['ignore_request' => true]);
+        if ($this->articleExists($article['headline'])) {
+            $result['counts']['skipped']++;
+            return;
+        }
+
+        // Clean and process content
+        $content = $this->cleanWordPressContent($article['articleBody'] ?? '');
+        if ($mediaModel) {
+            $content = $mediaModel->migrateMediaInContent($ftpConfig, $content, $sourceUrl);
+        }
+
+        [$introtext, $fulltext] = (strpos($content, '') !== false)
+            ? explode(',', $content, 2)
+            : [$content, ''];
+
+        // Resolve author and category
+        if ($superUserId) {
+            $authorId = $superUserId;
+        } else {
+            $authorName = $article['author']['name'] ?? 'admin';
+            $authorEmail = $article['author']['email'] ?? strtolower(str_replace(' ', '', $authorName)) . '@example.com';
+            $authorId = $this->getOrCreateUser($authorName, $authorEmail, $result['counts']);
+        }
+        $categoryId = $this->getOrCreateCategory($article['articleSection'][0] ?? 'Uncategorized', $result['counts']);
+
+        // Prepare article data
+        $articleData = [
+            'id'               => 0,
+            'title'            => $article['headline'],
+            'alias'            => $this->getUniqueAlias(OutputFilter::stringURLSafe($article['headline'])),
+            'introtext'        => $introtext,
+            'fulltext'         => $fulltext,
+            'state'            => 1, // Published
+            'catid'            => $categoryId ?: $this->getDefaultCategoryId(),
+            'created'          => $this->formatDate($article['datePublished'] ?? null),
+            'created_by'       => $authorId,
+            'created_by_alias' => $superUserId ? ($article['author']['name'] ?? '') : '',
+            'publish_up'       => $this->formatDate($article['datePublished'] ?? null),
+            'language'         => '*',
+        ];
+
+        // Save the article
+        $articleModel = new ArticleModel(['ignore_request' => true]);
+        if (!$articleModel->save($articleData)) {
+            throw new \RuntimeException('Failed to save article: ' . $articleModel->getError());
+        }
+        $result['counts']['articles']++;
+
+        // Process custom fields
+        if (!empty($article['customFields']) && is_array($article['customFields'])) {
+            $this->processCustomFields($articleModel->getItem()->id, $article['customFields']);
+        }
+    }
+
+    /**
+     * Processes a batch of users from the JSON import.
+     *
+     * @param   array $users   Array of user data.
+     * @param   array &$counts The main counts array.
+     *
+     * @return  array  An array containing the user map and any errors.
+     */
+    private function processUsers(array $users, array &$counts): array
+    {
+        $result = ['errors' => [], 'map' => []];
+
+        foreach ($users as $userData) {
+            try {
+                $joomlaUserId = $this->getOrCreateUser(
+                    $userData['user_login'],
+                    $userData['user_email'],
+                    $counts,
+                    $userData
+                );
+                $result['map'][$userData['ID']] = $joomlaUserId;
+            } catch (\Exception $e) {
+                $result['errors'][] = sprintf('Error importing user "%s": %s', $userData['user_login'], $e->getMessage());
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * Processes a batch of taxonomies (categories) from the JSON import.
+     *
+     * @param   array $taxonomies Array of taxonomy data.
+     * @param   array &$counts    The main counts array.
+     *
+     * @return  array An array containing the category map and any errors.
+     */
+    private function processTaxonomies(array $taxonomies, array &$counts): array
+    {
+        $result = ['errors' => [], 'map' => []];
 
         foreach ($taxonomies as $taxonomyType => $terms) {
-            if ($taxonomyType !== 'category' && $taxonomyType !== 'post_tag') continue;
-
+            if ($taxonomyType !== 'category' && $taxonomyType !== 'post_tag') {
+                continue;
+            }
             foreach ($terms as $term) {
                 try {
-                    $existingCatId = $this->getCategoryIdBySlug($term['slug']);
-                    if ($existingCatId) {
-                        $result['map'][$term['term_id']] = $existingCatId;
-                        continue;
-                    }
-                    
-                    $categoryData = [
-                        'id' => 0,
-                        'title' => $term['name'],
-                        'alias' => $term['slug'],
-                        'extension' => 'com_content',
-                        'published' => 1,
-                        'description' => $term['description'],
-                        'language' => '*',
-                    ];
-                    
-                    if (!$categoryModel->save($categoryData)) {
-                        throw new \RuntimeException($categoryModel->getError());
-                    }
-                    $newCatId = $categoryModel->getItem()->id;
+                    $newCatId = $this->getOrCreateCategory($term['name'], $counts, $term);
                     $result['map'][$term['term_id']] = $newCatId;
-
-                    $result['imported']++;
                 } catch (\Exception $e) {
                     $result['errors'][] = sprintf('Error importing category "%s": %s', $term['name'], $e->getMessage());
                 }
@@ -238,59 +340,59 @@ class ProcessorModel extends BaseDatabaseModel
         return $result;
     }
     
-    private function processPosts(array $posts, string $postType, array $userMap, array $categoryMap, $mediaModel = null, array $ftpConfig = [], string $sourceUrl = ''): array
+    /**
+     * Processes a batch of posts (articles) from the JSON import.
+     *
+     * @param   array      $posts       Array of post data.
+     * @param   array      $userMap     Map of source user IDs to Joomla user IDs.
+     * @param   array      $categoryMap Map of source category IDs to Joomla category IDs.
+     * @param   ?MediaModel $mediaModel  The media model instance.
+     * @param   array      $ftpConfig   FTP configuration.
+     * @param   string     $sourceUrl   The source URL.
+     *
+     * @return  array Result of the post import.
+     */
+    private function processPosts(array $posts, array $userMap, array $categoryMap, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl): array
     {
         $result = ['imported' => 0, 'errors' => [], 'skipped' => 0];
         $articleModel = new ArticleModel(['ignore_request' => true]);
-        
         $defaultCategoryId = $this->getDefaultCategoryId();
 
         foreach ($posts as $post) {
             try {
-                // Skip if article already exists
                 if ($this->articleExists($post['post_title'])) {
                     $result['skipped']++;
                     continue;
                 }
 
-                $authorId = 42; // Fallback to admin
-                if (isset($post['post_author']) && isset($userMap[$post['post_author']])) {
-                    $authorId = $userMap[$post['post_author']];
-                }
+                $authorId = $userMap[$post['post_author']] ?? 42; // Fallback to admin
+                $content = $post['post_content'];
 
+                // Assign category
                 $categoryId = $defaultCategoryId;
                 if (!empty($post['terms']['category'])) {
                     $primaryCategory = reset($post['terms']['category']);
                     if (isset($categoryMap[$primaryCategory['term_id']])) {
-                         $categoryId = $categoryMap[$primaryCategory['term_id']];
+                        $categoryId = $categoryMap[$primaryCategory['term_id']];
                     }
                 }
-                // Process media migration if enabled
-                $content = $post['post_content'];
-                if ($mediaModel && !empty($ftpConfig)) {
-                    try {
-                        $content = $mediaModel->migrateMediaInContent($ftpConfig, $content, $sourceUrl);
-                    } catch (\Exception $e) {
-                        $result['errors'][] = sprintf('Media migration error in post "%s": %s', $post['post_title'], $e->getMessage());
-                    }
+                
+                // Migrate media
+                if ($mediaModel) {
+                    $content = $mediaModel->migrateMediaInContent($ftpConfig, $content, $sourceUrl);
                 }
-
-                // Generate unique alias
-                $baseAlias = $post['post_name'] ?? \Joomla\CMS\Filter\OutputFilter::stringURLSafe($post['post_title']);
-                $uniqueAlias = $this->getUniqueAlias($baseAlias, $post['post_title']);
 
                 $articleData = [
-                    'id' => 0,
-                    'title' => $post['post_title'],
-                    'alias' => $uniqueAlias,
-                    'introtext' => $content,
-                    'fulltext' => '',
-                    'state' => ($post['post_status'] === 'publish') ? 1 : 0,
-                    'catid' => $categoryId,
-                    'created' => (new Date($post['post_date']))->toSql(),
+                    'id'         => 0,
+                    'title'      => $post['post_title'],
+                    'alias'      => $this->getUniqueAlias($post['post_name'] ?? OutputFilter::stringURLSafe($post['post_title'])),
+                    'introtext'  => $content,
+                    'state'      => ($post['post_status'] === 'publish') ? 1 : 0,
+                    'catid'      => $categoryId,
+                    'created'    => (new Date($post['post_date']))->toSql(),
                     'created_by' => $authorId,
                     'publish_up' => (new Date($post['post_date']))->toSql(),
-                    'language' => '*',
+                    'language'   => '*',
                 ];
 
                 if (!$articleModel->save($articleData)) {
@@ -304,255 +406,68 @@ class ProcessorModel extends BaseDatabaseModel
         return $result;
     }
 
-    private function getUserIdByUsername(string $username): int
+    /**
+     * Initializes the MediaModel if FTP configuration is provided.
+     *
+     * @param   array $ftpConfig FTP configuration.
+     *
+     * @return  ?MediaModel A MediaModel instance or null.
+     */
+    private function initializeMediaModel(array $ftpConfig): ?MediaModel
     {
-        $query = $this->db->getQuery(true)
-            ->select('id')
-            ->from('#__users')
-            ->where('username = ' . $this->db->quote($username));
-        
-        return (int) $this->db->setQuery($query)->loadResult();
+        if (empty($ftpConfig['host'])) {
+            return null;
+        }
+
+        $mediaModel = new MediaModel();
+        $storageDir = (($ftpConfig['media_storage_mode'] ?? 'root') === 'custom' && !empty($ftpConfig['media_custom_dir']))
+            ? $ftpConfig['media_custom_dir']
+            : 'imports';
+        $mediaModel->setStorageDirectory($storageDir);
+
+        return $mediaModel;
     }
 
-    private function getCategoryIdBySlug(string $slug): int
+    // --- "Get or Create" Helper Methods ---
+
+    /**
+     * Gets an existing category ID by its name/alias or creates a new one.
+     *
+     * @param   string $categoryName The category name.
+     * @param   array  &$counts      The counts array, passed by reference.
+     * @param   ?array $sourceData   Optional array of source data (e.g., for slug, description).
+     *
+     * @return  int The category ID.
+     * @throws  \RuntimeException If saving fails.
+     */
+    protected function getOrCreateCategory(string $categoryName, array &$counts, ?array $sourceData = null): int
     {
+        $alias = $sourceData['slug'] ?? OutputFilter::stringURLSafe($categoryName);
+
         $query = $this->db->getQuery(true)
             ->select('id')
             ->from('#__categories')
-            ->where('alias = ' . $this->db->quote($slug))
+            ->where('alias = ' . $this->db->quote($alias))
             ->where('extension = ' . $this->db->quote('com_content'));
-
-        return (int) $this->db->setQuery($query)->loadResult();
-    }
-
-    private function getDefaultCategoryId(): int
-    {
-        $query = $this->db->getQuery(true)
-            ->select('id')
-            ->from($this->db->quoteName('#__categories'))
-            ->where($this->db->quoteName('extension') . ' = ' . $this->db->quote('com_content'))
-            ->where($this->db->quoteName('path') . ' = ' . $this->db->quote('uncategorized'));
-        return (int) $this->db->setQuery($query)->loadResult() ?: 2;
-    }
-
-    private function processWordpress(array $data, string $sourceUrl = '', array $ftpConfig = [], bool $importAsSuperUser = false): array
-    {
-        $result = [
-            'success' => true,
-            'counts' => [
-                'users' => 0,
-                'taxonomies' => 0,
-                'articles' => 0,
-                'media' => 0,
-                'skipped' => 0
-            ],
-            'errors' => []
-        ];
-
-        if (!isset($data['itemListElement']) || !is_array($data['itemListElement'])) {
-            $result['success'] = false;
-            $result['errors'][] = 'Invalid WordPress JSON format';
-            return $result;
-        }
-
-        $articleModel = new ArticleModel(['ignore_request' => true]);
-
-        if (!$articleModel) {
-            $result['success'] = false;
-            $result['errors'][] = 'Could not get Article model';
-            return $result;
-        }
-
-        try {
-            $this->db->transactionStart();
-            
-            // Initialize MediaModel if FTP config is provided
-            $mediaModel = null;
-            if (!empty($ftpConfig) && !empty($ftpConfig['host'])) {
-                $mediaModel = new MediaModel();
-                // Set storage directory based on user selection
-                if (($ftpConfig['media_storage_mode'] ?? 'root') === 'custom' && !empty($ftpConfig['media_custom_dir'])) {
-                    $mediaModel->setStorageDirectory($ftpConfig['media_custom_dir']);
-                } else {
-                    $mediaModel->setStorageDirectory('imports');
-                }
-            }
-
-            $defaultCategoryId = $this->getDefaultCategoryId();
-            $total = count($data['itemListElement']);
-            $current = 0;
-            // Get current super user ID if needed
-            $superUserId = null;
-            if ($importAsSuperUser) {
-                $superUserId = Factory::getUser()->id;
-            }
-            foreach ($data['itemListElement'] as $element) {
-                try {
-                    if (!isset($element['item'])) {
-                        continue;
-                    }
-
-                    $article = $element['item'];
-
-                    // Skip if article already exists
-                    if ($this->articleExists($article['headline'])) {
-                        $result['counts']['skipped']++;
-                        $current++;
-                        $percent = (int)(($current / $total) * 100);
-                        $this->updateProgress($percent, "Migrating articles: $current / $total (Skipped: {$result['counts']['skipped']})");
-                        continue;
-                    }
-
-                    $content = $this->cleanWordPressContent($article['articleBody'] ?? '');
-                    
-                    // Process media migration if enabled
-                    if ($mediaModel && !empty($ftpConfig)) {
-                        try {
-                            $content = $mediaModel->migrateMediaInContent($ftpConfig, $content, $sourceUrl);
-                        } catch (\Exception $e) {
-                            $result['errors'][] = sprintf('Media migration error in article "%s": %s', $article['headline'], $e->getMessage());
-                        }
-                    }
-
-                    // Handle introtext/fulltext split
-                    $introtext = $content;
-                    $fulltext = '';
-                    if (strpos($content, '<!--more-->') !== false) {
-                        [$introtext, $fulltext] = explode('<!--more-->', $content, 2);
-                    }
-
-                    // Resolve category and author
-                    $categoryId = $this->getOrCreateCategory($article['articleSection'][0] ?? 'Uncategorized', $result['counts']);
-                    if ($importAsSuperUser && $superUserId) {
-                        $authorId = $superUserId;
-                    } else {
-                        $authorName = $article['author']['name'] ?? 'admin';
-                        $authorEmail = $article['author']['email'] ?? strtolower(str_replace(' ', '', $authorName)) . '@example.com';
-                        $authorId = $this->getOrCreateUser($authorName, $authorEmail, $result['counts']);
-                    }
-
-                    // Generate unique alias
-                    $baseAlias = OutputFilter::stringURLSafe($article['headline']);
-                    $uniqueAlias = $this->getUniqueAlias($baseAlias, $article['headline']);
-
-                    // Build article data object
-                    $articleData = [
-                        'id'          => 0,
-                        'title'       => $article['headline'],
-                        'alias'       => $uniqueAlias,
-                        'introtext'   => $introtext,
-                        'fulltext'    => $fulltext,
-                        'state'       => 1, // Published
-                        'catid'       => $categoryId ?: $defaultCategoryId,
-                        'created'     => $this->formatDate($article['datePublished'] ?? null),
-                        'created_by'  => $authorId,
-                        'created_by_alias' => ($importAsSuperUser && $superUserId) ? Factory::getUser()->name : ($article['author']['name'] ?? ''),
-                        'publish_up'  => $this->formatDate($article['datePublished'] ?? null),
-                        'language'    => '*',
-                        'access'      => 1,
-                        'featured'    => 0,
-                        'metadata'    => [
-                            'robots' => '',
-                            'author' => $article['author']['name'] ?? '',
-                            'rights' => '',
-                            'xreference' => ''
-                        ],
-                        'images'      => '{}',
-                        'urls'        => '{}'
-                    ];
-
-                    if (!$articleModel->save($articleData)) {
-                        throw new \RuntimeException('Failed to save article: ' . $articleModel->getError());
-                    }
-
-                    $savedArticle = $articleModel->getItem();
-                    $articleId = $savedArticle->id;
-
-                    // Process custom fields if they exist
-                    if (!empty($article['customFields']) && is_array($article['customFields'])) {
-                        $this->processCustomFields($articleId, $article['customFields']);
-                    }
-
-                    $result['counts']['articles']++;
-                } catch (\Exception $e) {
-                    $result['errors'][] = sprintf(
-                        'Error importing article "%s": %s',
-                        $article['headline'] ?? 'Unknown',
-                        $e->getMessage()
-                    );
-                }
-                $current++;
-                $percent = (int)(($current / $total) * 100);
-                $this->updateProgress($percent, "Migrating articles: $current / $total (Skipped: {$result['counts']['skipped']})");
-            }
-            
-            // Get media statistics if MediaModel was used
-            if ($mediaModel) {
-                $mediaStats = $mediaModel->getMediaStats();
-                $result['counts']['media'] = $mediaStats['downloaded'];
-                $this->updateProgress(100, sprintf('Migration complete! (Imported: %d, Skipped: %d)', $result['counts']['articles'], $result['counts']['skipped']));
-            } else {
-                $this->updateProgress(100, sprintf('Migration complete! (Imported: %d, Skipped: %d)', $result['counts']['articles'], $result['counts']['skipped']));
-            }
-
-            if (empty($result['errors'])) {
-                $this->db->transactionCommit();
-            } else {
-                $this->db->transactionRollback();
-                $result['success'] = false;
-            }
-
-        } catch (\Exception $e) {
-            $this->db->transactionRollback();
-            $result['success'] = false;
-            $result['errors'][] = 'Import failed: ' . $e->getMessage();
-            $this->updateProgress(100, 'Migration failed!');
-        }
-
-        return $result;
-    }
-
-    protected function getOrCreateCategory(string $categoryName, array &$counts): int
-    {
-        $categoryTable = Table::getInstance('Category');
-        $alias = OutputFilter::stringURLSafe($categoryName);
-
-        // Try to find existing category by alias
-        $query = $this->db->getQuery(true)
-            ->select('id')
-            ->from('#__categories')
-            ->where([
-                'extension = ' . $this->db->quote('com_content'),
-                'alias = ' . $this->db->quote($alias)
-            ]);
 
         $categoryId = $this->db->setQuery($query)->loadResult();
 
         if (!$categoryId) {
-            // Create new category
+            $categoryTable = Table::getInstance('Category');
             $categoryData = [
-                'title' => $categoryName,
-                'alias' => $alias,
-                'extension' => 'com_content',
-                'published' => 1,
-                'access' => 1,
-                'params' => [],
-                'metadata' => [],
-                'language' => '*'
+                'id'          => 0,
+                'title'       => $categoryName,
+                'alias'       => $alias,
+                'description' => $sourceData['description'] ?? '',
+                'extension'   => 'com_content',
+                'published'   => 1,
+                'access'      => 1,
+                'language'    => '*',
             ];
 
-            if (!$categoryTable->bind($categoryData)) {
+            if (!$categoryTable->save($categoryData)) {
                 throw new \RuntimeException($categoryTable->getError());
             }
-
-            if (!$categoryTable->check()) {
-                throw new \RuntimeException($categoryTable->getError());
-            }
-
-            if (!$categoryTable->store()) {
-                throw new \RuntimeException($categoryTable->getError());
-            }
-
             $counts['taxonomies']++;
             $categoryId = $categoryTable->id;
         }
@@ -560,35 +475,36 @@ class ProcessorModel extends BaseDatabaseModel
         return (int) $categoryId;
     }
 
-    protected function getOrCreateUser(string $username, string $email, array &$counts): int
+    /**
+     * Gets an existing user ID by username or creates a new one.
+     *
+     * @param   string $username   The user's login name.
+     * @param   string $email      The user's email.
+     * @param   array  &$counts    The counts array, passed by reference.
+     * @param   ?array $sourceData Optional array of source data (e.g., for display name, registration date).
+     *
+     * @return  int The user ID.
+     * @throws  \RuntimeException If saving fails.
+     */
+    protected function getOrCreateUser(string $username, string $email, array &$counts, ?array $sourceData = null): int
     {
-        $userTable = Table::getInstance('User');
-
         $userId = UserHelper::getUserId($username);
 
         if (!$userId) {
-            // Create new user
+            $user = new \Joomla\CMS\User\User;
             $userData = [
-                'name' => $username,
-                'username' => $username,
-                'email' => $email,
-                'password' => UserHelper::hashPassword(UserHelper::genRandomPassword()),
-                'block' => 0,
-                'sendEmail' => 0,
-                'registerDate' => Factory::getDate()->toSql(),
-                'groups' => [2], // Registered
-                'params' => [],
-                'requireReset' => 1
+                'name'         => $sourceData['display_name'] ?? $username,
+                'username'     => $username,
+                'email'        => $email,
+                'password'     => UserHelper::hashPassword(UserHelper::genRandomPassword()),
+                'registerDate' => isset($sourceData['user_registered']) ? (new Date($sourceData['user_registered']))->toSql() : Factory::getDate()->toSql(),
+                'groups'       => [2], // Registered
+                'requireReset' => 1,
             ];
 
-            $user = new \Joomla\CMS\User\User;
             $user->set('sendEmail', 0);
 
-            if (!$user->bind($userData)) {
-                throw new \RuntimeException($user->getError());
-            }
-
-            if (!$user->save()) {
+            if (!$user->bind($userData) || !$user->save()) {
                 throw new \RuntimeException($user->getError());
             }
 
@@ -599,38 +515,14 @@ class ProcessorModel extends BaseDatabaseModel
         return (int) $userId;
     }
 
-    protected function cleanWordPressContent(string $content): string
-    {
-        // Remove WordPress specific tags
-        $content = preg_replace('/<!-- wp:.*?-->/', '', $content);
-        $content = preg_replace('/<!-- \/wp:.*?-->/', '', $content);
-        
-        // Clean up HTML
-        $content = strip_tags($content, '<p><a><h1><h2><h3><h4><h5><h6><ul><ol><li><blockquote><img><hr><br>');
-        
-        return trim($content);
-    }
-
-    protected function formatDate(?string $dateString): string
-    {
-        if (empty($dateString)) {
-            return Factory::getDate()->toSql();
-        }
-
-        try {
-            $date = new Date($dateString);
-            return $date->toSql();
-        } catch (\Exception $e) {
-            return Factory::getDate()->toSql();
-        }
-    }
+    // --- Custom Fields & Utility Methods ---
 
     /**
      * Process custom fields for an article
      *
-     * @param int   $articleId     The article ID
-     * @param array $customFields  Array of custom field key-value pairs
-     * @return void
+     * @param   int   $articleId     The article ID
+     * @param   array $customFields  Array of custom field key-value pairs
+     * @return  void
      */
     protected function processCustomFields(int $articleId, array $customFields): void
     {
@@ -638,17 +530,11 @@ class ProcessorModel extends BaseDatabaseModel
             if (empty($fieldValue)) {
                 continue;
             }
-
             try {
-                // Get or create the custom field
-                $fieldId = $this->getOrCreateCustomField($fieldName);
-                
-                if ($fieldId) {
-                    // Save the field value for this article
+                if ($fieldId = $this->getOrCreateCustomField($fieldName)) {
                     $this->saveCustomFieldValue($fieldId, $articleId, $fieldValue);
                 }
             } catch (\Exception $e) {
-                // Log the error but continue processing other fields
                 Factory::getApplication()->enqueueMessage(
                     sprintf('Error processing custom field "%s": %s', $fieldName, $e->getMessage()),
                     'warning'
@@ -660,174 +546,173 @@ class ProcessorModel extends BaseDatabaseModel
     /**
      * Get existing custom field ID or create a new one
      *
-     * @param string $fieldName The field name
-     * @return int The field ID or 0 on failure
+     * @param   string $fieldName The field name
+     * @return  int The field ID or 0 on failure
      */
     protected function getOrCreateCustomField(string $fieldName): int
     {
-        // Check if field already exists
         $query = $this->db->getQuery(true)
             ->select('id')
             ->from('#__fields')
-            ->where([
-                'context = ' . $this->db->quote('com_content.article'),
-                'name = ' . $this->db->quote($fieldName),
-                'state = 1'
-            ]);
+            ->where('context = ' . $this->db->quote('com_content.article'))
+            ->where('name = ' . $this->db->quote($fieldName));
 
         $fieldId = (int) $this->db->setQuery($query)->loadResult();
 
         if (!$fieldId) {
-            try {
-                // Create new custom field
-                $fieldModel = new FieldModel(['ignore_request' => true]);
-                
-                $fieldData = [
-                    'id'          => 0,
-                    'title'       => ucwords(str_replace(['_', '-'], ' ', $fieldName)),
-                    'name'        => $fieldName,
-                    'type'        => 'text', // Default to text field
-                    'context'     => 'com_content.article',
-                    'group_id'    => 0,
-                    'description' => 'Imported from WordPress',
-                    'state'       => 1,
-                    'required'    => 0,
-                    'only_use_in_subform' => 0,
-                    'language'    => '*',
-                    'default_value' => '',
-                    'filter'      => 'safehtml',
-                    'access'      => 1,
-                    'params'      => [
-                        'hint' => '',
-                        'class' => '',
-                        'label_class' => '',
-                        'show_on' => '',
-                        'render_class' => '',
-                        'showlabel' => 1,
-                        'label_render_class' => '',
-                        'display' => 2,
-                        'layout' => '',
-                        'display_readonly' => 2
-                    ]
-                ];
-
-                if ($fieldModel->save($fieldData)) {
-                    $fieldId = $fieldModel->getItem()->id;
-                }
-            } catch (\Exception $e) {
-                // If field creation fails, log it but don't break the import
-                Factory::getApplication()->enqueueMessage(
-                    sprintf('Failed to create custom field "%s": %s', $fieldName, $e->getMessage()),
+            $fieldModel = new FieldModel(['ignore_request' => true]);
+            $fieldData = [
+                'id'        => 0,
+                'title'     => ucwords(str_replace(['_', '-'], ' ', $fieldName)),
+                'name'      => $fieldName,
+                'type'      => 'text',
+                'context'   => 'com_content.article',
+                'state'     => 1,
+                'language'  => '*',
+            ];
+            if ($fieldModel->save($fieldData)) {
+                $fieldId = (int) $fieldModel->getItem()->id;
+            } else {
+                 Factory::getApplication()->enqueueMessage(
+                    sprintf('Failed to create custom field "%s": %s', $fieldName, $fieldModel->getError()),
                     'warning'
                 );
-                return 0;
             }
         }
-
         return $fieldId;
     }
 
     /**
      * Save custom field value for an article
      *
-     * @param int    $fieldId    The field ID
-     * @param int    $articleId  The article ID
-     * @param string $value      The field value
-     * @return bool
+     * @param   int    $fieldId    The field ID
+     * @param   int    $articleId  The article ID
+     * @param   string $value      The field value
+     * @return  void
      */
-    protected function saveCustomFieldValue(int $fieldId, int $articleId, string $value): bool
+    protected function saveCustomFieldValue(int $fieldId, int $articleId, string $value): void
     {
-        // Check if value already exists
+        $fieldValue = new \stdClass();
+        $fieldValue->field_id = $fieldId;
+        $fieldValue->item_id  = $articleId;
+        $fieldValue->value    = $value;
+
+        $this->db->insertObject('#__fields_values', $fieldValue, ['field_id', 'item_id']);
+    }
+
+    /**
+     * Gets the ID for the default 'Uncategorized' category.
+     *
+     * @return  int The category ID.
+     */
+    private function getDefaultCategoryId(): int
+    {
         $query = $this->db->getQuery(true)
-            ->select('COUNT(*)')
-            ->from('#__fields_values')
-            ->where([
-                'field_id = ' . (int) $fieldId,
-                'item_id = ' . (int) $articleId
-            ]);
+            ->select('id')
+            ->from($this->db->quoteName('#__categories'))
+            ->where($this->db->quoteName('path') . ' = ' . $this->db->quote('uncategorised'))
+            ->where($this->db->quoteName('extension') . ' = ' . $this->db->quote('com_content'));
+            
+        return (int) $this->db->setQuery($query)->loadResult() ?: 2; // Fallback to root
+    }
 
-        $exists = (bool) $this->db->setQuery($query)->loadResult();
+    /**
+     * Cleans WordPress-specific block editor comments from content.
+     *
+     * @param   string $content The raw HTML content.
+     *
+     * @return  string The cleaned HTML content.
+     */
+    protected function cleanWordPressContent(string $content): string
+    {
+        $content = preg_replace('//s', '', $content);
+        $content = preg_replace('//s', '', $content);
+        return trim($content);
+    }
 
-        if ($exists) {
-            // Update existing value
-            $query = $this->db->getQuery(true)
-                ->update('#__fields_values')
-                ->set('value = ' . $this->db->quote($value))
-                ->where([
-                    'field_id = ' . (int) $fieldId,
-                    'item_id = ' . (int) $articleId
-                ]);
-        } else {
-            // Insert new value
-            $query = $this->db->getQuery(true)
-                ->insert('#__fields_values')
-                ->columns(['field_id', 'item_id', 'value'])
-                ->values(implode(',', [
-                    (int) $fieldId,
-                    (int) $articleId,
-                    $this->db->quote($value)
-                ]));
-        }
-
+    /**
+     * Safely formats a date string into SQL format.
+     *
+     * @param   ?string $dateString The date string to format.
+     *
+     * @return  string The formatted SQL date.
+     */
+    protected function formatDate(?string $dateString): string
+    {
         try {
-            $this->db->setQuery($query)->execute();
-            return true;
+            return (new Date($dateString ?: 'now'))->toSql();
         } catch (\Exception $e) {
-            // Log the error for debugging
-            Factory::getApplication()->enqueueMessage(
-                'Custom field save error: ' . $e->getMessage(), 
-                'warning'
-            );
-            return false;
+            return Factory::getDate()->toSql();
         }
     }
 
-    private function updateProgress($percent, $status = '') {
+    /**
+     * Updates a progress file for the UI to monitor.
+     *
+     * @param   int    $percent The completion percentage.
+     * @param   string $status  A status message.
+     *
+     * @return  void
+     */
+    private function updateProgress(int $percent, string $status = ''): void
+    {
         $progressFile = JPATH_SITE . '/media/com_cmsmigrator/imports/progress.json';
-        $data = [
-            'percent' => $percent,
-            'status' => $status,
-            'timestamp' => time()
-        ];
+        $data = ['percent' => $percent, 'status' => $status, 'timestamp' => time()];
         \Joomla\CMS\Filesystem\File::write($progressFile, json_encode($data));
     }
 
-    protected function getUniqueAlias(string $alias, string $title): string
+    /**
+     * Generates a unique alias for a Joomla article.
+     *
+     * @param   string $alias The desired alias.
+     *
+     * @return  string A unique alias.
+     */
+    protected function getUniqueAlias(string $alias): string
     {
-        $db = Factory::getDbo();
         $originalAlias = $alias;
         $counter = 1;
 
-        while (true) {
-            $query = $db->getQuery(true)
-                ->select('COUNT(*)')
-                ->from('#__content')
-                ->where('alias = ' . $db->quote($alias));
-
-            if ((int) $db->setQuery($query)->loadResult() === 0) {
-                return $alias;
-            }
-
-            // If alias exists, append counter
-            $alias = $originalAlias . '-' . $counter;
-            $counter++;
-
-            // Safety check to prevent infinite loops
-            if ($counter > 100) {
-                // If we somehow get here, generate a completely unique alias
+        while ($this->aliasExists($alias)) {
+            $alias = $originalAlias . '-' . $counter++;
+            if ($counter > 100) { // Safety break
                 return $originalAlias . '-' . uniqid();
             }
         }
+        return $alias;
+    }
+    
+    /**
+     * Checks if a given alias exists in the content table.
+     *
+     * @param   string $alias The alias to check.
+     *
+     * @return  bool True if the alias exists, false otherwise.
+     */
+    protected function aliasExists(string $alias): bool
+    {
+        $query = $this->db->getQuery(true)
+            ->select('1')
+            ->from('#__content')
+            ->where('alias = ' . $this->db->quote($alias));
+
+        return (bool) $this->db->setQuery($query)->loadResult();
     }
 
+    /**
+     * Checks if an article with a given title exists.
+     *
+     * @param   string $title The title to check.
+     *
+     * @return  bool True if the article exists.
+     */
     protected function articleExists(string $title): bool
     {
-        $db = Factory::getDbo();
-        $query = $db->getQuery(true)
-            ->select('COUNT(*)')
+        $query = $this->db->getQuery(true)
+            ->select('1')
             ->from('#__content')
-            ->where('title = ' . $db->quote($title));
+            ->where('title = ' . $this->db->quote($title));
 
-        return (int) $db->setQuery($query)->loadResult() > 0;
+        return (bool) $this->db->setQuery($query)->loadResult();
     }
 }
