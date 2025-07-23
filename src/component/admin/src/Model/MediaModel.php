@@ -93,8 +93,11 @@ class MediaModel extends BaseDatabaseModel
 
     /**
      * Sets the storage directory.
+     * 
+     * The storage directory will contain the WordPress media files organized 
+     * in their original folder structure (e.g., 2024/01/image.jpg).
      *
-     * @param   string  $dir  The directory name.
+     * @param   string  $dir  The directory name (e.g., 'imports', 'custom', etc.).
      *
      * @return  void
      *
@@ -334,18 +337,34 @@ class MediaModel extends BaseDatabaseModel
     }
 
     /**
-     * Get local file name from remote path
+     * Get local file path from remote path, preserving WordPress folder structure
      *
      * @param   string  $remotePath  The remote file path
      *
-     * @return  string  The local file name
+     * @return  string  The local file path relative to mediaBasePath
      *
      * @since   1.0.0
      */
     protected function getLocalFileName(string $remotePath): string
     {
-        $cleanPath = str_replace(['wp-content/uploads/', '/', '\\'], ['', '_', '_'], $remotePath);
-        return preg_replace('/[^a-zA-Z0-9._-]/', '_', $cleanPath);
+        // Extract the path after wp-content/uploads/
+        $pattern = '/.*\/wp-content\/uploads\/(.+)$/';
+        if (preg_match($pattern, $remotePath, $matches)) {
+            // Return the WordPress uploads structure (e.g., 2024/01/image.jpg)
+            return $matches[1];
+        }
+        
+        // Fallback: clean the path but preserve some structure
+        $cleanPath = str_replace($this->documentRoot . '/', '', $remotePath);
+        $cleanPath = str_replace('wp-content/uploads/', '', $cleanPath);
+        
+        // Sanitize directory and file names separately to preserve folder structure
+        $pathParts = explode('/', $cleanPath);
+        $sanitizedParts = array_map(function($part) {
+            return preg_replace('/[^a-zA-Z0-9._-]/', '_', $part);
+        }, $pathParts);
+        
+        return implode('/', $sanitizedParts);
     }
 
     /**
@@ -540,8 +559,41 @@ class MediaModel extends BaseDatabaseModel
             $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) . 
                                ' Warning: Could not detect document root with WordPress content.';
         }
-        
+
         return $result;
+    }
+
+    /**
+     * Get the expected local path structure for a WordPress media URL
+     * 
+     * This method shows how WordPress URLs will be mapped to local folders.
+     * Example: wp-content/uploads/2024/01/image.jpg -> images/imports/2024/01/image.jpg
+     *
+     * @param   string  $wordpressUrl  The WordPress media URL
+     *
+     * @return  string|null  The expected local path structure, or null if not a valid WordPress URL
+     *
+     * @since   1.0.0
+     */
+    public function getExpectedLocalPath(string $wordpressUrl): ?string
+    {
+        $parsedUrl = parse_url($wordpressUrl);
+        if (!$parsedUrl || empty($parsedUrl['path'])) {
+            return null;
+        }
+
+        $uploadPath = $parsedUrl['path'];
+        if (strpos($uploadPath, '/wp-content/uploads/') === false) {
+            return null;
+        }
+
+        // Extract the part after wp-content/uploads/
+        $pattern = '/.*\/wp-content\/uploads\/(.+)$/';
+        if (preg_match($pattern, $uploadPath, $matches)) {
+            return 'images/' . $this->storageDir . '/' . $matches[1];
+        }
+
+        return null;
     }
 
     /**
