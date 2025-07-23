@@ -76,6 +76,22 @@ class MediaModel extends BaseDatabaseModel
     protected $storageDir = 'imports';
 
     /**
+     * Remote document root directory
+     *
+     * @var    string
+     * @since  1.0.0
+     */
+    protected $documentRoot = 'httpdocs';
+
+    /**
+     * Whether document root has been auto-detected
+     *
+     * @var    bool
+     * @since  1.0.0
+     */
+    protected $documentRootDetected = false;
+
+    /**
      * Sets the storage directory.
      *
      * @param   string  $dir  The directory name.
@@ -95,6 +111,32 @@ class MediaModel extends BaseDatabaseModel
     }
 
     /**
+     * Sets the remote document root directory.
+     *
+     * @param   string  $documentRoot  The document root directory name.
+     *
+     * @return  void
+     *
+     * @since   1.0.0
+     */
+    public function setDocumentRoot(string $documentRoot = 'httpdocs')
+    {
+        $this->documentRoot = trim($documentRoot, '/') ?: 'httpdocs';
+    }
+
+    /**
+     * Gets the current document root directory.
+     *
+     * @return  string  The document root directory name.
+     *
+     * @since   1.0.0
+     */
+    public function getDocumentRoot(): string
+    {
+        return $this->documentRoot;
+    }
+
+    /**
      * Constructor
      *
      * @param   array  $config  An optional associative array of configuration settings.
@@ -111,9 +153,9 @@ class MediaModel extends BaseDatabaseModel
     /**
      * Migrate media in content
      *
-     * @param   array   $ftpConfig  The FTP configuration
-     * @param   string  $content    The content with media URLs
-     * @param   string  $sourceUrl  The source URL (optional)
+     * @param   array   $ftpConfig     The FTP configuration
+     * @param   string  $content       The content with media URLs
+     * @param   string  $sourceUrl     The source URL (optional)
      *
      * @return  string  The content with migrated media URLs
      *
@@ -134,6 +176,11 @@ class MediaModel extends BaseDatabaseModel
         if (!$this->connectFtp($ftpConfig)) {
             Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_FTP_CONNECTION_FAILED'), 'warning');
             return $content;
+        }
+
+        // Auto-detect document root on first use
+        if (!$this->documentRootDetected) {
+            $this->autoDetectDocumentRoot();
         }
 
         $updatedContent = $content;
@@ -215,8 +262,8 @@ class MediaModel extends BaseDatabaseModel
 
         // Try resized first, then original
         $candidatePaths = [
-            'httpdocs' . $resizedPath,
-            'httpdocs' . $originalPath
+            $this->documentRoot . $resizedPath,
+            $this->documentRoot . $originalPath
         ];
 
         foreach ($candidatePaths as $remotePath) {
@@ -302,6 +349,50 @@ class MediaModel extends BaseDatabaseModel
     }
 
     /**
+     * Auto-detect the document root directory
+     *
+     * @return  void
+     *
+     * @since   1.0.0
+     */
+    protected function autoDetectDocumentRoot(): void
+    {
+        if (!$this->ftpConnection || $this->documentRootDetected) {
+            return;
+        }
+
+        $commonRoots = ['httpdocs', 'public_html', 'www'];
+        
+        foreach ($commonRoots as $root) {
+            if (@ftp_chdir($this->ftpConnection, $root)) {
+                // Try to find wp-content directory to confirm this is the right root
+                if (@ftp_chdir($this->ftpConnection, 'wp-content')) {
+                    $this->documentRoot = $root;
+                    $this->documentRootDetected = true;
+                    
+                    Factory::getApplication()->enqueueMessage(
+                        "✅ Document root auto-detected: {$root}",
+                        'info'
+                    );
+                    
+                    // Return to original directory
+                    @ftp_chdir($this->ftpConnection, '/');
+                    return;
+                }
+                // Return to original directory if wp-content not found
+                @ftp_chdir($this->ftpConnection, '/');
+            }
+        }
+        
+        // If no valid root found, use default and mark as detected to avoid repeated attempts
+        $this->documentRootDetected = true;
+        Factory::getApplication()->enqueueMessage(
+            "⚠️ Could not auto-detect document root. Using default: {$this->documentRoot}",
+            'warning'
+        );
+    }
+
+    /**
      * Connect to FTP server
      *
      * @param   array  $config  The FTP configuration
@@ -376,9 +467,9 @@ class MediaModel extends BaseDatabaseModel
     }
 
     /**
-     * Test FTP connection without actually downloading files
+     * Test FTP connection and auto-detect document root
      *
-     * @param   array  $config  The FTP configuration
+     * @param   array   $config        The FTP configuration
      * 
      * @return  array  Result containing success status and message
      *
@@ -419,12 +510,36 @@ class MediaModel extends BaseDatabaseModel
             ftp_pasv($connection, true);
         }
 
+        // Auto-detect document root
+        $detectedRoot = null;
+        $commonRoots = ['httpdocs', 'public_html', 'www'];
+        
+        foreach ($commonRoots as $root) {
+            if (@ftp_chdir($connection, $root)) {
+                // Try to find wp-content directory to confirm this is the right root
+                if (@ftp_chdir($connection, 'wp-content')) {
+                    $detectedRoot = $root;
+                    // Return to original directory
+                    @ftp_chdir($connection, '/');
+                    break;
+                }
+                // Return to original directory if wp-content not found
+                @ftp_chdir($connection, '/');
+            }
+        }
+
         // Close the connection
         ftp_close($connection);
         
-        // Return success
+        // Return success with detected root info
         $result['success'] = true;
-        $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']);
+        if ($detectedRoot) {
+            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) . 
+                               " Document root detected: \"{$detectedRoot}\" with WordPress content.";
+        } else {
+            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) . 
+                               ' Warning: Could not detect document root with WordPress content.';
+        }
         
         return $result;
     }
@@ -439,6 +554,7 @@ class MediaModel extends BaseDatabaseModel
     public function clearCache(): void
     {
         $this->downloadedFiles = [];
+        $this->documentRootDetected = false;
     }
 
     /**
