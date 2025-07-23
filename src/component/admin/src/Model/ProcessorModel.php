@@ -187,22 +187,8 @@ class ProcessorModel extends BaseDatabaseModel
             $superUserId = $importAsSuperUser ? Factory::getUser()->id : null;
             $total = count($data['itemListElement']);
             
-            foreach ($data['itemListElement'] as $index => $element) {
-                $current = $index + 1;
-                try {
-                    if (isset($element['item'])) {
-                        $this->processWordpressArticle($element['item'], $result, $mediaModel, $ftpConfig, $sourceUrl, $superUserId);
-                    }
-                } catch (\Exception $e) {
-                    $result['errors'][] = sprintf(
-                        'Error importing article "%s": %s',
-                        $element['item']['headline'] ?? 'Unknown',
-                        $e->getMessage()
-                    );
-                }
-                $percent = (int) (($current / $total) * 100);
-                $this->updateProgress($percent, "Migrating articles: $current / $total (Imported: {$result['counts']['articles']}, Skipped: {$result['counts']['skipped']})");
-            }
+            // Use batch processing based on the number of articles
+            $this->processBatchedWordpressArticles($data['itemListElement'], $result, $mediaModel, $ftpConfig, $sourceUrl, $superUserId, $total);
 
             if ($mediaModel) {
                 $result['counts']['media'] = $mediaModel->getMediaStats()['downloaded'];
@@ -214,6 +200,138 @@ class ProcessorModel extends BaseDatabaseModel
         }
 
         return $result;
+    }
+
+    /**
+     * Process WordPress articles in batches with parallel media downloading
+     *
+     * @param   array       $articles       Array of article elements
+     * @param   array       &$result        Result array passed by reference
+     * @param   ?MediaModel $mediaModel     Media model instance
+     * @param   array       $ftpConfig      FTP configuration
+     * @param   string      $sourceUrl      Source URL
+     * @param   ?int        $superUserId    Super user ID
+     * @param   int         $total          Total number of articles
+     *
+     * @return  void
+     *
+     * @since   1.0.0
+     */
+    private function processBatchedWordpressArticles(array $articles, array &$result, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, ?int $superUserId, int $total): void
+    {
+        $batchSize = $this->calculateBatchSize($total);
+        $batches = array_chunk($articles, $batchSize);
+        $processedCount = 0;
+
+        Factory::getApplication()->enqueueMessage(
+            sprintf('Processing %d articles in %d batches (batch size: %d)', $total, count($batches), $batchSize),
+            'info'
+        );
+
+        foreach ($batches as $batchIndex => $batch) {
+            try {
+                $this->processBatch($batch, $result, $mediaModel, $ftpConfig, $sourceUrl, $superUserId, $processedCount, $total, $batchIndex + 1, count($batches));
+                $processedCount += count($batch);
+            } catch (\Exception $e) {
+                $result['errors'][] = sprintf('Error processing batch %d: %s', $batchIndex + 1, $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Calculate batch size based on total number of articles
+     *
+     * @param   int  $total  Total number of articles
+     *
+     * @return  int  Calculated batch size
+     *
+     * @since   1.0.0
+     */
+    private function calculateBatchSize(int $total): int
+    {
+        if ($total <= 25) {
+            return $total; // Process all in one batch
+        } elseif ($total <= 300) {
+            return 25;
+        } elseif ($total <= 1000) {
+            return 50;
+        } else {
+            return 100; // Cap at 100 for large migrations to avoid nginx errors
+        }
+    }
+
+    /**
+     * Process a single batch of articles
+     *
+     * @param   array       $batch          Array of articles in this batch
+     * @param   array       &$result        Result array passed by reference
+     * @param   ?MediaModel $mediaModel     Media model instance
+     * @param   array       $ftpConfig      FTP configuration
+     * @param   string      $sourceUrl      Source URL
+     * @param   ?int        $superUserId    Super user ID
+     * @param   int         $processedCount Number of articles already processed
+     * @param   int         $total          Total number of articles
+     * @param   int         $batchNumber    Current batch number
+     * @param   int         $totalBatches   Total number of batches
+     *
+     * @return  void
+     *
+     * @since   1.0.0
+     */
+    private function processBatch(array $batch, array &$result, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, ?int $superUserId, int $processedCount, int $total, int $batchNumber, int $totalBatches): void
+    {
+        $this->updateProgress(
+            (int)(($processedCount / $total) * 90),
+            sprintf('Processing batch %d of %d (%d articles)', $batchNumber, $totalBatches, count($batch))
+        );
+
+        // Step 1: Extract all media URLs from the batch and update content references
+        $batchData = [];
+        $allMediaUrls = [];
+
+        foreach ($batch as $element) {
+            if (!isset($element['item'])) {
+                continue;
+            }
+
+            $article = $element['item'];
+            $content = $article['articleBody'] ?? '';
+            
+            if ($mediaModel && !empty($content)) {
+                // Extract media URLs and prepare for batch download
+                $mediaUrls = $mediaModel->extractImageUrlsFromContent($content);
+                $updatedContent = $content;
+                
+                // Update content with planned Joomla URLs (before download)
+                foreach ($mediaUrls as $originalUrl) {
+                    $plannedUrl = $mediaModel->getPlannedJoomlaUrl($originalUrl);
+                    if ($plannedUrl) {
+                        $updatedContent = str_replace($originalUrl, $plannedUrl, $updatedContent);
+                        $allMediaUrls[$originalUrl] = $plannedUrl;
+                    }
+                }
+                
+                $article['articleBody'] = $updatedContent;
+            }
+            
+            $batchData[] = $article;
+        }
+
+        // Step 2: Download all media files in parallel (if any)
+        if ($mediaModel && !empty($allMediaUrls)) {
+            $mediaModel->batchDownloadMedia(array_keys($allMediaUrls), $ftpConfig);
+        }
+
+        // Step 3: Process articles sequentially
+        foreach ($batchData as $index => $article) {
+            try {
+                $this->processWordpressArticle($article, $result, null, $ftpConfig, $sourceUrl, $superUserId);
+                $currentProgress = (int)((($processedCount + $index + 1) / $total) * 90);
+                $this->updateProgress($currentProgress, sprintf('Processed article %d of %d', $processedCount + $index + 1, $total));
+            } catch (\Exception $e) {
+                $result['errors'][] = sprintf('Error processing article "%s": %s', $article['headline'] ?? 'Unknown', $e->getMessage());
+            }
+        }
     }
 
     /**
@@ -358,41 +476,116 @@ class ProcessorModel extends BaseDatabaseModel
      */
     private function processPosts(array $posts, array $userMap, array $categoryMap, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl): array
     {
-        $result        = ['imported' => 0, 'skipped' => 0, 'errors' => []];
-        $articleModel  = new ArticleModel(['ignore_request' => true]);
-        $defaultCatId  = $this->getDefaultCategoryId();
-        $totalPosts    = count($posts);
-        $processed     = 0;
+        $result = ['imported' => 0, 'skipped' => 0, 'errors' => []];
+        $totalPosts = count($posts);
+        
+        if ($totalPosts === 0) {
+            return $result;
+        }
 
-        foreach ($posts as $post)
-        {
-            $processed++;
-            try
-            {
-                if ($this->articleExists($post['post_title']))
-                {
+        $batchSize = $this->calculateBatchSize($totalPosts);
+        $batches = array_chunk($posts, $batchSize, true);
+        $processedCount = 0;
+
+        Factory::getApplication()->enqueueMessage(
+            sprintf('Processing %d JSON posts in %d batches (batch size: %d)', $totalPosts, count($batches), $batchSize),
+            'info'
+        );
+
+        foreach ($batches as $batchIndex => $batch) {
+            try {
+                $batchResult = $this->processJsonPostsBatch($batch, $userMap, $categoryMap, $mediaModel, $ftpConfig, $sourceUrl, $processedCount, $totalPosts, $batchIndex + 1, count($batches));
+                $result['imported'] += $batchResult['imported'];
+                $result['skipped'] += $batchResult['skipped'];
+                $result['errors'] = array_merge($result['errors'], $batchResult['errors']);
+                $processedCount += count($batch);
+            } catch (\Exception $e) {
+                $result['errors'][] = sprintf('Error processing JSON posts batch %d: %s', $batchIndex + 1, $e->getMessage());
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Process a single batch of JSON posts
+     *
+     * @param   array       $batch          Array of posts in this batch
+     * @param   array       $userMap        Map of source user IDs to Joomla user IDs
+     * @param   array       $categoryMap    Map of source category IDs to Joomla category IDs
+     * @param   ?MediaModel $mediaModel     Media model instance
+     * @param   array       $ftpConfig      FTP configuration
+     * @param   string      $sourceUrl      Source URL
+     * @param   int         $processedCount Number of posts already processed
+     * @param   int         $total          Total number of posts
+     * @param   int         $batchNumber    Current batch number
+     * @param   int         $totalBatches   Total number of batches
+     *
+     * @return  array  Result of the batch processing
+     *
+     * @since   1.0.0
+     */
+    private function processJsonPostsBatch(array $batch, array $userMap, array $categoryMap, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, int $processedCount, int $total, int $batchNumber, int $totalBatches): array
+    {
+        $result = ['imported' => 0, 'skipped' => 0, 'errors' => []];
+        $articleModel = new ArticleModel(['ignore_request' => true]);
+        $defaultCatId = $this->getDefaultCategoryId();
+
+        $this->updateProgress(
+            (int)(($processedCount / $total) * 90),
+            sprintf('Processing JSON posts batch %d of %d (%d posts)', $batchNumber, $totalBatches, count($batch))
+        );
+
+        // Step 1: Extract all media URLs from the batch and update content references
+        $batchData = [];
+        $allMediaUrls = [];
+
+        foreach ($batch as $postId => $post) {
+            $content = $post['post_content'] ?? '';
+            
+            if ($mediaModel && !empty($content)) {
+                // Extract media URLs and prepare for batch download
+                $mediaUrls = $mediaModel->extractImageUrlsFromContent($content);
+                $updatedContent = $content;
+                
+                // Update content with planned Joomla URLs (before download)
+                foreach ($mediaUrls as $originalUrl) {
+                    $plannedUrl = $mediaModel->getPlannedJoomlaUrl($originalUrl);
+                    if ($plannedUrl) {
+                        $updatedContent = str_replace($originalUrl, $plannedUrl, $updatedContent);
+                        $allMediaUrls[$originalUrl] = $plannedUrl;
+                    }
+                }
+                
+                $post['post_content'] = $updatedContent;
+            } elseif (!$mediaModel && !empty($content)) {
+                // Convert WordPress URLs to Joomla URLs even when media migration is disabled
+                $post['post_content'] = $this->convertWordPressUrlsToJoomla($content, $ftpConfig);
+            }
+            
+            $batchData[$postId] = $post;
+        }
+
+        // Step 2: Download all media files in parallel (if any)
+        if ($mediaModel && !empty($allMediaUrls)) {
+            $mediaModel->batchDownloadMedia(array_keys($allMediaUrls), $ftpConfig);
+        }
+
+        // Step 3: Process posts sequentially
+        foreach ($batchData as $postId => $post) {
+            try {
+                if ($this->articleExists($post['post_title'])) {
                     $result['skipped']++;
                     continue;
                 }
 
                 $authorId = $userMap[$post['post_author']] ?? 42;
                 $content = $post['post_content'];
-                if ($mediaModel)
-                {
-                    $content = $mediaModel->migrateMediaInContent($ftpConfig, $content, $sourceUrl);
-                }
-                else
-                {
-                    // Convert WordPress URLs to Joomla URLs even when media migration is disabled
-                    $content = $this->convertWordPressUrlsToJoomla($content, $ftpConfig);
-                }
 
                 $catId = $defaultCatId;
-                if (!empty($post['terms']['category']))
-                {
+                if (!empty($post['terms']['category'])) {
                     $primary = reset($post['terms']['category']);
-                    if (isset($categoryMap[$primary['term_id']]))
-                    {
+                    if (isset($categoryMap[$primary['term_id']])) {
                         $catId = $categoryMap[$primary['term_id']];
                     }
                 }
@@ -410,34 +603,28 @@ class ProcessorModel extends BaseDatabaseModel
                     'language'   => '*',
                 ];
 
-                if (!$articleModel->save($articleData))
-                {
+                if (!$articleModel->save($articleData)) {
                     throw new \RuntimeException($articleModel->getError());
                 }
 
                 $newId = $articleModel->getItem()->id;
-                if (!empty($post['metadata']) && is_array($post['metadata']))
-                {
+                if (!empty($post['metadata']) && is_array($post['metadata'])) {
                     $fields = [];
-                    foreach ($post['metadata'] as $key => $vals)
-                    {
+                    foreach ($post['metadata'] as $key => $vals) {
                         $fields[$key] = is_array($vals) ? implode(', ', $vals) : (string) $vals;
                     }
                     $this->processCustomFields($newId, $fields);
                 }
 
                 $result['imported']++;
-            }
-            catch (\Exception $e)
-            {
+            } catch (\Exception $e) {
                 $result['errors'][] = sprintf('Error importing post "%s": %s', $post['post_title'], $e->getMessage());
             }
-            $percent = (int) (($processed / $totalPosts) * 100);
-            $this->updateProgress(
-                $percent,
-                "Migrating JSON posts: {$processed} / {$totalPosts} (Imported: {$result['imported']}, Skipped: {$result['skipped']})"
-            );
+
+            $currentProgress = (int)((($processedCount + $result['imported'] + $result['skipped']) / $total) * 90);
+            $this->updateProgress($currentProgress, sprintf('Processed JSON post %d of %d', $processedCount + $result['imported'] + $result['skipped'], $total));
         }
+
         return $result;
     }
 

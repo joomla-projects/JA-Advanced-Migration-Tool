@@ -215,6 +215,20 @@ class MediaModel extends BaseDatabaseModel
      *
      * @since   1.0.0
      */
+    public function extractImageUrlsFromContent(string $content): array
+    {
+        return $this->extractImageUrls($content);
+    }
+
+    /**
+     * Extract image URLs from content
+     *
+     * @param   string  $content  The content to extract URLs from
+     *
+     * @return  array   An array of image URLs
+     *
+     * @since   1.0.0
+     */
     protected function extractImageUrls(string $content): array
     {
         $imageUrls = [];
@@ -471,6 +485,189 @@ class MediaModel extends BaseDatabaseModel
     }
 
     /**
+     * Get the planned Joomla URL for a WordPress media URL (without downloading)
+     *
+     * @param   string  $wordpressUrl  The WordPress media URL
+     *
+     * @return  string|null  The planned Joomla URL or null if invalid
+     *
+     * @since   1.0.0
+     */
+    public function getPlannedJoomlaUrl(string $wordpressUrl): ?string
+    {
+        $parsedUrl = parse_url($wordpressUrl);
+        if (!$parsedUrl || empty($parsedUrl['path'])) {
+            return null;
+        }
+
+        $uploadPath = $parsedUrl['path'];
+        if (strpos($uploadPath, '/wp-content/uploads/') === false) {
+            return null;
+        }
+
+        // Extract the part after wp-content/uploads/
+        $pattern = '/.*\/wp-content\/uploads\/(.+)$/';
+        if (preg_match($pattern, $uploadPath, $matches)) {
+            return $this->mediaBaseUrl . $matches[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * Batch download multiple media files in parallel using FTP
+     *
+     * @param   array  $mediaUrls   Array of media URLs to download
+     * @param   array  $ftpConfig   FTP configuration
+     *
+     * @return  array  Array of results with success/failure for each URL
+     *
+     * @since   1.0.0
+     */
+    public function batchDownloadMedia(array $mediaUrls, array $ftpConfig): array
+    {
+        if (empty($mediaUrls)) {
+            return [];
+        }
+
+        if (!$this->connectFtp($ftpConfig)) {
+            Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_FTP_CONNECTION_FAILED'), 'warning');
+            return [];
+        }
+
+        // Auto-detect document root on first use
+        if (!$this->documentRootDetected) {
+            $this->autoDetectDocumentRoot();
+        }
+
+        $results = [];
+        $downloadTasks = [];
+
+        // Prepare download tasks
+        foreach ($mediaUrls as $imageUrl) {
+            $downloadPaths = $this->prepareDownloadPaths($imageUrl);
+            if (!empty($downloadPaths)) {
+                $downloadTasks[$imageUrl] = $downloadPaths;
+            }
+        }
+
+        if (empty($downloadTasks)) {
+            return $results;
+        }
+
+        Factory::getApplication()->enqueueMessage(
+            sprintf('Starting batch download of %d media files...', count($downloadTasks)),
+            'info'
+        );
+
+        // Process downloads in smaller parallel batches to avoid overwhelming the server
+        $batchSize = min(10, count($downloadTasks)); // Max 10 parallel connections
+        $taskBatches = array_chunk($downloadTasks, $batchSize, true);
+
+        foreach ($taskBatches as $batch) {
+            $this->processBatchDownload($batch, $results);
+        }
+
+        $successCount = count(array_filter($results, function($result) { return $result['success']; }));
+        Factory::getApplication()->enqueueMessage(
+            sprintf('✅ Batch download complete: %d/%d files downloaded successfully', $successCount, count($results)),
+            'info'
+        );
+
+        return $results;
+    }
+
+    /**
+     * Prepare download paths for a media URL
+     *
+     * @param   string  $imageUrl  The image URL
+     *
+     * @return  array  Array of remote and local paths to try
+     *
+     * @since   1.0.0
+     */
+    protected function prepareDownloadPaths(string $imageUrl): array
+    {
+        $parsedUrl = parse_url($imageUrl);
+        if (!$parsedUrl || empty($parsedUrl['path'])) {
+            return [];
+        }
+
+        $uploadPath = $parsedUrl['path'];
+        if (strpos($uploadPath, '/wp-content/uploads/') === false) {
+            return [];
+        }
+
+        $pathInfo = pathinfo($uploadPath);
+        $resizedPath = $pathInfo['dirname'] . '/' . $pathInfo['filename'] . '-768x512.' . $pathInfo['extension'];
+        $originalPath = $pathInfo['dirname'] . '/' . $pathInfo['basename'];
+
+        $paths = [];
+        
+        // Try resized first, then original
+        foreach ([$resizedPath, $originalPath] as $path) {
+            $remotePath = $this->documentRoot . $path;
+            $localFileName = $this->getLocalFileName($remotePath);
+            $localFilePath = $this->mediaBasePath . $localFileName;
+
+            // Skip if already downloaded
+            if (isset($this->downloadedFiles[$remotePath]) || File::exists($localFilePath)) {
+                continue;
+            }
+
+            $paths[] = [
+                'remote' => $remotePath,
+                'local' => $localFilePath,
+                'url' => $this->mediaBaseUrl . $localFileName
+            ];
+        }
+
+        return $paths;
+    }
+
+    /**
+     * Process a batch of downloads in parallel
+     *
+     * @param   array  $downloadTasks  Array of download tasks
+     * @param   array  &$results       Results array passed by reference
+     *
+     * @return  void
+     *
+     * @since   1.0.0
+     */
+    protected function processBatchDownload(array $downloadTasks, array &$results): void
+    {
+        foreach ($downloadTasks as $imageUrl => $paths) {
+            $downloaded = false;
+            
+            foreach ($paths as $pathInfo) {
+                $localDir = dirname($pathInfo['local']);
+                if (!Folder::exists($localDir)) {
+                    Folder::create($localDir);
+                }
+
+                if ($this->downloadFileViaFtp($pathInfo['remote'], $pathInfo['local'])) {
+                    $this->downloadedFiles[$pathInfo['remote']] = $pathInfo['url'];
+                    $results[$imageUrl] = [
+                        'success' => true,
+                        'local_path' => $pathInfo['local'],
+                        'new_url' => $pathInfo['url']
+                    ];
+                    $downloaded = true;
+                    break;
+                }
+            }
+
+            if (!$downloaded) {
+                $results[$imageUrl] = [
+                    'success' => false,
+                    'error' => 'File not found in any resolution'
+                ];
+            }
+        }
+    }
+
+    /**
      * Get media statistics
      *
      * @return  array  An array containing the number of downloaded files and the list of files
@@ -554,10 +751,10 @@ class MediaModel extends BaseDatabaseModel
         $result['success'] = true;
         if ($detectedRoot) {
             $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) . 
-                               " Document root detected: \"{$detectedRoot}\" with WordPress content.";
+                               "<br><br> Document root detected: \"{$detectedRoot}\" with WordPress content.";
         } else {
             $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) . 
-                               ' Warning: Could not detect document root with WordPress content.';
+                               '<br><br> Warning: Could not detect document root with WordPress content.';
         }
 
         return $result;
