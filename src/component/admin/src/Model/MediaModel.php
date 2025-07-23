@@ -751,10 +751,10 @@ class MediaModel extends BaseDatabaseModel
         $result['success'] = true;
         if ($detectedRoot) {
             $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) . 
-                               "<br><br> Document root detected: \"{$detectedRoot}\" with WordPress content.";
+                               "<br> Document root detected: \"{$detectedRoot}\" with WordPress content.";
         } else {
             $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) . 
-                               '<br><br> Warning: Could not detect document root with WordPress content.';
+                               '<br> Warning: Could not detect document root with WordPress content.';
         }
 
         return $result;

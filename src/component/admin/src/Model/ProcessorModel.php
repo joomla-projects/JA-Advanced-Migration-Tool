@@ -282,7 +282,16 @@ class ProcessorModel extends BaseDatabaseModel
     {
         $this->updateProgress(
             (int)(($processedCount / $total) * 90),
-            sprintf('Processing batch %d of %d (%d articles)', $batchNumber, $totalBatches, count($batch))
+            sprintf(
+                "Processing batch %d of %d (%d articles) \n Importing articles: %d / %d (Imported: %d, Skipped: %d)",
+                $batchNumber,
+                $totalBatches,
+                count($batch),
+                $processedCount,
+                $total,
+                $result['counts']['articles'] ?? 0,
+                $result['counts']['skipped'] ?? 0
+            )
         );
 
         // Step 1: Extract all media URLs from the batch and update content references
@@ -327,7 +336,19 @@ class ProcessorModel extends BaseDatabaseModel
             try {
                 $this->processWordpressArticle($article, $result, null, $ftpConfig, $sourceUrl, $superUserId);
                 $currentProgress = (int)((($processedCount + $index + 1) / $total) * 90);
-                $this->updateProgress($currentProgress, sprintf('Processed article %d of %d', $processedCount + $index + 1, $total));
+                $this->updateProgress(
+                    $currentProgress,
+                    sprintf(
+                        "Processing batch %d of %d (%d articles) \n Importing articles: %d / %d (Imported: %d, Skipped: %d)",
+                        $batchNumber,
+                        $totalBatches,
+                        count($batch),
+                        $processedCount + $index + 1,
+                        $total,
+                        $result['counts']['articles'] ?? 0,
+                        $result['counts']['skipped'] ?? 0
+                    )
+                );
             } catch (\Exception $e) {
                 $result['errors'][] = sprintf('Error processing article "%s": %s', $article['headline'] ?? 'Unknown', $e->getMessage());
             }
