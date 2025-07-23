@@ -551,37 +551,63 @@ class ProcessorModel extends BaseDatabaseModel
      */
     protected function getOrCreateCustomField(string $fieldName): int
     {
+        $alias   = OutputFilter::stringURLSafe($fieldName);
+        $context = 'com_content.article';
+
         $query = $this->db->getQuery(true)
             ->select('id')
-            ->from('#__fields')
-            ->where('context = ' . $this->db->quote('com_content.article'))
-            ->where('name = ' . $this->db->quote($fieldName));
+            ->from($this->db->quoteName('#__fields'))
+            ->where('context = ' . $this->db->quote($context))
+            ->where('name    = ' . $this->db->quote($fieldName));
+        $existingId = (int) $this->db->setQuery($query)->loadResult();
 
-        $fieldId = (int) $this->db->setQuery($query)->loadResult();
-
-        if (!$fieldId) {
-            $fieldModel = new FieldModel(['ignore_request' => true]);
-            $fieldData = [
-                'id'          => 0,
-                'title'       => ucwords(str_replace(['_', '-'], ' ', $fieldName)),
-                'name'        => $fieldName,
-                'type'        => 'text',
-                'context'     => 'com_content.article',
-                'state'       => 1,
-                'language'    => '*',
-                'description' => '',
-                'params'      => '',
-            ];
-            if ($fieldModel->save($fieldData)) {
-                $fieldId = (int) $fieldModel->getItem()->id;
-            } else {
-                 Factory::getApplication()->enqueueMessage(
-                    sprintf('Failed to create custom field "%s": %s', $fieldName, $fieldModel->getError()),
-                    'warning'
-                );
-            }
+        if ($existingId)
+        {
+            return $existingId;
         }
-        return $fieldId;
+
+        $fieldModel = new FieldModel(['ignore_request' => true]);
+        $fieldData  = [
+            'id'          => 0,
+            'title'       => ucwords(str_replace(['_', '-'], ' ', $fieldName)),
+            'name'        => $fieldName,
+            'alias'       => $alias,
+            'type'        => 'text',
+            'context'     => $context,
+            'state'       => 1,
+            'language'    => '*',
+            'description' => '',
+            'params'      => '',
+        ];
+
+        try
+        {
+            if (! $fieldModel->save($fieldData))
+            {
+                $err = $fieldModel->getError();
+                if (strpos($err, 'COM_FIELDS_ERROR_UNIQUE_NAME') !== false)
+                {
+                    $query = $this->db->getQuery(true)
+                        ->select('id')
+                        ->from($this->db->quoteName('#__fields'))
+                        ->where('context = ' . $this->db->quote($context))
+                        ->where('name    = ' . $this->db->quote($fieldName));
+                    return (int) $this->db->setQuery($query)->loadResult();
+                }
+
+                throw new \RuntimeException('Failed to create custom field: ' . $err);
+            }
+
+            return (int) $fieldModel->getItem()->id;
+        }
+        catch (\Exception $e)
+        {
+            Factory::getApplication()->enqueueMessage(
+                sprintf('Error creating custom field "%s": %s', $fieldName, $e->getMessage()),
+                'warning'
+            );
+            return 0;
+        }
     }
 
     /**
