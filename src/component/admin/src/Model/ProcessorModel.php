@@ -365,10 +365,12 @@ class ProcessorModel extends BaseDatabaseModel
                     continue;
                 }
 
-                $authorId = $userMap[$post['post_author']] ?? 42; // Fallback to admin
+                $authorId = $userMap[$post['post_author']] ?? 42;
                 $content = $post['post_content'];
+                if ($mediaModel) {
+                    $content = $mediaModel->migrateMediaInContent($ftpConfig, $content, $sourceUrl);
+                }
 
-                // Assign category
                 $categoryId = $defaultCategoryId;
                 if (!empty($post['terms']['category'])) {
                     $primaryCategory = reset($post['terms']['category']);
@@ -376,31 +378,40 @@ class ProcessorModel extends BaseDatabaseModel
                         $categoryId = $categoryMap[$primaryCategory['term_id']];
                     }
                 }
-                
-                // Migrate media
-                if ($mediaModel) {
-                    $content = $mediaModel->migrateMediaInContent($ftpConfig, $content, $sourceUrl);
-                }
 
                 $articleData = [
-                    'id'         => 0,
-                    'title'      => $post['post_title'],
-                    'alias'      => $this->getUniqueAlias($post['post_name'] ?? OutputFilter::stringURLSafe($post['post_title'])),
-                    'introtext'  => $content,
-                    'state'      => ($post['post_status'] === 'publish') ? 1 : 0,
-                    'catid'      => $categoryId,
-                    'created'    => (new Date($post['post_date']))->toSql(),
+                    'id' => 0,
+                    'title' => $post['post_title'],
+                    'alias' => $this->getUniqueAlias($post['post_name'] ?? OutputFilter::stringURLSafe($post['post_title'])),
+                    'introtext' => $content,
+                    'state' => ($post['post_status'] === 'publish') ? 1 : 0,
+                    'catid' => $categoryId,
+                    'created' => (new Date($post['post_date']))->toSql(),
                     'created_by' => $authorId,
                     'publish_up' => (new Date($post['post_date']))->toSql(),
-                    'language'   => '*',
+                    'language' => '*',
                 ];
 
                 if (!$articleModel->save($articleData)) {
                     throw new \RuntimeException($articleModel->getError());
                 }
+
+                $newArticleId = $articleModel->getItem()->id;
+                if (!empty($post['metadata']) && is_array($post['metadata'])) {
+                    $fields = [];
+                    foreach ($post['metadata'] as $fieldName => $values) {
+                        $fields[$fieldName] = is_array($values) ? implode(', ', $values) : (string) $values;
+                    }
+                    $this->processCustomFields($newArticleId, $fields);
+                }
+
                 $result['imported']++;
             } catch (\Exception $e) {
-                $result['errors'][] = sprintf('Error importing post "%s": %s', $post['post_title'], $e->getMessage());
+                $result['errors'][] = sprintf(
+                    'Error importing post "%s": %s',
+                    $post['post_title'],
+                    $e->getMessage()
+                );
             }
         }
         return $result;
