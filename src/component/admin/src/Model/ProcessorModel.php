@@ -343,76 +343,91 @@ class ProcessorModel extends BaseDatabaseModel
     /**
      * Processes a batch of posts (articles) from the JSON import.
      *
-     * @param   array      $posts       Array of post data.
-     * @param   array      $userMap     Map of source user IDs to Joomla user IDs.
-     * @param   array      $categoryMap Map of source category IDs to Joomla category IDs.
-     * @param   ?MediaModel $mediaModel  The media model instance.
-     * @param   array      $ftpConfig   FTP configuration.
-     * @param   string     $sourceUrl   The source URL.
+     * @param   array       $posts        Array of post data.
+     * @param   array       $userMap      Map of source user IDs to Joomla user IDs.
+     * @param   array       $categoryMap  Map of source category IDs to Joomla category IDs.
+     * @param   ?MediaModel $mediaModel   The media model instance.
+     * @param   array       $ftpConfig    FTP configuration.
+     * @param   string      $sourceUrl    The source URL.
      *
      * @return  array Result of the post import.
      */
     private function processPosts(array $posts, array $userMap, array $categoryMap, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl): array
     {
-        $result = ['imported' => 0, 'errors' => [], 'skipped' => 0];
-        $articleModel = new ArticleModel(['ignore_request' => true]);
-        $defaultCategoryId = $this->getDefaultCategoryId();
+        $result        = ['imported' => 0, 'skipped' => 0, 'errors' => []];
+        $articleModel  = new ArticleModel(['ignore_request' => true]);
+        $defaultCatId  = $this->getDefaultCategoryId();
+        $totalPosts    = count($posts);
+        $processed     = 0;
 
-        foreach ($posts as $post) {
-            try {
-                if ($this->articleExists($post['post_title'])) {
+        foreach ($posts as $post)
+        {
+            $processed++;
+            try
+            {
+                if ($this->articleExists($post['post_title']))
+                {
                     $result['skipped']++;
                     continue;
                 }
 
                 $authorId = $userMap[$post['post_author']] ?? 42;
                 $content = $post['post_content'];
-                if ($mediaModel) {
+                if ($mediaModel)
+                {
                     $content = $mediaModel->migrateMediaInContent($ftpConfig, $content, $sourceUrl);
                 }
 
-                $categoryId = $defaultCategoryId;
-                if (!empty($post['terms']['category'])) {
-                    $primaryCategory = reset($post['terms']['category']);
-                    if (isset($categoryMap[$primaryCategory['term_id']])) {
-                        $categoryId = $categoryMap[$primaryCategory['term_id']];
+                $catId = $defaultCatId;
+                if (!empty($post['terms']['category']))
+                {
+                    $primary = reset($post['terms']['category']);
+                    if (isset($categoryMap[$primary['term_id']]))
+                    {
+                        $catId = $categoryMap[$primary['term_id']];
                     }
                 }
 
                 $articleData = [
-                    'id' => 0,
-                    'title' => $post['post_title'],
-                    'alias' => $this->getUniqueAlias($post['post_name'] ?? OutputFilter::stringURLSafe($post['post_title'])),
-                    'introtext' => $content,
-                    'state' => ($post['post_status'] === 'publish') ? 1 : 0,
-                    'catid' => $categoryId,
-                    'created' => (new Date($post['post_date']))->toSql(),
+                    'id'         => 0,
+                    'title'      => $post['post_title'],
+                    'alias'      => $this->getUniqueAlias($post['post_name'] ?? OutputFilter::stringURLSafe($post['post_title'])),
+                    'introtext'  => $content,
+                    'state'      => ($post['post_status'] === 'publish') ? 1 : 0,
+                    'catid'      => $catId,
+                    'created'    => (new Date($post['post_date']))->toSql(),
                     'created_by' => $authorId,
                     'publish_up' => (new Date($post['post_date']))->toSql(),
-                    'language' => '*',
+                    'language'   => '*',
                 ];
 
-                if (!$articleModel->save($articleData)) {
+                if (!$articleModel->save($articleData))
+                {
                     throw new \RuntimeException($articleModel->getError());
                 }
 
-                $newArticleId = $articleModel->getItem()->id;
-                if (!empty($post['metadata']) && is_array($post['metadata'])) {
+                $newId = $articleModel->getItem()->id;
+                if (!empty($post['metadata']) && is_array($post['metadata']))
+                {
                     $fields = [];
-                    foreach ($post['metadata'] as $fieldName => $values) {
-                        $fields[$fieldName] = is_array($values) ? implode(', ', $values) : (string) $values;
+                    foreach ($post['metadata'] as $key => $vals)
+                    {
+                        $fields[$key] = is_array($vals) ? implode(', ', $vals) : (string) $vals;
                     }
-                    $this->processCustomFields($newArticleId, $fields);
+                    $this->processCustomFields($newId, $fields);
                 }
 
                 $result['imported']++;
-            } catch (\Exception $e) {
-                $result['errors'][] = sprintf(
-                    'Error importing post "%s": %s',
-                    $post['post_title'],
-                    $e->getMessage()
-                );
             }
+            catch (\Exception $e)
+            {
+                $result['errors'][] = sprintf('Error importing post "%s": %s', $post['post_title'], $e->getMessage());
+            }
+            $percent = (int) (($processed / $totalPosts) * 100);
+            $this->updateProgress(
+                $percent,
+                "Migrating JSON posts: {$processed} / {$totalPosts} (Imported: {$result['imported']}, Skipped: {$result['skipped']})"
+            );
         }
         return $result;
     }
