@@ -21,6 +21,7 @@ use Joomla\Component\Categories\Administrator\Model\CategoryModel;
 use Joomla\Component\Content\Administrator\Model\ArticleModel;
 use Joomla\Component\Fields\Administrator\Model\FieldModel;
 use Joomla\CMS\Filter\OutputFilter;
+use Joomla\CMS\Uri\Uri;
 use Binary\Component\CmsMigrator\Administrator\Model\MediaModel;
 
 /**
@@ -239,6 +240,9 @@ class ProcessorModel extends BaseDatabaseModel
         $content = $this->cleanWordPressContent($article['articleBody'] ?? '');
         if ($mediaModel) {
             $content = $mediaModel->migrateMediaInContent($ftpConfig, $content, $sourceUrl);
+        } else {
+            // Convert WordPress URLs to Joomla URLs even when media migration is disabled
+            $content = $this->convertWordPressUrlsToJoomla($content, $ftpConfig);
         }
 
         [$introtext, $fulltext] = (strpos($content, '') !== false)
@@ -377,6 +381,11 @@ class ProcessorModel extends BaseDatabaseModel
                 {
                     $content = $mediaModel->migrateMediaInContent($ftpConfig, $content, $sourceUrl);
                 }
+                else
+                {
+                    // Convert WordPress URLs to Joomla URLs even when media migration is disabled
+                    $content = $this->convertWordPressUrlsToJoomla($content, $ftpConfig);
+                }
 
                 $catId = $defaultCatId;
                 if (!empty($post['terms']['category']))
@@ -452,6 +461,59 @@ class ProcessorModel extends BaseDatabaseModel
         $mediaModel->setStorageDirectory($storageDir);
 
         return $mediaModel;
+    }
+
+    /**
+     * Converts WordPress media URLs to Joomla-compatible URLs
+     * This allows users to manually copy media folders from WordPress to Joomla
+     *
+     * @param   string  $content     The content containing WordPress URLs
+     * @param   array   $ftpConfig   FTP configuration to determine storage directory
+     *
+     * @return  string  The content with converted URLs
+     *
+     * @since   1.0.0
+     */
+    protected function convertWordPressUrlsToJoomla(string $content, array $ftpConfig = []): string
+    {
+        if (empty($content)) {
+            return $content;
+        }
+
+        // Determine storage directory from FTP config
+        $storageDir = (($ftpConfig['media_storage_mode'] ?? 'root') === 'custom' && !empty($ftpConfig['media_custom_dir']))
+            ? $ftpConfig['media_custom_dir']
+            : 'imports';
+
+        // Get the Joomla site URL
+        $joomlaBaseUrl = Uri::root();
+
+        // Pattern to match WordPress media URLs
+        // Matches: http://example.com/wp-content/uploads/2024/01/image.jpg
+        $pattern = '/https?:\/\/[^\/]+\/wp-content\/uploads\/([^\s"\'<>]+\.(jpg|jpeg|png|gif|webp|pdf|doc|docx|mp4|mp3|zip))/i';
+        $updatedContent = preg_replace_callback($pattern, function($matches) use ($joomlaBaseUrl, $storageDir) {
+            $wpPath = $matches[1]; // e.g., "2024/01/image.jpg"
+            
+            // Convert to Joomla URL maintaining the WordPress folder structure
+            $joomlaUrl = $joomlaBaseUrl . 'images/' . $storageDir . '/' . $wpPath;
+            
+            return $joomlaUrl;
+        }, $content);
+
+        // Also handle relative WordPress URLs that might not have the full domain
+        // Pattern: /wp-content/uploads/2024/01/image.jpg
+        $relativePattern = '/\/wp-content\/uploads\/([^\s"\'<>]+\.(jpg|jpeg|png|gif|webp|pdf|doc|docx|mp4|mp3|zip))/i';
+        
+        $updatedContent = preg_replace_callback($relativePattern, function($matches) use ($joomlaBaseUrl, $storageDir) {
+            $wpPath = $matches[1]; // e.g., "2024/01/image.jpg"
+            
+            // Convert to Joomla URL maintaining the WordPress folder structure
+            $joomlaUrl = $joomlaBaseUrl . 'images/' . $storageDir . '/' . $wpPath;
+            
+            return $joomlaUrl;
+        }, $updatedContent);
+
+        return $updatedContent;
     }
 
     // --- "Get or Create" Helper Methods ---
