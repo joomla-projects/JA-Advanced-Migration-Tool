@@ -59,7 +59,7 @@ class ProcessorModel extends BaseDatabaseModel
      *
      * @param   array   $data                 The migration data.
      * @param   string  $sourceUrl            The source URL.
-     * @param   array   $ftpConfig            FTP configuration.
+     * @param   array   $ftpConfig            Connection configuration (FTP/SFTP).
      * @param   bool    $importAsSuperUser    Whether to import as a super user.
      *
      * @return  array   The result of the processing.
@@ -110,7 +110,7 @@ class ProcessorModel extends BaseDatabaseModel
      *
      * @param   array   $data       The migration data.
      * @param   string  $sourceUrl  The source URL.
-     * @param   array   $ftpConfig  FTP configuration.
+     * @param   array   $ftpConfig  Connection configuration (FTP/SFTP).
      *
      * @return  array   The result of the processing.
      */
@@ -163,7 +163,7 @@ class ProcessorModel extends BaseDatabaseModel
      *
      * @param   array   $data               The migration data.
      * @param   string  $sourceUrl          The source URL.
-     * @param   array   $ftpConfig          FTP configuration.
+     * @param   array   $ftpConfig          Connection configuration (FTP/SFTP).
      * @param   bool    $importAsSuperUser  Whether to import as a super user.
      *
      * @return  array   The result of the processing.
@@ -381,7 +381,7 @@ class ProcessorModel extends BaseDatabaseModel
             $content = $mediaModel->migrateMediaInContent($ftpConfig, $content, $sourceUrl);
         } else {
             // Convert WordPress URLs to Joomla URLs even when media migration is disabled
-            $content = $this->convertWordPressUrlsToJoomla($content, $ftpConfig);
+            $content = $this->convertWordPressUrlsToJoomla($content, is_array($ftpConfig) ? $ftpConfig : []);
         }
 
         [$introtext, $fulltext] = (strpos($content, '') !== false)
@@ -581,7 +581,7 @@ class ProcessorModel extends BaseDatabaseModel
                 $post['post_content'] = $updatedContent;
             } elseif (!$mediaModel && !empty($content)) {
                 // Convert WordPress URLs to Joomla URLs even when media migration is disabled
-                $post['post_content'] = $this->convertWordPressUrlsToJoomla($content, $ftpConfig);
+                $post['post_content'] = $this->convertWordPressUrlsToJoomla($content, is_array($ftpConfig) ? $ftpConfig : []);
             }
             
             $batchData[$postId] = $post;

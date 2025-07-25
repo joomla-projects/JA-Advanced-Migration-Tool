@@ -17,6 +17,8 @@ use Joomla\CMS\Filesystem\File;
 use Joomla\CMS\Filesystem\Folder;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Uri\Uri;
+use phpseclib3\Net\SFTP;
+use phpseclib3\Net\SSH2;
 
 /**
  * Media Model
@@ -42,6 +44,22 @@ class MediaModel extends BaseDatabaseModel
      * @since  1.0.0
      */
     protected $ftpConnection;
+
+    /**
+     * SFTP connection object
+     *
+     * @var    SFTP|null
+     * @since  1.0.0
+     */
+    protected $sftpConnection;
+
+    /**
+     * Connection type (ftp or sftp)
+     *
+     * @var    string
+     * @since  1.0.0
+     */
+    protected $connectionType = 'ftp';
 
     /**
      * Base URL for media
@@ -156,7 +174,7 @@ class MediaModel extends BaseDatabaseModel
     /**
      * Migrate media in content
      *
-     * @param   array   $ftpConfig     The FTP configuration
+     * @param   array   $config        The connection configuration
      * @param   string  $content       The content with media URLs
      * @param   string  $sourceUrl     The source URL (optional)
      *
@@ -164,7 +182,7 @@ class MediaModel extends BaseDatabaseModel
      *
      * @since   1.0.0
      */
-    public function migrateMediaInContent(array $ftpConfig, string $content, string $sourceUrl = ''): string
+    public function migrateMediaInContent(array $config, string $content, string $sourceUrl = ''): string
     {
         if (empty($content)) {
             return $content;
@@ -176,8 +194,8 @@ class MediaModel extends BaseDatabaseModel
             return $content;
         }
 
-        if (!$this->connectFtp($ftpConfig)) {
-            Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_FTP_CONNECTION_FAILED'), 'warning');
+        if (!$this->connect($config)) {
+            Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_CONNECTION_FAILED'), 'warning');
             return $content;
         }
 
@@ -202,7 +220,7 @@ class MediaModel extends BaseDatabaseModel
             }
         }
 
-        $this->disconnectFtp();
+        $this->disconnect();
         return $updatedContent;
     }
 
@@ -297,7 +315,7 @@ class MediaModel extends BaseDatabaseModel
                 return $newUrl;
             }
 
-            if ($this->downloadFileViaFtp($remotePath, $localFilePath)) {
+            if ($this->downloadFile($remotePath, $localFilePath)) {
                 $newUrl = $this->mediaBaseUrl . $localFileName;
                 $this->downloadedFiles[$remotePath] = $newUrl;
 
@@ -316,6 +334,25 @@ class MediaModel extends BaseDatabaseModel
         );
 
         return null;
+    }
+
+    /**
+     * Download file via FTP or SFTP
+     *
+     * @param   string  $remotePath  The remote file path
+     * @param   string  $localPath   The local file path
+     *
+     * @return  bool  True on success, false on failure
+     *
+     * @since   1.0.0
+     */
+    protected function downloadFile(string $remotePath, string $localPath): bool
+    {
+        if ($this->connectionType === 'sftp') {
+            return $this->downloadFileViaSftp($remotePath, $localPath);
+        } else {
+            return $this->downloadFileViaFtp($remotePath, $localPath);
+        }
     }
 
     /**
@@ -347,6 +384,40 @@ class MediaModel extends BaseDatabaseModel
         }
 
         // Factory::getApplication()->enqueueMessage("❌ Failed to get: $remotePath", 'warning');
+        return false;
+    }
+
+    /**
+     * Download file via SFTP
+     *
+     * @param   string  $remotePath  The remote file path
+     * @param   string  $localPath   The local file path
+     *
+     * @return  bool  True on success, false on failure
+     *
+     * @since   1.0.0
+     */
+    protected function downloadFileViaSftp(string $remotePath, string $localPath): bool
+    {
+        if (!$this->sftpConnection) {
+            return false;
+        }
+
+        $localDir = dirname($localPath);
+        if (!Folder::exists($localDir)) {
+            Folder::create($localDir);
+        }
+
+        try {
+            $result = $this->sftpConnection->get($remotePath, $localPath);
+            
+            if ($result !== false) {
+                return true;
+            }
+        } catch (\Exception $e) {
+            // Log error if needed
+        }
+
         return false;
     }
 
@@ -390,30 +461,56 @@ class MediaModel extends BaseDatabaseModel
      */
     protected function autoDetectDocumentRoot(): void
     {
-        if (!$this->ftpConnection || $this->documentRootDetected) {
+        if ((!$this->ftpConnection && !$this->sftpConnection) || $this->documentRootDetected) {
             return;
         }
 
         $commonRoots = ['httpdocs', 'public_html', 'www'];
-        
+        if ($this->connectionType === 'sftp' && $this->sftpConnection){
+            
+        }
         foreach ($commonRoots as $root) {
-            if (@ftp_chdir($this->ftpConnection, $root)) {
-                // Try to find wp-content directory to confirm this is the right root
-                if (@ftp_chdir($this->ftpConnection, 'wp-content')) {
-                    $this->documentRoot = $root;
-                    $this->documentRootDetected = true;
-                    
-                    Factory::getApplication()->enqueueMessage(
-                        "✅ Document root auto-detected: {$root}",
-                        'info'
-                    );
-                    
-                    // Return to original directory
-                    @ftp_chdir($this->ftpConnection, '/');
-                    return;
+            $canChangeDir = false;
+            $hasWpContent = false;
+            
+            if ($this->connectionType === 'sftp' && $this->sftpConnection) {
+                try {
+                    // Check if directory exists
+                    if ($this->sftpConnection->is_dir($root)) {
+                        $canChangeDir = true;
+                        // Check for wp-content directory
+                        if ($this->sftpConnection->is_dir($root . '/wp-content')) {
+                            $hasWpContent = true;
+                        }
+                    }
+                } catch (\Exception $e) {
+                    // Continue to next root
                 }
-                // Return to original directory if wp-content not found
-                @ftp_chdir($this->ftpConnection, '/');
+            } else if ($this->ftpConnection) {
+                if (@ftp_chdir($this->ftpConnection, $root)) {
+                    $canChangeDir = true;
+                    // Try to find wp-content directory to confirm this is the right root
+                    if (@ftp_chdir($this->ftpConnection, 'wp-content')) {
+                        $hasWpContent = true;
+                        // Return to original directory
+                        @ftp_chdir($this->ftpConnection, '/');
+                    } else {
+                        // Return to original directory if wp-content not found
+                        @ftp_chdir($this->ftpConnection, '/');
+                    }
+                }
+            }
+            
+            if ($canChangeDir && $hasWpContent) {
+                $this->documentRoot = $root;
+                $this->documentRootDetected = true;
+                
+                Factory::getApplication()->enqueueMessage(
+                    "✅ Document root auto-detected: {$root}",
+                    'info'
+                );
+                
+                return;
             }
         }
         
@@ -423,6 +520,26 @@ class MediaModel extends BaseDatabaseModel
             "⚠️ Could not auto-detect document root. Using default: {$this->documentRoot}",
             'warning'
         );
+    }
+
+    /**
+     * Connect to FTP or SFTP server
+     *
+     * @param   array  $config  The connection configuration
+     *
+     * @return  bool  True on success, false on failure
+     *
+     * @since   1.0.0
+     */
+    protected function connect(array $config): bool
+    {
+        $this->connectionType = $config['connection_type'] ?? 'ftp';
+        
+        if ($this->connectionType === 'sftp') {
+            return $this->connectSftp($config);
+        } else {
+            return $this->connectFtp($config);
+        }
     }
 
     /**
@@ -470,6 +587,59 @@ class MediaModel extends BaseDatabaseModel
     }
 
     /**
+     * Connect to SFTP server
+     *
+     * @param   array  $config  The SFTP configuration
+     *
+     * @return  bool  True on success, false on failure
+     *
+     * @since   1.0.0
+     */
+    protected function connectSftp(array $config): bool
+    {
+        if ($this->sftpConnection) {
+            return true;
+        }
+
+        if (empty($config['host']) || empty($config['username']) || empty($config['password'])) {
+            Factory::getApplication()->enqueueMessage('SFTP configuration incomplete', 'error');
+            return false;
+        }
+
+        try {
+            $this->sftpConnection = new SFTP($config['host'], $config['port'] ?? 22);
+            
+            if (!$this->sftpConnection->login($config['username'], $config['password'])) {
+                Factory::getApplication()->enqueueMessage('SFTP login failed', 'error');
+                $this->sftpConnection = null;
+                return false;
+            }
+
+            return true;
+        } catch (\Exception $e) {
+            Factory::getApplication()->enqueueMessage("Failed to connect to SFTP server: {$config['host']} - " . $e->getMessage(), 'error');
+            $this->sftpConnection = null;
+            return false;
+        }
+    }
+
+    /**
+     * Disconnect from FTP or SFTP server
+     *
+     * @return  void
+     *
+     * @since   1.0.0
+     */
+    protected function disconnect(): void
+    {
+        if ($this->connectionType === 'sftp') {
+            $this->disconnectSftp();
+        } else {
+            $this->disconnectFtp();
+        }
+    }
+
+    /**
      * Disconnect from FTP server
      *
      * @return  void
@@ -481,6 +651,21 @@ class MediaModel extends BaseDatabaseModel
         if ($this->ftpConnection) {
             ftp_close($this->ftpConnection);
             $this->ftpConnection = null;
+        }
+    }
+
+    /**
+     * Disconnect from SFTP server
+     *
+     * @return  void
+     *
+     * @since   1.0.0
+     */
+    protected function disconnectSftp(): void
+    {
+        if ($this->sftpConnection) {
+            $this->sftpConnection->disconnect();
+            $this->sftpConnection = null;
         }
     }
 
@@ -515,23 +700,23 @@ class MediaModel extends BaseDatabaseModel
     }
 
     /**
-     * Batch download multiple media files in parallel using FTP
+     * Batch download multiple media files in parallel using FTP or SFTP
      *
      * @param   array  $mediaUrls   Array of media URLs to download
-     * @param   array  $ftpConfig   FTP configuration
+     * @param   array  $config      Connection configuration
      *
      * @return  array  Array of results with success/failure for each URL
      *
      * @since   1.0.0
      */
-    public function batchDownloadMedia(array $mediaUrls, array $ftpConfig): array
+    public function batchDownloadMedia(array $mediaUrls, array $config): array
     {
         if (empty($mediaUrls)) {
             return [];
         }
 
-        if (!$this->connectFtp($ftpConfig)) {
-            Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_FTP_CONNECTION_FAILED'), 'warning');
+        if (!$this->connect($config)) {
+            Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_CONNECTION_FAILED'), 'warning');
             return [];
         }
 
@@ -646,7 +831,7 @@ class MediaModel extends BaseDatabaseModel
                     Folder::create($localDir);
                 }
 
-                if ($this->downloadFileViaFtp($pathInfo['remote'], $pathInfo['local'])) {
+                if ($this->downloadFile($pathInfo['remote'], $pathInfo['local'])) {
                     $this->downloadedFiles[$pathInfo['remote']] = $pathInfo['url'];
                     $results[$imageUrl] = [
                         'success' => true,
@@ -683,9 +868,9 @@ class MediaModel extends BaseDatabaseModel
     }
 
     /**
-     * Test FTP connection and auto-detect document root
+     * Test FTP or SFTP connection and auto-detect document root
      *
-     * @param   array   $config        The FTP configuration
+     * @param   array   $config        The connection configuration
      * 
      * @return  array  Result containing success status and message
      *
@@ -698,17 +883,42 @@ class MediaModel extends BaseDatabaseModel
             'message' => ''
         ];
 
+        $connectionType = $config['connection_type'] ?? 'ftp';
+
         // Validate configuration
         if (empty($config['host']) || empty($config['username']) || empty($config['password'])) {
-            $result['message'] = Text::_('COM_CMSMIGRATOR_MEDIA_FTP_FIELDS_REQUIRED');
+            $result['message'] = Text::_('COM_CMSMIGRATOR_MEDIA_CONNECTION_FIELDS_REQUIRED');
             return $result;
         }
+
+        if ($connectionType === 'sftp') {
+            return $this->testSftpConnection($config);
+        } else {
+            return $this->testFtpConnection($config);
+        }
+    }
+
+    /**
+     * Test FTP connection and auto-detect document root
+     *
+     * @param   array   $config        The FTP configuration
+     * 
+     * @return  array  Result containing success status and message
+     *
+     * @since   1.0.0
+     */
+    protected function testFtpConnection(array $config): array
+    {
+        $result = [
+            'success' => false,
+            'message' => ''
+        ];
 
         // Try to connect
         $connection = @ftp_connect($config['host'], $config['port'] ?? 21, 15);
         
         if (!$connection) {
-            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_FAILED', 'Could not connect to server');
+            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_FAILED', 'Could not connect to FTP server');
             return $result;
         }
 
@@ -717,7 +927,7 @@ class MediaModel extends BaseDatabaseModel
         
         if (!$loginResult) {
             ftp_close($connection);
-            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_FAILED', 'Invalid credentials');
+            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_FAILED', 'Invalid FTP credentials');
             return $result;
         }
 
@@ -727,22 +937,7 @@ class MediaModel extends BaseDatabaseModel
         }
 
         // Auto-detect document root
-        $detectedRoot = null;
-        $commonRoots = ['httpdocs', 'public_html', 'www'];
-        
-        foreach ($commonRoots as $root) {
-            if (@ftp_chdir($connection, $root)) {
-                // Try to find wp-content directory to confirm this is the right root
-                if (@ftp_chdir($connection, 'wp-content')) {
-                    $detectedRoot = $root;
-                    // Return to original directory
-                    @ftp_chdir($connection, '/');
-                    break;
-                }
-                // Return to original directory if wp-content not found
-                @ftp_chdir($connection, '/');
-            }
-        }
+        $detectedRoot = $this->detectDocumentRootFtp($connection);
 
         // Close the connection
         ftp_close($connection);
@@ -758,6 +953,109 @@ class MediaModel extends BaseDatabaseModel
         }
 
         return $result;
+    }
+
+    /**
+     * Test SFTP connection and auto-detect document root
+     *
+     * @param   array   $config        The SFTP configuration
+     * 
+     * @return  array  Result containing success status and message
+     *
+     * @since   1.0.0
+     */
+    protected function testSftpConnection(array $config): array
+    {
+        $result = [
+            'success' => false,
+            'message' => ''
+        ];
+
+        try {
+            $sftp = new SFTP($config['host'], $config['port'] ?? 22);
+            
+            if (!$sftp->login($config['username'], $config['password'])) {
+                $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_FAILED', 'Invalid SFTP credentials');
+                return $result;
+            }
+
+            // Auto-detect document root
+            $detectedRoot = $this->detectDocumentRootSftp($sftp);
+
+            // Disconnect
+            $sftp->disconnect();
+            
+            // Return success with detected root info
+            $result['success'] = true;
+            if ($detectedRoot) {
+                $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) . 
+                                   "<br> Document root detected: \"{$detectedRoot}\" with WordPress content.";
+            } else {
+                $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) . 
+                                   '<br> Warning: Could not detect document root with WordPress content.';
+            }
+
+            return $result;
+        } catch (\Exception $e) {
+            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_FAILED', 'Could not connect to SFTP server: ' . $e->getMessage());
+            return $result;
+        }
+    }
+
+    /**
+     * Detect document root via FTP
+     *
+     * @param   resource  $connection  The FTP connection
+     * 
+     * @return  string|null  The detected document root or null
+     *
+     * @since   1.0.0
+     */
+    protected function detectDocumentRootFtp($connection): ?string
+    {
+        $commonRoots = ['httpdocs', 'public_html', 'www'];
+        
+        foreach ($commonRoots as $root) {
+            if (@ftp_chdir($connection, $root)) {
+                // Try to find wp-content directory to confirm this is the right root
+                if (@ftp_chdir($connection, 'wp-content')) {
+                    // Return to original directory
+                    @ftp_chdir($connection, '/');
+                    return $root;
+                }
+                // Return to original directory if wp-content not found
+                @ftp_chdir($connection, '/');
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Detect document root via SFTP
+     *
+     * @param   SFTP  $sftp  The SFTP connection
+     * 
+     * @return  string|null  The detected document root or null
+     *
+     * @since   1.0.0
+     */
+    protected function detectDocumentRootSftp(SFTP $sftp): ?string
+    {
+        $commonRoots = ['httpdocs', 'public_html', 'www'];
+        
+        foreach ($commonRoots as $root) {
+            try {
+                // Check if directory exists and has wp-content
+                if ($sftp->is_dir($root) && $sftp->is_dir($root . '/wp-content')) {
+                    return $root;
+                }
+            } catch (\Exception $e) {
+                // Continue to next root
+            }
+        }
+        
+        return null;
     }
 
     /**
@@ -809,12 +1107,12 @@ class MediaModel extends BaseDatabaseModel
     /**
      * Destructor
      *
-     * Cleans up the FTP connection on object destruction.
+     * Cleans up the FTP and SFTP connections on object destruction.
      *
      * @since   1.0.0
      */
     public function __destruct()
     {
-        $this->disconnectFtp();
+        $this->disconnect();
     }
 }

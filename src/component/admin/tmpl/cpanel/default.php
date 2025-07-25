@@ -67,8 +67,14 @@ use Joomla\CMS\Factory;
                             </div>
                         </div>
 
-                        <!-- FTP Configuration (shown when media migration is enabled) -->
-                        <div id="ftp-config-section" style="display: none;">
+                        <!-- Connection Configuration (shown when media migration is enabled) -->
+                        <div id="connection-config-section" style="display: none;">
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <?php echo $this->form->renderField('connection_type'); ?>
+                                </div>
+                            </div>
+
                             <div class="row">
                                 <div class="col-md-6">
                                     <?php echo $this->form->renderField('ftp_host'); ?>
@@ -95,11 +101,11 @@ use Joomla\CMS\Factory;
                                     <div class="control-group">
                                         <div class="control-label">&nbsp;</div>
                                         <div class="controls">
-                                            <button type="button" id="test-ftp-button" class="btn btn-primary">
+                                            <button type="button" id="test-connection-button" class="btn btn-primary">
                                                 <span class="icon-plug" aria-hidden="true"></span>
                                                 <?php echo Text::_('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION'); ?>
                                             </button>
-                                            <div id="test-ftp-result" class="mt-2"></div>
+                                            <div id="test-connection-result" class="mt-2"></div>
                                         </div>
                                     </div>
                                 </div>
@@ -236,60 +242,64 @@ document.addEventListener('DOMContentLoaded', function () {
     const detailedStatus = document.getElementById('migration-detailed-status');
     let migrationStartTime = 0;
 
-    // FTP Test Connection functionality
-    const testFtpButton = document.getElementById('test-ftp-button');
-    const testFtpResult = document.getElementById('test-ftp-result');
+    // Connection Test functionality
+    const testConnectionButton = document.getElementById('test-connection-button');
+    const testConnectionResult = document.getElementById('test-connection-result');
     
-    if (testFtpButton) {
-        testFtpButton.addEventListener('click', function() {
+    if (testConnectionButton) {
+        testConnectionButton.addEventListener('click', function() {
+            const connectionType = document.querySelector('[name="jform[connection_type]"]').value;
             const host = document.querySelector('[name="jform[ftp_host]"]').value;
             const port = document.querySelector('[name="jform[ftp_port]"]').value;
             const username = document.querySelector('[name="jform[ftp_username]"]').value;
             const password = document.querySelector('[name="jform[ftp_password]"]').value;
-            const passive = document.querySelector('[name="jform[ftp_passive]"]:checked').value;
+            const passive = document.querySelector('[name="jform[ftp_passive]"]:checked')?.value;
             
             // Validate inputs
             if (!host || !username || !password) {
-                testFtpResult.innerHTML = '<div class="alert alert-danger"><?php echo Text::_('COM_CMSMIGRATOR_MEDIA_FTP_FIELDS_REQUIRED'); ?></div>';
+                testConnectionResult.innerHTML = '<div class="alert alert-danger"><?php echo Text::_('COM_CMSMIGRATOR_MEDIA_CONNECTION_FIELDS_REQUIRED'); ?></div>';
                 return;
             }
             
             // Show testing message
-            testFtpResult.innerHTML = '<div class="alert alert-info"><?php echo Text::_('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_TESTING'); ?></div>';
+            testConnectionResult.innerHTML = '<div class="alert alert-info"><?php echo Text::_('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_TESTING'); ?></div>';
             
             // Create form data
             const formData = new FormData();
+            formData.append('connection_type', connectionType);
             formData.append('host', host);
             formData.append('port', port);
             formData.append('username', username);
             formData.append('password', password);
-            formData.append('passive', passive);
+            if (passive) {
+                formData.append('passive', passive);
+            }
             formData.append('<?php echo Factory::getSession()->getFormToken(); ?>', 1);
             
             // Send AJAX request
-            fetch('index.php?option=com_cmsmigrator&task=import.testFtp&format=raw', {
+            fetch('index.php?option=com_cmsmigrator&task=import.testConnection&format=raw', {
                 method: 'POST',
                 body: formData
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    testFtpResult.innerHTML = '<div class="alert alert-success">' + data.message + '</div>';
+                    testConnectionResult.innerHTML = '<div class="alert alert-success">' + data.message + '</div>';
                 } else {
-                    testFtpResult.innerHTML = '<div class="alert alert-danger">' + data.message + '</div>';
+                    testConnectionResult.innerHTML = '<div class="alert alert-danger">' + data.message + '</div>';
                 }
             })
             .catch(error => {
-                testFtpResult.innerHTML = '<div class="alert alert-danger">Error testing connection: ' + error.message + '</div>';
+                testConnectionResult.innerHTML = '<div class="alert alert-danger">Error testing connection: ' + error.message + '</div>';
             });
         });
     }
 
-    // Show/hide FTP config based on enable_media_migration (works for checkbox, select, or radio)
+    // Show/hide connection config based on enable_media_migration (works for checkbox, select, or radio)
     const enableMediaMigrationInputs = Array.from(
       document.getElementsByName('jform[enable_media_migration]')
     );
-    const ftpConfigSection = document.getElementById('ftp-config-section');
+    const connectionConfigSection = document.getElementById('connection-config-section');
 
     function isMediaEnabled() {
       if (enableMediaMigrationInputs.length === 0) {
@@ -303,21 +313,38 @@ document.addEventListener('DOMContentLoaded', function () {
       return enableMediaMigrationInputs.some(el => el.checked && el.value === '1');
     }
 
-    function toggleFtpConfigSection() {
+    function toggleConnectionConfigSection() {
       if (isMediaEnabled()) {
-        ftpConfigSection.style.display = '';
+        connectionConfigSection.style.display = '';
+        updatePortDefault();
       } else {
-        ftpConfigSection.style.display = 'none';
-        if (testFtpResult) {
-          testFtpResult.innerHTML = '';
+        connectionConfigSection.style.display = 'none';
+        if (testConnectionResult) {
+          testConnectionResult.innerHTML = '';
         }
       }
     }
 
+    // Update port default when connection type changes
+    function updatePortDefault() {
+        const connectionType = document.querySelector('[name="jform[connection_type]"]')?.value || 'ftp';
+        const portField = document.querySelector('[name="jform[ftp_port]"]');
+        
+        if (portField && (portField.value === '' || portField.value === '21' || portField.value === '22')) {
+            portField.value = connectionType === 'sftp' ? '22' : '21';
+        }
+    }
+
+    // Handle connection type changes
+    const connectionTypeSelect = document.querySelector('[name="jform[connection_type]"]');
+    if (connectionTypeSelect) {
+        connectionTypeSelect.addEventListener('change', updatePortDefault);
+    }
+
     enableMediaMigrationInputs.forEach(el =>
-      el.addEventListener('change', toggleFtpConfigSection)
+      el.addEventListener('change', toggleConnectionConfigSection)
     );
-    toggleFtpConfigSection();
+    toggleConnectionConfigSection();
 
     // Show/hide Custom Directory field based on Media Storage Location
     const storageModeRadios = document.querySelectorAll('[name="jform[media_storage_mode]"]');
