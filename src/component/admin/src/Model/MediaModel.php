@@ -260,9 +260,16 @@ class MediaModel extends BaseDatabaseModel
             }
         }
 
+        // Match standard WordPress uploads URLs
         preg_match_all('/https?:\/\/[^\/]+\/wp-content\/uploads\/[^\s"\'<>]+\.(jpg|jpeg|png|gif|webp)/i', $content, $wpMatches);
         if (!empty($wpMatches[0])) {
             $imageUrls = array_merge($imageUrls, $wpMatches[0]);
+        }
+        
+        // Match direct uploads folder URLs
+        preg_match_all('/https?:\/\/[^\/]+\/uploads\/[^\s"\'<>]+\.(jpg|jpeg|png|gif|webp)/i', $content, $directMatches);
+        if (!empty($directMatches[0])) {
+            $imageUrls = array_merge($imageUrls, $directMatches[0]);
         }
 
         return array_unique($imageUrls);
@@ -286,20 +293,34 @@ class MediaModel extends BaseDatabaseModel
         }
 
         $uploadPath = $parsedUrl['path'];
-        if (strpos($uploadPath, '/wp-content/uploads/') === false) {
+        
+        // Check for different WordPress upload path patterns
+        $isWordPressUpload = false;
+        $relativePath = '';
+        
+        if (strpos($uploadPath, '/wp-content/uploads/') !== false) {
+            // Standard WordPress structure: /wp-content/uploads/...
+            $isWordPressUpload = true;
+            preg_match('/.*\/wp-content\/uploads\/(.+)$/', $uploadPath, $matches);
+            $relativePath = $matches[1] ?? '';
+        } elseif (strpos($uploadPath, '/uploads/') !== false) {
+            // Direct uploads folder: /uploads/...
+            $isWordPressUpload = true;
+            preg_match('/.*\/uploads\/(.+)$/', $uploadPath, $matches);
+            $relativePath = $matches[1] ?? '';
+        }
+        
+        if (!$isWordPressUpload || empty($relativePath)) {
             Factory::getApplication()->enqueueMessage("Not a WordPress upload path: $uploadPath", 'warning');
             return null;
         }
 
-        $pathInfo = pathinfo($uploadPath);
+        $pathInfo = pathinfo($relativePath);
         $resizedPath = $pathInfo['dirname'] . '/' . $pathInfo['filename'] . '-768x512.' . $pathInfo['extension'];
         $originalPath = $pathInfo['dirname'] . '/' . $pathInfo['basename'];
 
-        // Try resized first, then original
-        $candidatePaths = [
-            $this->documentRoot . $resizedPath,
-            $this->documentRoot . $originalPath
-        ];
+        // Generate candidate remote paths based on detected structure
+        $candidatePaths = $this->generateCandidateRemotePaths($resizedPath, $originalPath);
 
         foreach ($candidatePaths as $remotePath) {
             $localFileName = $this->getLocalFileName($remotePath);
@@ -334,6 +355,43 @@ class MediaModel extends BaseDatabaseModel
         );
 
         return null;
+    }
+
+    /**
+     * Generate candidate remote paths for different WordPress structures
+     *
+     * @param   string  $resizedPath   The resized image path (relative)
+     * @param   string  $originalPath  The original image path (relative)
+     *
+     * @return  array   Array of candidate remote paths to try
+     *
+     * @since   1.0.0
+     */
+    protected function generateCandidateRemotePaths(string $resizedPath, string $originalPath): array
+    {
+        $candidatePaths = [];
+        $documentRoot = $this->documentRoot === '.' ? '' : $this->documentRoot;
+        
+        // Try different WordPress structure patterns
+        $structures = [
+            // Standard structure: {documentRoot}/wp-content/uploads/...
+            ($documentRoot ? $documentRoot . '/' : '') . 'wp-content/uploads/',
+            // Direct uploads: {documentRoot}/uploads/...
+            ($documentRoot ? $documentRoot . '/' : '') . 'uploads/',
+            // Root wp-content: wp-content/uploads/...
+            'wp-content/uploads/',
+            // Root uploads: uploads/...
+            'uploads/'
+        ];
+        
+        foreach ($structures as $structure) {
+            // Add resized version first (usually smaller file)
+            $candidatePaths[] = $structure . $resizedPath;
+            // Add original version
+            $candidatePaths[] = $structure . $originalPath;
+        }
+        
+        return array_unique($candidatePaths);
     }
 
     /**
@@ -439,9 +497,23 @@ class MediaModel extends BaseDatabaseModel
             return $matches[1];
         }
         
+        // Extract the path after direct uploads/
+        $pattern = '/.*\/uploads\/(.+)$/';
+        if (preg_match($pattern, $remotePath, $matches)) {
+            // Return the uploads structure (e.g., 2024/01/image.jpg)
+            return $matches[1];
+        }
+        
         // Fallback: clean the path but preserve some structure
-        $cleanPath = str_replace($this->documentRoot . '/', '', $remotePath);
-        $cleanPath = str_replace('wp-content/uploads/', '', $cleanPath);
+        $cleanPath = $remotePath;
+        
+        // Remove document root if present
+        if ($this->documentRoot !== '.' && strpos($cleanPath, $this->documentRoot . '/') === 0) {
+            $cleanPath = substr($cleanPath, strlen($this->documentRoot . '/'));
+        }
+        
+        // Remove wp-content/uploads/ or uploads/ prefix
+        $cleanPath = preg_replace('/^(wp-content\/)?uploads\//', '', $cleanPath);
         
         // Sanitize directory and file names separately to preserve folder structure
         $pathParts = explode('/', $cleanPath);
@@ -465,48 +537,88 @@ class MediaModel extends BaseDatabaseModel
             return;
         }
 
-        $commonRoots = ['httpdocs', 'public_html', 'www'];
-        if ($this->connectionType === 'sftp' && $this->sftpConnection){
-            
-        }
-        foreach ($commonRoots as $root) {
-            $canChangeDir = false;
-            $hasWpContent = false;
+        // Test different WordPress structure scenarios
+        $testScenarios = [
+            // Standard document roots with wp-content
+            ['httpdocs', 'wp-content'],
+            ['public_html', 'wp-content'],
+            ['www', 'wp-content'],
+            // WordPress in root directory
+            ['', 'wp-content'],
+            // Direct uploads folder scenarios
+            ['httpdocs', 'uploads'],
+            ['public_html', 'uploads'],
+            ['www', 'uploads'],
+            ['', 'uploads']
+        ];
+
+        foreach ($testScenarios as [$root, $contentPath]) {
+            $canAccess = false;
+            $hasWordPressContent = false;
             
             if ($this->connectionType === 'sftp' && $this->sftpConnection) {
                 try {
-                    // Check if directory exists
-                    if ($this->sftpConnection->is_dir($root)) {
-                        $canChangeDir = true;
-                        // Check for wp-content directory
-                        if ($this->sftpConnection->is_dir($root . '/wp-content')) {
-                            $hasWpContent = true;
+                    $checkPath = $root ? $root . '/' . $contentPath : $contentPath;
+                    
+                    // Check if the root directory exists (or skip if empty root)
+                    if (empty($root) || $this->sftpConnection->is_dir($root)) {
+                        $canAccess = true;
+                        
+                        // Check for WordPress content structure
+                        if ($this->sftpConnection->is_dir($checkPath)) {
+                            $hasWordPressContent = true;
+                            
+                            // For wp-content, also check for uploads subdirectory
+                            if ($contentPath === 'wp-content') {
+                                $uploadsPath = $checkPath . '/uploads';
+                                if ($this->sftpConnection->is_dir($uploadsPath)) {
+                                    $hasWordPressContent = true;
+                                }
+                            }
                         }
                     }
                 } catch (\Exception $e) {
-                    // Continue to next root
+                    // Continue to next scenario
                 }
             } else if ($this->ftpConnection) {
-                if (@ftp_chdir($this->ftpConnection, $root)) {
-                    $canChangeDir = true;
-                    // Try to find wp-content directory to confirm this is the right root
-                    if (@ftp_chdir($this->ftpConnection, 'wp-content')) {
-                        $hasWpContent = true;
-                        // Return to original directory
-                        @ftp_chdir($this->ftpConnection, '/');
+                $originalDir = @ftp_pwd($this->ftpConnection);
+                
+                // Check if we can access the root directory (or skip if empty root)
+                if (empty($root) || @ftp_chdir($this->ftpConnection, $root)) {
+                    $canAccess = true;
+                    
+                    // Check for WordPress content structure
+                    if (@ftp_chdir($this->ftpConnection, $contentPath)) {
+                        $hasWordPressContent = true;
+                        
+                        // For wp-content, also check for uploads subdirectory
+                        if ($contentPath === 'wp-content') {
+                            if (@ftp_chdir($this->ftpConnection, 'uploads')) {
+                                $hasWordPressContent = true;
+                                // Return to wp-content
+                                @ftp_chdir($this->ftpConnection, '..');
+                            }
+                        }
+                        
+                        // Return to root
+                        @ftp_chdir($this->ftpConnection, $originalDir ?: '/');
                     } else {
-                        // Return to original directory if wp-content not found
-                        @ftp_chdir($this->ftpConnection, '/');
+                        // Return to original directory if content path not found
+                        @ftp_chdir($this->ftpConnection, $originalDir ?: '/');
                     }
+                } else {
+                    // Return to original directory if root change failed
+                    @ftp_chdir($this->ftpConnection, $originalDir ?: '/');
                 }
             }
             
-            if ($canChangeDir && $hasWpContent) {
-                $this->documentRoot = $root;
+            if ($canAccess && $hasWordPressContent) {
+                $this->documentRoot = $root ?: '.';
                 $this->documentRootDetected = true;
                 
+                $detectedStructure = $root ? "{$root}/{$contentPath}" : $contentPath;
                 Factory::getApplication()->enqueueMessage(
-                    "✅ Document root auto-detected: {$root}",
+                    "✅ WordPress structure auto-detected: {$detectedStructure} (Document root: {$this->documentRoot})",
                     'info'
                 );
                 
@@ -514,10 +626,10 @@ class MediaModel extends BaseDatabaseModel
             }
         }
         
-        // If no valid root found, use default and mark as detected to avoid repeated attempts
+        // If no valid structure found, use default and mark as detected to avoid repeated attempts
         $this->documentRootDetected = true;
         Factory::getApplication()->enqueueMessage(
-            "⚠️ Could not auto-detect document root. Using default: {$this->documentRoot}",
+            "⚠️ Could not auto-detect WordPress structure. Using default document root: {$this->documentRoot}",
             'warning'
         );
     }
@@ -686,14 +798,21 @@ class MediaModel extends BaseDatabaseModel
         }
 
         $uploadPath = $parsedUrl['path'];
-        if (strpos($uploadPath, '/wp-content/uploads/') === false) {
-            return null;
+        
+        // Check for standard WordPress structure: /wp-content/uploads/
+        if (strpos($uploadPath, '/wp-content/uploads/') !== false) {
+            $pattern = '/.*\/wp-content\/uploads\/(.+)$/';
+            if (preg_match($pattern, $uploadPath, $matches)) {
+                return $this->mediaBaseUrl . $matches[1];
+            }
         }
-
-        // Extract the part after wp-content/uploads/
-        $pattern = '/.*\/wp-content\/uploads\/(.+)$/';
-        if (preg_match($pattern, $uploadPath, $matches)) {
-            return $this->mediaBaseUrl . $matches[1];
+        
+        // Check for direct uploads structure: /uploads/
+        if (strpos($uploadPath, '/uploads/') !== false) {
+            $pattern = '/.*\/uploads\/(.+)$/';
+            if (preg_match($pattern, $uploadPath, $matches)) {
+                return $this->mediaBaseUrl . $matches[1];
+            }
         }
 
         return null;
@@ -779,19 +898,37 @@ class MediaModel extends BaseDatabaseModel
         }
 
         $uploadPath = $parsedUrl['path'];
-        if (strpos($uploadPath, '/wp-content/uploads/') === false) {
+        
+        // Check for different WordPress upload path patterns
+        $isWordPressUpload = false;
+        $relativePath = '';
+        
+        if (strpos($uploadPath, '/wp-content/uploads/') !== false) {
+            // Standard WordPress structure: /wp-content/uploads/...
+            $isWordPressUpload = true;
+            preg_match('/.*\/wp-content\/uploads\/(.+)$/', $uploadPath, $matches);
+            $relativePath = $matches[1] ?? '';
+        } elseif (strpos($uploadPath, '/uploads/') !== false) {
+            // Direct uploads folder: /uploads/...
+            $isWordPressUpload = true;
+            preg_match('/.*\/uploads\/(.+)$/', $uploadPath, $matches);
+            $relativePath = $matches[1] ?? '';
+        }
+        
+        if (!$isWordPressUpload || empty($relativePath)) {
             return [];
         }
 
-        $pathInfo = pathinfo($uploadPath);
+        $pathInfo = pathinfo($relativePath);
         $resizedPath = $pathInfo['dirname'] . '/' . $pathInfo['filename'] . '-768x512.' . $pathInfo['extension'];
         $originalPath = $pathInfo['dirname'] . '/' . $pathInfo['basename'];
 
         $paths = [];
         
-        // Try resized first, then original
-        foreach ([$resizedPath, $originalPath] as $path) {
-            $remotePath = $this->documentRoot . $path;
+        // Generate candidate remote paths based on detected structure
+        $candidatePaths = $this->generateCandidateRemotePaths($resizedPath, $originalPath);
+        
+        foreach ($candidatePaths as $remotePath) {
             $localFileName = $this->getLocalFileName($remotePath);
             $localFilePath = $this->mediaBasePath . $localFileName;
 
@@ -1078,14 +1215,21 @@ class MediaModel extends BaseDatabaseModel
         }
 
         $uploadPath = $parsedUrl['path'];
-        if (strpos($uploadPath, '/wp-content/uploads/') === false) {
-            return null;
+        
+        // Check for standard WordPress structure: /wp-content/uploads/
+        if (strpos($uploadPath, '/wp-content/uploads/') !== false) {
+            $pattern = '/.*\/wp-content\/uploads\/(.+)$/';
+            if (preg_match($pattern, $uploadPath, $matches)) {
+                return 'images/' . $this->storageDir . '/' . $matches[1];
+            }
         }
-
-        // Extract the part after wp-content/uploads/
-        $pattern = '/.*\/wp-content\/uploads\/(.+)$/';
-        if (preg_match($pattern, $uploadPath, $matches)) {
-            return 'images/' . $this->storageDir . '/' . $matches[1];
+        
+        // Check for direct uploads structure: /uploads/
+        if (strpos($uploadPath, '/uploads/') !== false) {
+            $pattern = '/.*\/uploads\/(.+)$/';
+            if (preg_match($pattern, $uploadPath, $matches)) {
+                return 'images/' . $this->storageDir . '/' . $matches[1];
+            }
         }
 
         return null;
