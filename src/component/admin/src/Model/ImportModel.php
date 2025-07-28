@@ -20,24 +20,37 @@ class ImportModel extends BaseDatabaseModel
     //Our importFunction doesn't know how to convert/parse this data
     public function import($file, $sourceCms, $sourceUrl = '', $ftpConfig = [], $importAsSuperUser = false)
     {
-         // Load plugins "migration"
-        PluginHelper::importPlugin('migration');
-        $dispatcher = Factory::getApplication()->getDispatcher();
 
-        // Fire the "onMigrationConvert" event to allow plugins to convert the file
-        $event = new MigrationEvent('onMigrationConvert', ['sourceCms' => $sourceCms, 'filePath' => $file['tmp_name']]);
-        $dispatcher->dispatch('onMigrationConvert', $event);
+        // Handle JSON import directly, bypassing plugin event
+        if ($sourceCms === 'json') {
+            if (!isset($file['tmp_name']) || !is_readable($file['tmp_name'])) {
+                $this->setError(Text::_('COM_CMSMIGRATOR_INVALID_FILE'));
+                return false;
+            }
+            $convertedData = file_get_contents($file['tmp_name']);
+            if (empty($convertedData)) {
+                $this->setError(Text::_('COM_CMSMIGRATOR_EMPTY_JSON_FILE'));
+                return false;
+            }
+        } else {
+            PluginHelper::importPlugin('migration');
+            $dispatcher = Factory::getApplication()->getDispatcher();
 
-        //Get Results
-        $results = $event->getResults();
+            // Fire the "onMigrationConvert" event to allow plugins to convert the file
+            $event = new MigrationEvent('onMigrationConvert', ['sourceCms' => $sourceCms, 'filePath' => $file['tmp_name']]);
+            $dispatcher->dispatch('onMigrationConvert', $event);
 
-        // Find the first successful conversion
-        $convertedData = null;
-        foreach ($results as $result) {
-            if ($result) {
-                $convertedData = $result;
-                error_log('Converted Data: ' . $convertedData);
-                break;
+            //Get Results
+            $results = $event->getResults();
+
+            // Find the first successful conversion
+            $convertedData = null;
+            foreach ($results as $result) {
+                if ($result) {
+                    $convertedData = $result;
+                    error_log('Converted Data: ' . $convertedData);
+                    break;
+                }
             }
         }
 

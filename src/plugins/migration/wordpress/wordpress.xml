@@ -11,4 +11,5 @@
         <filename plugin="wordpress">wordpress.php</filename>
         <folder>language</folder>
     </files>
+    <scriptfile>script.php</scriptfile>
 </extension> 
