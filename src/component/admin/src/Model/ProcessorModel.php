@@ -155,6 +155,20 @@ class ProcessorModel extends BaseDatabaseModel
             }
         }, $result);
 
+        if (!$result['success']) {
+            $this->updateProgress(100, 'Migration failed!');
+        } else {
+            // Set completion status for successful migration
+            $connectionType = $ftpConfig['connection_type'] ?? 'ftp';
+            $completionMessage = sprintf(
+                'Migration completed successfully! Imported: %d articles, %d media files%s',
+                $result['counts']['articles'],
+                $result['counts']['media'],
+                $connectionType === 'zip' ? ' (from ZIP upload)' : ''
+            );
+            $this->updateProgress(100, $completionMessage);
+        }
+
         return $result;
     }
 
@@ -197,6 +211,16 @@ class ProcessorModel extends BaseDatabaseModel
 
         if (!$result['success']) {
             $this->updateProgress(100, 'Migration failed!');
+        } else {
+            // Set completion status for successful migration
+            $connectionType = $ftpConfig['connection_type'] ?? 'ftp';
+            $completionMessage = sprintf(
+                'Migration completed successfully! Imported: %d articles, %d media files%s',
+                $result['counts']['articles'],
+                $result['counts']['media'],
+                $connectionType === 'zip' ? ' (from ZIP upload)' : ''
+            );
+            $this->updateProgress(100, $completionMessage);
         }
 
         return $result;
@@ -658,6 +682,27 @@ class ProcessorModel extends BaseDatabaseModel
      */
     private function initializeMediaModel(array $ftpConfig): ?MediaModel
     {
+        // Check if media migration is enabled
+        $connectionType = $ftpConfig['connection_type'] ?? '';
+        
+        // For ZIP uploads, we don't need host credentials, just the connection type
+        if ($connectionType === 'zip') {
+            $mediaModel = new MediaModel();
+            $storageDir = (($ftpConfig['media_storage_mode'] ?? 'root') === 'custom' && !empty($ftpConfig['media_custom_dir']))
+                ? $ftpConfig['media_custom_dir']
+                : 'imports';
+            $mediaModel->setStorageDirectory($storageDir);
+            
+            // Process ZIP upload immediately when initializing the model
+            if (!$mediaModel->connect($ftpConfig)) {
+                Factory::getApplication()->enqueueMessage('Failed to process ZIP upload for media migration', 'error');
+                return null;
+            }
+            
+            return $mediaModel;
+        }
+        
+        // For FTP/SFTP, require host configuration
         if (empty($ftpConfig['host'])) {
             return null;
         }

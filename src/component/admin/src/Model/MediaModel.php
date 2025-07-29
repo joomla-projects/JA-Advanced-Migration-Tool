@@ -194,6 +194,11 @@ class MediaModel extends BaseDatabaseModel
             return $content;
         }
 
+        // Handle ZIP upload differently - files are already extracted
+        if (($config['connection_type'] ?? 'ftp') === 'zip') {
+            return $this->processContentForZipUpload($content, $imageUrls);
+        }
+
         if (!$this->connect($config)) {
             Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_CONNECTION_FAILED'), 'warning');
             return $content;
@@ -643,11 +648,13 @@ class MediaModel extends BaseDatabaseModel
      *
      * @since   1.0.0
      */
-    protected function connect(array $config): bool
+    public function connect(array $config): bool
     {
         $this->connectionType = $config['connection_type'] ?? 'ftp';
         
-        if ($this->connectionType === 'sftp') {
+        if ($this->connectionType === 'zip') {
+            return $this->processZipUpload($config);
+        } elseif ($this->connectionType === 'sftp') {
             return $this->connectSftp($config);
         } else {
             return $this->connectFtp($config);
@@ -733,6 +740,235 @@ class MediaModel extends BaseDatabaseModel
             $this->sftpConnection = null;
             return false;
         }
+    }
+
+    /**
+     * Process ZIP file upload containing WordPress uploads folder
+     *
+     * @param   array  $config  The ZIP configuration
+     *
+     * @return  bool  True on success, false on failure
+     *
+     * @since   1.0.0
+     */
+    protected function processZipUpload(array $config): bool
+    {
+        if (empty($config['zip_file']) || !isset($config['zip_file']['tmp_name'])) {
+            Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_FILE_MISSING'), 'error');
+            return false;
+        }
+
+        $zipFile = $config['zip_file'];
+        
+        // Validate file upload
+        if ($zipFile['error'] !== UPLOAD_ERR_OK) {
+            Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_UPLOAD_ERROR'), 'error');
+            return false;
+        }
+
+        // Validate file type
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_file($finfo, $zipFile['tmp_name']);
+        finfo_close($finfo);
+
+        if (!in_array($mimeType, ['application/zip', 'application/x-zip-compressed'])) {
+            Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_INVALID_TYPE'), 'error');
+            return false;
+        }
+
+        try {
+            // Extract ZIP file to storage directory
+            $extractPath = $this->mediaBasePath;
+            
+            // Ensure extraction directory exists
+            if (!Folder::exists($extractPath)) {
+                Folder::create($extractPath);
+            }
+
+            Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_PROCESSING'), 'info');
+
+            // Extract ZIP
+            $zip = new \ZipArchive();
+            $result = $zip->open($zipFile['tmp_name']);
+            
+            if ($result !== TRUE) {
+                Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_EXTRACT_FAILED'), 'error');
+                return false;
+            }
+
+            $extractedFiles = 0;
+            $totalFiles = $zip->numFiles;
+            $processedFiles = 0;
+            
+            // Extract files with progress tracking
+            for ($i = 0; $i < $totalFiles; $i++) {
+                $filename = $zip->getNameIndex($i);
+                $processedFiles++;
+                
+                // Report progress every 10 files or at the end
+                if ($processedFiles % 10 === 0 || $processedFiles === $totalFiles) {
+                    $progressPercent = min(15, (int)(($processedFiles / $totalFiles) * 15)); // ZIP processing takes up to 15% of total progress
+                    $this->updateZipProgress($progressPercent, sprintf('Extracting files from ZIP: %d/%d', $processedFiles, $totalFiles));
+                }
+                
+                // Skip directories and hidden files
+                if (substr($filename, -1) === '/' || strpos(basename($filename), '.') === 0) {
+                    continue;
+                }
+                
+                // Skip non-media files - only extract common media file types
+                $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+                $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'mp4', 'mp3', 'zip'];
+                if (!in_array($extension, $allowedExtensions)) {
+                    continue;
+                }
+                
+                // Extract individual file to handle path structure better
+                $fileData = $zip->getFromIndex($i);
+                if ($fileData !== false) {
+                    // Handle WordPress uploads folder structure
+                    $relativePath = $this->normalizeUploadPath($filename);
+                    $targetPath = $extractPath . $relativePath;
+                    
+                    // Ensure target directory exists
+                    $targetDir = dirname($targetPath);
+                    if (!Folder::exists($targetDir)) {
+                        Folder::create($targetDir);
+                    }
+                    
+                    // Write the file
+                    if (File::write($targetPath, $fileData)) {
+                        $extractedFiles++;
+                    }
+                }
+            }
+            
+            $zip->close();
+
+            Factory::getApplication()->enqueueMessage(
+                Text::sprintf('COM_CMSMIGRATOR_MEDIA_ZIP_EXTRACTED_SUCCESS', $extractedFiles), 
+                'message'
+            );
+            
+            Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_COMPLETE'), 'info');
+            
+            return true;
+
+        } catch (\Exception $e) {
+            Factory::getApplication()->enqueueMessage(
+                Text::sprintf('COM_CMSMIGRATOR_MEDIA_ZIP_EXTRACT_ERROR', $e->getMessage()), 
+                'error'
+            );
+            return false;
+        }
+    }
+
+    /**
+     * Process content for ZIP upload - replace URLs with local extracted files
+     *
+     * @param   string  $content    The content to process
+     * @param   array   $imageUrls  Array of image URLs found in content
+     *
+     * @return  string  The processed content with updated URLs
+     *
+     * @since   1.0.0
+     */
+    protected function processContentForZipUpload(string $content, array $imageUrls): string
+    {
+        $updatedContent = $content;
+
+        foreach ($imageUrls as $originalUrl) {
+            try {
+                // Extract the file path from the WordPress URL
+                // Typical WordPress URL: http://example.com/wp-content/uploads/2024/01/image.jpg
+                $newUrl = $this->findExtractedImageUrl($originalUrl);
+                if ($newUrl) {
+                    $updatedContent = str_replace($originalUrl, $newUrl, $updatedContent);
+                    Factory::getApplication()->enqueueMessage(
+                        Text::sprintf('COM_CMSMIGRATOR_MEDIA_ZIP_URL_REPLACED', basename($originalUrl)), 
+                        'info'
+                    );
+                }
+            } catch (\Exception $e) {
+                Factory::getApplication()->enqueueMessage(
+                    sprintf('Error processing image %s: %s', $originalUrl, $e->getMessage()),
+                    'warning'
+                );
+            }
+        }
+
+        return $updatedContent;
+    }
+
+    /**
+     * Find the extracted image URL from the original WordPress URL
+     *
+     * @param   string  $originalUrl  The original WordPress image URL
+     *
+     * @return  string|null  The new local URL or null if not found
+     *
+     * @since   1.0.0
+     */
+    protected function findExtractedImageUrl(string $originalUrl): ?string
+    {
+        // Check if we already processed this URL
+        if (isset($this->downloadedFiles[$originalUrl])) {
+            return $this->downloadedFiles[$originalUrl];
+        }
+
+        $parsedUrl = parse_url($originalUrl);
+        if (!$parsedUrl || empty($parsedUrl['path'])) {
+            return null;
+        }
+
+        $urlPath = $parsedUrl['path'];
+        $relativePath = '';
+
+        // Try different patterns to extract the relative path
+        // Pattern 1: /wp-content/uploads/2024/01/image.jpg
+        if (preg_match('/.*\/wp-content\/uploads\/(.+)$/i', $urlPath, $matches)) {
+            $relativePath = $matches[1];
+        }
+        // Pattern 2: /uploads/2024/01/image.jpg 
+        elseif (preg_match('/.*\/uploads\/(.+)$/i', $urlPath, $matches)) {
+            $relativePath = $matches[1];
+        }
+        // Pattern 3: Direct path like /2024/01/image.jpg
+        else {
+            $relativePath = ltrim($urlPath, '/');
+        }
+
+        if (empty($relativePath)) {
+            return null;
+        }
+
+        $localFilePath = $this->mediaBasePath . $relativePath;
+
+        // Check if the file exists in the extracted ZIP
+        if (File::exists($localFilePath)) {
+            $newUrl = $this->mediaBaseUrl . $relativePath;
+            $this->downloadedFiles[$originalUrl] = $newUrl;
+            return $newUrl;
+        }
+
+        // If exact file doesn't exist, try to find it with different case
+        $pathParts = explode('/', $relativePath);
+        $fileName = array_pop($pathParts);
+        $dirPath = $this->mediaBasePath . implode('/', $pathParts);
+
+        if (Folder::exists($dirPath)) {
+            $files = Folder::files($dirPath);
+            foreach ($files as $file) {
+                if (strtolower($file) === strtolower($fileName)) {
+                    $actualPath = implode('/', $pathParts) . '/' . $file;
+                    $newUrl = $this->mediaBaseUrl . $actualPath;
+                    $this->downloadedFiles[$originalUrl] = $newUrl;
+                    return $newUrl;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -834,6 +1070,11 @@ class MediaModel extends BaseDatabaseModel
             return [];
         }
 
+        // For ZIP uploads, files are already extracted - just verify URLs
+        if (($config['connection_type'] ?? 'ftp') === 'zip') {
+            return $this->batchProcessZipMedia($mediaUrls);
+        }
+
         if (!$this->connect($config)) {
             Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_CONNECTION_FAILED'), 'warning');
             return [];
@@ -875,6 +1116,52 @@ class MediaModel extends BaseDatabaseModel
         $successCount = count(array_filter($results, function($result) { return $result['success']; }));
         Factory::getApplication()->enqueueMessage(
             sprintf('✅ Batch download complete: %d/%d files downloaded successfully', $successCount, count($results)),
+            'info'
+        );
+
+        return $results;
+    }
+
+    /**
+     * Process media URLs for ZIP upload - check if extracted files exist
+     *
+     * @param   array  $mediaUrls  Array of media URLs to process
+     *
+     * @return  array  Array of results with success/failure for each URL
+     *
+     * @since   1.0.0
+     */
+    protected function batchProcessZipMedia(array $mediaUrls): array
+    {
+        $results = [];
+        $foundCount = 0;
+        
+        Factory::getApplication()->enqueueMessage(
+            sprintf('Processing %d media URLs from extracted ZIP files...', count($mediaUrls)),
+            'info'
+        );
+
+        foreach ($mediaUrls as $originalUrl) {
+            $localUrl = $this->findExtractedImageUrl($originalUrl);
+            
+            if ($localUrl) {
+                $results[$originalUrl] = [
+                    'success' => true,
+                    'local_url' => $localUrl,
+                    'original_url' => $originalUrl
+                ];
+                $foundCount++;
+            } else {
+                $results[$originalUrl] = [
+                    'success' => false,
+                    'error' => 'File not found in extracted ZIP',
+                    'original_url' => $originalUrl
+                ];
+            }
+        }
+        
+        Factory::getApplication()->enqueueMessage(
+            sprintf('✅ ZIP media processing complete: %d/%d files found in extracted content', $foundCount, count($mediaUrls)),
             'info'
         );
 
@@ -1193,6 +1480,75 @@ class MediaModel extends BaseDatabaseModel
         }
         
         return null;
+    }
+
+    /**
+     * Update progress for ZIP processing
+     *
+     * @param   int     $percent  Progress percentage
+     * @param   string  $status   Status message
+     *
+     * @return  void
+     *
+     * @since   1.0.0
+     */
+    protected function updateZipProgress(int $percent, string $status): void
+    {
+        $progressFile = JPATH_SITE . '/media/com_cmsmigrator/imports/progress.json';
+        $data = ['percent' => $percent, 'status' => $status, 'timestamp' => time()];
+        File::write($progressFile, json_encode($data));
+    }
+
+    /**
+     * Normalize upload path to handle different WordPress folder structures
+     *
+     * @param   string  $zipPath  The path from the ZIP file
+     *
+     * @return  string  The normalized path relative to the media base
+     *
+     * @since   1.0.0
+     */
+    protected function normalizeUploadPath(string $zipPath): string
+    {
+        // Clean up the path
+        $zipPath = str_replace('\\', '/', $zipPath);
+        
+        // Handle different possible ZIP structures:
+        // 1. wp-content/uploads/2024/01/image.jpg
+        // 2. uploads/2024/01/image.jpg  
+        // 3. 2024/01/image.jpg (direct uploads content)
+        // 4. some-folder/wp-content/uploads/2024/01/image.jpg
+        
+        // Look for wp-content/uploads pattern
+        if (preg_match('/.*?wp-content\/uploads\/(.+)$/', $zipPath, $matches)) {
+            return $matches[1];
+        }
+        
+        // Look for direct uploads pattern (excluding if it's a folder name that happens to be "uploads")
+        if (preg_match('/.*?\/uploads\/(.+)$/', $zipPath, $matches)) {
+            return $matches[1];
+        }
+        
+        // If the ZIP contains just the contents of uploads folder
+        // (common when users zip the uploads folder content directly)
+        // Check if it looks like a date structure or has media file extensions
+        $pathParts = explode('/', $zipPath);
+        $firstPart = $pathParts[0] ?? '';
+        
+        // If it starts with a year (2020-2030) or common folder names
+        if (preg_match('/^(20[2-3][0-9]|sites|media)/', $firstPart)) {
+            return $zipPath;
+        }
+        
+        // If it's a media file in root
+        $extension = strtolower(pathinfo($zipPath, PATHINFO_EXTENSION));
+        $mediaExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'mp4', 'mp3'];
+        if (in_array($extension, $mediaExtensions)) {
+            return $zipPath;
+        }
+        
+        // Default: use as-is but remove any leading directories that don't look like uploads
+        return $zipPath;
     }
 
     /**

@@ -38,6 +38,9 @@ class ImportController extends BaseController
         $sourceCms = $jform['source_cms'] ?? null;
         $sourceUrl = $jform['source_url'] ?? null;
         
+        // Get media ZIP file if ZIP upload is selected
+        $mediaZipFile = $files['media_zip_file'] ?? null;
+        
         // Get connection configuration for media migration
         $connectionConfig = [];
         $mediaStorageMode = $jform['media_storage_mode'] ?? 'root';
@@ -49,16 +52,36 @@ class ImportController extends BaseController
                 $this->setRedirect('index.php?option=com_cmsmigrator');
                 return;
             }
-            $connectionConfig = [
-                'connection_type' => $jform['connection_type'] ?? 'ftp',
-                'host' => $jform['ftp_host'] ?? '',
-                'port' => (int) ($jform['ftp_port'] ?? ($jform['connection_type'] === 'sftp' ? 22 : 21)),
-                'username' => $jform['ftp_username'] ?? '',
-                'password' => $jform['ftp_password'] ?? '',
-                'passive' => !empty($jform['ftp_passive']),
-                'media_storage_mode' => $mediaStorageMode,
-                'media_custom_dir' => $mediaCustomDir
-            ];
+            
+            $connectionType = $jform['connection_type'] ?? 'ftp';
+            
+            if ($connectionType === 'zip') {
+                // Handle ZIP upload validation
+                if (empty($mediaZipFile) || $mediaZipFile['error'] !== UPLOAD_ERR_OK) {
+                    $app->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_FILE_ERROR'), 'error');
+                    $this->setRedirect('index.php?option=com_cmsmigrator');
+                    return;
+                }
+                
+                $connectionConfig = [
+                    'connection_type' => 'zip',
+                    'zip_file' => $mediaZipFile,
+                    'media_storage_mode' => $mediaStorageMode,
+                    'media_custom_dir' => $mediaCustomDir
+                ];
+            } else {
+                // Handle FTP/SFTP configuration
+                $connectionConfig = [
+                    'connection_type' => $connectionType,
+                    'host' => $jform['ftp_host'] ?? '',
+                    'port' => (int) ($jform['ftp_port'] ?? ($connectionType === 'sftp' ? 22 : 21)),
+                    'username' => $jform['ftp_username'] ?? '',
+                    'password' => $jform['ftp_password'] ?? '',
+                    'passive' => !empty($jform['ftp_passive']),
+                    'media_storage_mode' => $mediaStorageMode,
+                    'media_custom_dir' => $mediaCustomDir
+                ];
+            }
         }
         
         //Ensures a file was uploaded and it was successful

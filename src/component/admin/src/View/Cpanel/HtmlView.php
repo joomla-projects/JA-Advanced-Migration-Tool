@@ -105,21 +105,35 @@ class HtmlView extends BaseHtmlView
         $script = "
         document.addEventListener('DOMContentLoaded', function() {
             const mediaToggle = document.querySelector('[name=\"jform[enable_media_migration]\"]');
+            const connectionType = document.querySelector('[name=\"jform[connection_type]\"]');
             const storageMode = document.querySelector('[name=\"jform[media_storage_mode]\"]');
             const customDirRow = document.getElementById('media-custom-dir-row');
             const customDirInput = document.querySelector('[name=\"jform[media_custom_dir]\"]');
             const ftpFields = document.querySelectorAll('[name^=\"jform[ftp_\"]');
+            const zipFileField = document.querySelector('[name=\"jform[media_zip_file]\"]');
             const testFtpButton = document.getElementById('test-ftp-button');
             const testFtpResult = document.getElementById('test-ftp-result');
 
-            function toggleFtpFields() {
+            function toggleConnectionFields() {
                 const isEnabled = mediaToggle && (mediaToggle.checked || mediaToggle.value === '1');
+                const connType = connectionType ? connectionType.value : 'ftp';
+                
+                // Show/hide FTP fields based on connection type
                 ftpFields.forEach(function(field) {
-                    field.closest('div.control-group, .control-wrapper, .field-box').style.display = isEnabled ? 'block' : 'none';
+                    const shouldShow = isEnabled && (connType === 'ftp' || connType === 'sftp');
+                    field.closest('div.control-group, .control-wrapper, .field-box').style.display = shouldShow ? 'block' : 'none';
                 });
 
+                // Show/hide ZIP file field
+                if (zipFileField) {
+                    const shouldShowZip = isEnabled && connType === 'zip';
+                    zipFileField.closest('div.control-group, .control-wrapper, .field-box').style.display = shouldShowZip ? 'block' : 'none';
+                }
+
+                // Show/hide test connection button
                 if (testFtpButton) {
-                    testFtpButton.closest('.control-group, .control-wrapper, .field-box').style.display = isEnabled ? 'block' : 'none';
+                    const shouldShowTest = isEnabled && (connType === 'ftp' || connType === 'sftp');
+                    testFtpButton.closest('.control-group, .control-wrapper, .field-box').style.display = shouldShowTest ? 'block' : 'none';
                 }
 
                 if (testFtpResult) {
@@ -137,8 +151,11 @@ class HtmlView extends BaseHtmlView
             }
 
             if (mediaToggle) {
-                mediaToggle.addEventListener('change', toggleFtpFields);
-                toggleFtpFields(); // Initialize on load
+                mediaToggle.addEventListener('change', toggleConnectionFields);
+            }
+
+            if (connectionType) {
+                connectionType.addEventListener('change', toggleConnectionFields);
             }
 
             if (storageMode) {
@@ -146,18 +163,33 @@ class HtmlView extends BaseHtmlView
                 toggleCustomDir();
             }
 
+            // Initialize on load
+            toggleConnectionFields();
+
             const form = document.getElementById('migration-form');
             if (form) {
                 form.addEventListener('submit', function(e) {
                     const mediaEnabled = document.querySelector('[name=\"jform[enable_media_migration]\"]:checked');
                     if (mediaEnabled && mediaEnabled.value === '1') {
-                        const ftpHost = document.querySelector('[name=\"jform[ftp_host]\"]').value;
-                        const ftpUsername = document.querySelector('[name=\"jform[ftp_username]\"]').value;
-                        const ftpPassword = document.querySelector('[name=\"jform[ftp_password]\"]').value;
+                        const connType = connectionType ? connectionType.value : 'ftp';
+                        
+                        if (connType === 'ftp' || connType === 'sftp') {
+                            const ftpHost = document.querySelector('[name=\"jform[ftp_host]\"]').value;
+                            const ftpUsername = document.querySelector('[name=\"jform[ftp_username]\"]').value;
+                            const ftpPassword = document.querySelector('[name=\"jform[ftp_password]\"]').value;
 
-                        if (!ftpHost || !ftpUsername || !ftpPassword) {
-                            e.preventDefault();
-                            alert('" . Text::_('COM_CMSMIGRATOR_MEDIA_FTP_FIELDS_REQUIRED') . "');
+                            if (!ftpHost || !ftpUsername || !ftpPassword) {
+                                e.preventDefault();
+                                alert('" . Text::_('COM_CMSMIGRATOR_MEDIA_FTP_FIELDS_REQUIRED') . "');
+                                return;
+                            }
+                        } else if (connType === 'zip') {
+                            const zipFile = document.querySelector('[name=\"jform[media_zip_file]\"]');
+                            if (!zipFile || !zipFile.files || zipFile.files.length === 0) {
+                                e.preventDefault();
+                                alert('" . Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_FILE_ERROR') . "');
+                                return;
+                            }
                         }
                     }
                 });

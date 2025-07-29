@@ -111,6 +111,13 @@ use Joomla\CMS\Factory;
                                 </div>
                             </div>
 
+                            <!-- ZIP Upload Field -->
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <?php echo $this->form->renderField('media_zip_file'); ?>
+                                </div>
+                            </div>
+
                             <div class="row mt-3">
                                 <div class="col-md-12">
                                     <div class="form-group">
@@ -200,6 +207,7 @@ use Joomla\CMS\Factory;
                                     <li><?php echo Text::_('COM_CMSMIGRATOR_MEDIA_INFO_FORMATS'); ?></li>
                                     <li><?php echo Text::_('COM_CMSMIGRATOR_MEDIA_INFO_LOCATION'); ?></li>
                                     <li><?php echo Text::_('COM_CMSMIGRATOR_MEDIA_INFO_FTP'); ?></li>
+                                    <li><?php echo Text::_('COM_CMSMIGRATOR_MEDIA_INFO_ZIP'); ?></li>
                                 </ul>
                             </div>
                         </div>
