@@ -70,7 +70,7 @@ class ImportController extends BaseController
                     'media_custom_dir' => $mediaCustomDir
                 ];
             } else {
-                // Handle FTP/SFTP configuration
+                // Handle FTP/FTPS/SFTP configuration
                 $connectionConfig = [
                     'connection_type' => $connectionType,
                     'host' => $jform['ftp_host'] ?? '',
@@ -105,7 +105,7 @@ class ImportController extends BaseController
     }
 
     /**
-     * Test connection (FTP or SFTP)
+     * Test connection (FTP, FTPS, or SFTP)
      *
      * @return void
      */

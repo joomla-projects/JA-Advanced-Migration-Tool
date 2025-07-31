@@ -54,7 +54,7 @@ class MediaModel extends BaseDatabaseModel
     protected $sftpConnection;
 
     /**
-     * Connection type (ftp or sftp)
+     * Connection type (ftp, ftps, or sftp)
      *
      * @var    string
      * @since  1.0.0
@@ -400,7 +400,7 @@ class MediaModel extends BaseDatabaseModel
     }
 
     /**
-     * Download file via FTP or SFTP
+     * Download file via FTP, FTPS, or SFTP
      *
      * @param   string  $remotePath  The remote file path
      * @param   string  $localPath   The local file path
@@ -414,6 +414,7 @@ class MediaModel extends BaseDatabaseModel
         if ($this->connectionType === 'sftp') {
             return $this->downloadFileViaSftp($remotePath, $localPath);
         } else {
+            // FTP and FTPS use the same download method since FTPS uses FTP protocol over SSL/TLS
             return $this->downloadFileViaFtp($remotePath, $localPath);
         }
     }
@@ -640,7 +641,7 @@ class MediaModel extends BaseDatabaseModel
     }
 
     /**
-     * Connect to FTP or SFTP server
+     * Connect to FTP, FTPS, or SFTP server
      *
      * @param   array  $config  The connection configuration
      *
@@ -656,6 +657,8 @@ class MediaModel extends BaseDatabaseModel
             return $this->processZipUpload($config);
         } elseif ($this->connectionType === 'sftp') {
             return $this->connectSftp($config);
+        } elseif ($this->connectionType === 'ftps') {
+            return $this->connectFtps($config);
         } else {
             return $this->connectFtp($config);
         }
@@ -693,6 +696,52 @@ class MediaModel extends BaseDatabaseModel
 
         if (!$loginResult) {
             Factory::getApplication()->enqueueMessage('FTP login failed', 'error');
+            ftp_close($this->ftpConnection);
+            $this->ftpConnection = null;
+            return false;
+        }
+
+        if (!empty($config['passive'])) {
+            ftp_pasv($this->ftpConnection, true);
+        }
+
+        return true;
+    }
+
+    /**
+     * Connect to FTPS server
+     *
+     * @param   array  $config  The FTPS configuration
+     *
+     * @return  bool  True on success, false on failure
+     *
+     * @since   1.0.0
+     */
+    protected function connectFtps(array $config): bool
+    {
+        if ($this->ftpConnection) {
+            return true;
+        }
+
+        if (empty($config['host']) || empty($config['username']) || empty($config['password'])) {
+            Factory::getApplication()->enqueueMessage('FTPS configuration incomplete', 'error');
+            return false;
+        }
+
+        // Use ftp_ssl_connect for FTPS (FTP over SSL/TLS)
+        $this->ftpConnection = ftp_ssl_connect($config['host'], $config['port'] ?? 21, 15);
+        
+        if (!$this->ftpConnection) {
+            Factory::getApplication()->enqueueMessage("Failed to connect to FTPS server: {$config['host']}", 'error');
+            return false;
+        }
+
+        ftp_set_option($this->ftpConnection, FTP_TIMEOUT_SEC, 10);
+
+        $loginResult = ftp_login($this->ftpConnection, $config['username'], $config['password']);
+
+        if (!$loginResult) {
+            Factory::getApplication()->enqueueMessage('FTPS login failed', 'error');
             ftp_close($this->ftpConnection);
             $this->ftpConnection = null;
             return false;
@@ -972,7 +1021,7 @@ class MediaModel extends BaseDatabaseModel
     }
 
     /**
-     * Disconnect from FTP or SFTP server
+     * Disconnect from FTP, FTPS, or SFTP server
      *
      * @return  void
      *
@@ -983,6 +1032,7 @@ class MediaModel extends BaseDatabaseModel
         if ($this->connectionType === 'sftp') {
             $this->disconnectSftp();
         } else {
+            // Both FTP and FTPS use the same disconnect method
             $this->disconnectFtp();
         }
     }
@@ -1055,7 +1105,7 @@ class MediaModel extends BaseDatabaseModel
     }
 
     /**
-     * Batch download multiple media files in parallel using FTP or SFTP
+     * Batch download multiple media files in parallel using FTP, FTPS, or SFTP
      *
      * @param   array  $mediaUrls   Array of media URLs to download
      * @param   array  $config      Connection configuration
@@ -1292,7 +1342,7 @@ class MediaModel extends BaseDatabaseModel
     }
 
     /**
-     * Test FTP or SFTP connection and auto-detect document root
+     * Test FTP, FTPS, or SFTP connection and auto-detect document root
      *
      * @param   array   $config        The connection configuration
      * 
@@ -1317,6 +1367,8 @@ class MediaModel extends BaseDatabaseModel
 
         if ($connectionType === 'sftp') {
             return $this->testSftpConnection($config);
+        } elseif ($connectionType === 'ftps') {
+            return $this->testFtpsConnection($config);
         } else {
             return $this->testFtpConnection($config);
         }
@@ -1361,6 +1413,63 @@ class MediaModel extends BaseDatabaseModel
         }
 
         // Auto-detect document root
+        $detectedRoot = $this->detectDocumentRootFtp($connection);
+
+        // Close the connection
+        ftp_close($connection);
+        
+        // Return success with detected root info
+        $result['success'] = true;
+        if ($detectedRoot) {
+            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) . 
+                               "<br> Document root detected: \"{$detectedRoot}\" with WordPress content.";
+        } else {
+            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) . 
+                               '<br> Warning: Could not detect document root with WordPress content.';
+        }
+
+        return $result;
+    }
+
+    /**
+     * Test FTPS connection and auto-detect document root
+     *
+     * @param   array   $config        The FTPS configuration
+     * 
+     * @return  array  Result containing success status and message
+     *
+     * @since   1.0.0
+     */
+    protected function testFtpsConnection(array $config): array
+    {
+        $result = [
+            'success' => false,
+            'message' => ''
+        ];
+
+        // Try to connect using FTPS (FTP over SSL/TLS)
+        $connection = @ftp_ssl_connect($config['host'], $config['port'] ?? 21, 15);
+        
+        if (!$connection) {
+            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_FAILED', 'Could not connect to FTPS server');
+            return $result;
+        }
+
+        // Try to login
+        $loginResult = @ftp_login($connection, $config['username'], $config['password']);
+        
+        if (!$loginResult) {
+            ftp_close($connection);
+            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_FAILED', 'Invalid FTPS credentials');
+            return $result;
+        }
+
+        // Set passive mode if requested
+        if (!empty($config['passive'])) {
+            ftp_pasv($connection, true);
+        }
+
+        // Auto-detect document root (using same method as FTP since FTPS uses FTP protocol)
         $detectedRoot = $this->detectDocumentRootFtp($connection);
 
         // Close the connection
@@ -1607,7 +1716,7 @@ class MediaModel extends BaseDatabaseModel
     /**
      * Destructor
      *
-     * Cleans up the FTP and SFTP connections on object destruction.
+     * Cleans up the FTP, FTPS, and SFTP connections on object destruction.
      *
      * @since   1.0.0
      */

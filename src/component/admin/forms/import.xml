@@ -44,11 +44,12 @@
             name="connection_type"
             type="list"
             label="Connection Type"
-            description="Choose between FTP, SFTP or ZIP upload for media migration"
+            description="Choose between FTP, FTPS, SFTP or ZIP upload for media migration"
             class="form-select"
             default="ftp"
             showon="enable_media_migration:1">
             <option value="ftp">FTP (File Transfer Protocol)</option>
+            <option value="ftps">FTPS (FTP over SSL/TLS)</option>
             <option value="sftp">SFTP (Secure File Transfer Protocol)</option>
             <option value="zip">ZIP Upload (Upload wp-content/uploads folder as ZIP)</option>
         </field>
@@ -59,17 +60,17 @@
             label="Server Host"
             description="Server hostname or IP address (e.g., ftp.yourwordpresssite.com)"
             class="form-control"
-            showon="enable_media_migration:1[AND]connection_type:ftp,sftp"
+            showon="enable_media_migration:1[AND]connection_type:ftp,ftps,sftp"
         />
 
         <field
             name="ftp_port"
             type="number"
             label="Server Port"
-            description="Server port (FTP default: 21, SFTP default: 22)"
+            description="Server port (FTP default: 21, FTPS default: 21, SFTP default: 22)"
             class="form-control"
             default="21"
-            showon="enable_media_migration:1[AND]connection_type:ftp,sftp"
+            showon="enable_media_migration:1[AND]connection_type:ftp,ftps,sftp"
         />
 
         <field
@@ -78,7 +79,7 @@
             label="Username"
             description="Login username"
             class="form-control"
-            showon="enable_media_migration:1[AND]connection_type:ftp,sftp"
+            showon="enable_media_migration:1[AND]connection_type:ftp,ftps,sftp"
         />
 
         <field
@@ -87,17 +88,17 @@
             label="Password"
             description="Login password"
             class="form-control"
-            showon="enable_media_migration:1[AND]connection_type:ftp,sftp"
+            showon="enable_media_migration:1[AND]connection_type:ftp,ftps,sftp"
         />
 
         <field
             name="ftp_passive"
             type="radio"
             label="Use Passive Mode"
-            description="Enable passive mode (FTP only - recommended for most FTP servers)"
+            description="Enable passive mode (FTP/FTPS only - recommended for most FTP servers)"
             class="btn-group btn-group-yesno"
             default="1"
-            showon="enable_media_migration:1[AND]connection_type:ftp">
+            showon="enable_media_migration:1[AND]connection_type:ftp,ftps">
             <option value="1">JYES</option>
             <option value="0">JNO</option>
         </field>

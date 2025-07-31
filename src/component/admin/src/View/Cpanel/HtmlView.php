@@ -120,7 +120,7 @@ class HtmlView extends BaseHtmlView
                 
                 // Show/hide FTP fields based on connection type
                 ftpFields.forEach(function(field) {
-                    const shouldShow = isEnabled && (connType === 'ftp' || connType === 'sftp');
+                    const shouldShow = isEnabled && (connType === 'ftp' || connType === 'ftps' || connType === 'sftp');
                     field.closest('div.control-group, .control-wrapper, .field-box').style.display = shouldShow ? 'block' : 'none';
                 });
 
@@ -132,7 +132,7 @@ class HtmlView extends BaseHtmlView
 
                 // Show/hide test connection button
                 if (testFtpButton) {
-                    const shouldShowTest = isEnabled && (connType === 'ftp' || connType === 'sftp');
+                    const shouldShowTest = isEnabled && (connType === 'ftp' || connType === 'ftps' || connType === 'sftp');
                     testFtpButton.closest('.control-group, .control-wrapper, .field-box').style.display = shouldShowTest ? 'block' : 'none';
                 }
 
@@ -173,7 +173,7 @@ class HtmlView extends BaseHtmlView
                     if (mediaEnabled && mediaEnabled.value === '1') {
                         const connType = connectionType ? connectionType.value : 'ftp';
                         
-                        if (connType === 'ftp' || connType === 'sftp') {
+                        if (connType === 'ftp' || connType === 'ftps' || connType === 'sftp') {
                             const ftpHost = document.querySelector('[name=\"jform[ftp_host]\"]').value;
                             const ftpUsername = document.querySelector('[name=\"jform[ftp_username]\"]').value;
                             const ftpPassword = document.querySelector('[name=\"jform[ftp_password]\"]').value;

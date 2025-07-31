@@ -59,7 +59,7 @@ class ProcessorModel extends BaseDatabaseModel
      *
      * @param   array   $data                 The migration data.
      * @param   string  $sourceUrl            The source URL.
-     * @param   array   $ftpConfig            Connection configuration (FTP/SFTP).
+     * @param   array   $ftpConfig            Connection configuration (FTP/FTPS/SFTP).
      * @param   bool    $importAsSuperUser    Whether to import as a super user.
      *
      * @return  array   The result of the processing.
@@ -110,7 +110,7 @@ class ProcessorModel extends BaseDatabaseModel
      *
      * @param   array   $data       The migration data.
      * @param   string  $sourceUrl  The source URL.
-     * @param   array   $ftpConfig  Connection configuration (FTP/SFTP).
+     * @param   array   $ftpConfig  Connection configuration (FTP/FTPS/SFTP).
      *
      * @return  array   The result of the processing.
      */
@@ -177,7 +177,7 @@ class ProcessorModel extends BaseDatabaseModel
      *
      * @param   array   $data               The migration data.
      * @param   string  $sourceUrl          The source URL.
-     * @param   array   $ftpConfig          Connection configuration (FTP/SFTP).
+     * @param   array   $ftpConfig          Connection configuration (FTP/FTPS/SFTP).
      * @param   bool    $importAsSuperUser  Whether to import as a super user.
      *
      * @return  array   The result of the processing.
@@ -702,7 +702,7 @@ class ProcessorModel extends BaseDatabaseModel
             return $mediaModel;
         }
         
-        // For FTP/SFTP, require host configuration
+        // For FTP/FTPS/SFTP, require host configuration
         if (empty($ftpConfig['host'])) {
             return null;
         }
