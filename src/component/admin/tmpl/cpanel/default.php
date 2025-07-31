@@ -325,6 +325,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (isMediaEnabled()) {
         connectionConfigSection.style.display = '';
         updatePortDefault();
+        toggleTestConnectionButton();
       } else {
         connectionConfigSection.style.display = 'none';
         if (testConnectionResult) {
@@ -340,6 +341,25 @@ document.addEventListener('DOMContentLoaded', function () {
         
         if (portField && (portField.value === '' || portField.value === '21' || portField.value === '22')) {
             portField.value = connectionType === 'sftp' ? '22' : '21';
+        }
+        
+        // Show/hide test connection button based on connection type
+        toggleTestConnectionButton();
+    }
+
+    // Toggle test connection button visibility
+    function toggleTestConnectionButton() {
+        const connectionType = document.querySelector('[name="jform[connection_type]"]')?.value || 'ftp';
+        const testButton = document.getElementById('test-connection-button');
+        const testResult = document.getElementById('test-connection-result');
+        
+        if (testButton) {
+            const shouldShow = connectionType === 'ftp' || connectionType === 'ftps' || connectionType === 'sftp';
+            testButton.closest('.control-group').style.display = shouldShow ? 'block' : 'none';
+        }
+        
+        if (testResult && connectionType === 'zip') {
+            testResult.innerHTML = '';
         }
     }
 
@@ -420,5 +440,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
         }, 1000);
     }
+
+    // Initial setup on page load
+    toggleTestConnectionButton();
 });
 </script>
