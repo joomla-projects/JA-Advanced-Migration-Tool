@@ -1560,7 +1560,17 @@ class MediaModel extends BaseDatabaseModel
                 @ftp_chdir($connection, '/');
             }
         }
+         // Check for direct wp-content in root
+        if (@ftp_chdir($connection, 'wp-content')) {
+            @ftp_chdir($connection, '/');
+            return '.';
+        }
         
+        // Check for direct uploads folder in root
+        if (@ftp_chdir($connection, 'uploads')) {
+            @ftp_chdir($connection, '/');
+            return '.';
+        }
         return null;
     }
 
@@ -1586,6 +1596,23 @@ class MediaModel extends BaseDatabaseModel
             } catch (\Exception $e) {
                 // Continue to next root
             }
+        }
+         // Check for direct wp-content in root
+        try {
+            if ($sftp->is_dir('wp-content')) {
+                return '.';
+            }
+        } catch (\Exception $e) {
+            // Continue to next check
+        }
+        
+        // Check for direct uploads folder in root
+        try {
+            if ($sftp->is_dir('uploads')) {
+                return '.';
+            }
+        } catch (\Exception $e) {
+            // Continue
         }
         
         return null;
