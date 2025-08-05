@@ -19,6 +19,7 @@ use Joomla\CMS\User\UserHelper;
 use Joomla\Component\Users\Administrator\Model\UserModel;
 use Joomla\Component\Categories\Administrator\Model\CategoryModel;
 use Joomla\Component\Content\Administrator\Model\ArticleModel;
+use Joomla\Component\Tags\Administrator\Model\TagModel;
 use Joomla\Component\Fields\Administrator\Model\FieldModel;
 use Joomla\CMS\Filter\OutputFilter;
 use Joomla\CMS\Uri\Uri;
@@ -133,16 +134,18 @@ class ProcessorModel extends BaseDatabaseModel
             }
             
             $categoryMap = [];
+            $tagMap = [];
             if (!empty($data['taxonomies'])) {
                 $taxonomyResult = $this->processTaxonomies($data['taxonomies'], $result['counts']);
                 $categoryMap = $taxonomyResult['map'];
+                $tagMap = $taxonomyResult['tagMap'];
                 $result['errors'] = array_merge($result['errors'], $taxonomyResult['errors']);
             }
 
             if (!empty($data['post_types'])) {
                 foreach ($data['post_types'] as $postType => $posts) {
                     if ($postType === 'post' || $postType === 'page') {
-                        $postResult = $this->processPosts($posts, $userMap, $categoryMap, $mediaModel, $ftpConfig, $sourceUrl);
+                        $postResult = $this->processPosts($posts, $userMap, $categoryMap, $tagMap, $mediaModel, $ftpConfig, $sourceUrl, $result['counts']);
                         $result['counts']['articles'] += $postResult['imported'];
                         $result['counts']['skipped'] += $postResult['skipped'];
                         $result['errors'] = array_merge($result['errors'], $postResult['errors']);
@@ -480,27 +483,35 @@ class ProcessorModel extends BaseDatabaseModel
     }
 
     /**
-     * Processes a batch of taxonomies (categories) from the JSON import.
+     * Processes a batch of taxonomies (categories and tags) from the JSON import.
      *
      * @param   array $taxonomies Array of taxonomy data.
      * @param   array &$counts    The main counts array.
      *
-     * @return  array An array containing the category map and any errors.
+     * @return  array An array containing the category map, tag map and any errors.
      */
     private function processTaxonomies(array $taxonomies, array &$counts): array
     {
-        $result = ['errors' => [], 'map' => []];
+        $result = ['errors' => [], 'map' => [], 'tagMap' => []];
 
         foreach ($taxonomies as $taxonomyType => $terms) {
-            if ($taxonomyType !== 'category' && $taxonomyType !== 'post_tag') {
-                continue;
-            }
-            foreach ($terms as $term) {
-                try {
-                    $newCatId = $this->getOrCreateCategory($term['name'], $counts, $term);
-                    $result['map'][$term['term_id']] = $newCatId;
-                } catch (\Exception $e) {
-                    $result['errors'][] = sprintf('Error importing category "%s": %s', $term['name'], $e->getMessage());
+            if ($taxonomyType === 'category') {
+                foreach ($terms as $term) {
+                    try {
+                        $newCatId = $this->getOrCreateCategory($term['name'], $counts, $term);
+                        $result['map'][$term['term_id']] = $newCatId;
+                    } catch (\Exception $e) {
+                        $result['errors'][] = sprintf('Error importing category "%s": %s', $term['name'], $e->getMessage());
+                    }
+                }
+            } elseif ($taxonomyType === 'post_tag') {
+                foreach ($terms as $term) {
+                    try {
+                        $tagId = $this->getOrCreateTag($term['name'], $counts, $term);
+                        $result['tagMap'][$term['term_id']] = $tagId;
+                    } catch (\Exception $e) {
+                        $result['errors'][] = sprintf('Error importing tag "%s": %s', $term['name'], $e->getMessage());
+                    }
                 }
             }
         }
@@ -513,13 +524,15 @@ class ProcessorModel extends BaseDatabaseModel
      * @param   array       $posts        Array of post data.
      * @param   array       $userMap      Map of source user IDs to Joomla user IDs.
      * @param   array       $categoryMap  Map of source category IDs to Joomla category IDs.
+     * @param   array       $tagMap       Map of source tag IDs to Joomla tag IDs.
      * @param   ?MediaModel $mediaModel   The media model instance.
      * @param   array       $ftpConfig    FTP configuration.
      * @param   string      $sourceUrl    The source URL.
+     * @param   array       &$counts      The main counts array passed by reference.
      *
      * @return  array Result of the post import.
      */
-    private function processPosts(array $posts, array $userMap, array $categoryMap, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl): array
+    private function processPosts(array $posts, array $userMap, array $categoryMap, array $tagMap, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, array &$counts): array
     {
         $result = ['imported' => 0, 'skipped' => 0, 'errors' => []];
         $totalPosts = count($posts);
@@ -539,7 +552,7 @@ class ProcessorModel extends BaseDatabaseModel
 
         foreach ($batches as $batchIndex => $batch) {
             try {
-                $batchResult = $this->processJsonPostsBatch($batch, $userMap, $categoryMap, $mediaModel, $ftpConfig, $sourceUrl, $processedCount, $totalPosts, $batchIndex + 1, count($batches));
+                $batchResult = $this->processJsonPostsBatch($batch, $userMap, $categoryMap, $tagMap, $mediaModel, $ftpConfig, $sourceUrl, $processedCount, $totalPosts, $batchIndex + 1, count($batches), $counts);
                 $result['imported'] += $batchResult['imported'];
                 $result['skipped'] += $batchResult['skipped'];
                 $result['errors'] = array_merge($result['errors'], $batchResult['errors']);
@@ -558,6 +571,7 @@ class ProcessorModel extends BaseDatabaseModel
      * @param   array       $batch          Array of posts in this batch
      * @param   array       $userMap        Map of source user IDs to Joomla user IDs
      * @param   array       $categoryMap    Map of source category IDs to Joomla category IDs
+     * @param   array       $tagMap         Map of source tag IDs to Joomla tag IDs
      * @param   ?MediaModel $mediaModel     Media model instance
      * @param   array       $ftpConfig      FTP configuration
      * @param   string      $sourceUrl      Source URL
@@ -565,12 +579,13 @@ class ProcessorModel extends BaseDatabaseModel
      * @param   int         $total          Total number of posts
      * @param   int         $batchNumber    Current batch number
      * @param   int         $totalBatches   Total number of batches
+     * @param   array       &$counts        The main counts array passed by reference
      *
      * @return  array  Result of the batch processing
      *
      * @since   1.0.0
      */
-    private function processJsonPostsBatch(array $batch, array $userMap, array $categoryMap, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, int $processedCount, int $total, int $batchNumber, int $totalBatches): array
+    private function processJsonPostsBatch(array $batch, array $userMap, array $categoryMap, array $tagMap, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, int $processedCount, int $total, int $batchNumber, int $totalBatches, array &$counts): array
     {
         $result = ['imported' => 0, 'skipped' => 0, 'errors' => []];
         $articleModel = new ArticleModel(['ignore_request' => true]);
@@ -653,6 +668,42 @@ class ProcessorModel extends BaseDatabaseModel
                 }
 
                 $newId = $articleModel->getItem()->id;
+                
+                // Link tags to the article
+                $tagIds = [];
+                
+                // Process tags from terms['post_tag'] (structured data)
+                if (!empty($post['terms']['post_tag']) && !empty($tagMap)) {
+                    foreach ($post['terms']['post_tag'] as $tag) {
+                        if (isset($tagMap[$tag['term_id']])) {
+                            $tagIds[] = $tagMap[$tag['term_id']];
+                        }
+                    }
+                }
+                
+                // Process tags from tags_input (simple array) - create tags if they don't exist
+                if (!empty($post['tags_input']) && is_array($post['tags_input'])) {
+                    foreach ($post['tags_input'] as $tagName) {
+                        if (!empty($tagName)) {
+                            try {
+                                $tagId = $this->getOrCreateTag($tagName, $counts);
+                                $tagIds[] = $tagId;
+                            } catch (\Exception $e) {
+                                // Log error but continue with other tags
+                                Factory::getApplication()->enqueueMessage(
+                                    sprintf('Error creating tag "%s" for article "%s": %s', $tagName, $post['post_title'], $e->getMessage()),
+                                    'warning'
+                                );
+                            }
+                        }
+                    }
+                }
+                
+                // Link all collected tags to the article
+                if (!empty($tagIds)) {
+                    $this->linkTagsToArticle($newId, array_unique($tagIds));
+                }
+                
                 if (!empty($post['metadata']) && is_array($post['metadata'])) {
                     $fields = [];
                     foreach ($post['metadata'] as $key => $vals) {
@@ -814,6 +865,53 @@ class ProcessorModel extends BaseDatabaseModel
         }
 
         return (int) $categoryId;
+    }
+
+    /**
+     * Gets an existing tag ID by its name or creates a new one using Joomla's tag system.
+     *
+     * @param   string $tagName    The tag name.
+     * @param   array  &$counts    The counts array, passed by reference.
+     * @param   ?array $sourceData Optional array of source data (e.g., for slug, description).
+     *
+     * @return  int The tag ID.
+     * @throws  \RuntimeException If saving fails.
+     */
+    protected function getOrCreateTag(string $tagName, array &$counts, ?array $sourceData = null): int
+    {
+        $alias = $sourceData['slug'] ?? OutputFilter::stringURLSafe($tagName);
+
+        // Check if tag already exists
+        $query = $this->db->getQuery(true)
+            ->select('id')
+            ->from('#__tags')
+            ->where('alias = ' . $this->db->quote($alias));
+
+        $tagId = $this->db->setQuery($query)->loadResult();
+
+        if (!$tagId) {
+            // Get the root tag to use as parent
+            $tagModel = new TagModel(['ignore_request' => true]);
+            $tagData = [
+                'id'          => 0,
+                'title'       => $tagName,
+                'alias'       => $alias,
+                'description' => $sourceData['description'] ?? '',
+                'published'   => 1,
+                'access'      => 1,
+                'language'    => '*',
+            ];
+
+            if (!$tagModel->save($tagData)) {
+                // The model's save method will handle nested set logic automatically
+                throw new \RuntimeException('Failed to save tag: ' . $tagModel->getError());
+            }
+            
+            $counts['taxonomies']++;
+            $tagId = $tagModel->getItem()->id;
+        }
+
+        return (int) $tagId;
     }
 
     /**
@@ -1012,6 +1110,50 @@ class ProcessorModel extends BaseDatabaseModel
             return (new Date($dateString ?: 'now'))->toSql();
         } catch (\Exception $e) {
             return Factory::getDate()->toSql();
+        }
+    }
+
+    /**
+     * Links tags to an article using Joomla's content-tag mapping system.
+     *
+     * @param   int   $articleId The article ID.
+     * @param   array $tagIds    Array of tag IDs to link.
+     *
+     * @return  void
+     * @since   1.0.0
+     */
+    protected function linkTagsToArticle(int $articleId, array $tagIds): void
+    {
+        if (empty($tagIds)) {
+            return;
+        }
+
+        // Remove existing tag mappings for this article
+        $deleteQuery = $this->db->getQuery(true)
+            ->delete('#__contentitem_tag_map')
+            ->where('type_alias = ' . $this->db->quote('com_content.article'))
+            ->where('content_item_id = ' . (int) $articleId);
+        $this->db->setQuery($deleteQuery)->execute();
+
+        // Add new tag mappings
+        foreach ($tagIds as $tagId) {
+            $mapping = new \stdClass();
+            $mapping->type_alias = 'com_content.article';
+            $mapping->core_content_id = $articleId;
+            $mapping->content_item_id = $articleId;
+            $mapping->tag_id = $tagId;
+            $mapping->tag_date = Factory::getDate()->toSql();
+            $mapping->type_id = 1; // Content type ID for articles
+
+            try {
+                $this->db->insertObject('#__contentitem_tag_map', $mapping);
+            } catch (\Exception $e) {
+                // Log error but don't fail the entire import
+                Factory::getApplication()->enqueueMessage(
+                    sprintf('Error linking tag %d to article %d: %s', $tagId, $articleId, $e->getMessage()),
+                    'warning'
+                );
+            }
         }
     }
 
