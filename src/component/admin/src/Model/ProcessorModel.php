@@ -202,10 +202,17 @@ class ProcessorModel extends BaseDatabaseModel
         $this->executeInTransaction(function () use ($data, $sourceUrl, $ftpConfig, $importAsSuperUser, &$result) {
             $mediaModel = $this->initializeMediaModel($ftpConfig);
             $superUserId = $importAsSuperUser ? Factory::getUser()->id : null;
+            
+            // Process tags first if they exist in the data
+            $tagMap = [];
+            if (!empty($data['allTags']) && is_array($data['allTags'])) {
+                $tagMap = $this->processWordpressTags($data['allTags'], $result['counts']);
+            }
+            
             $total = count($data['itemListElement']);
             
             // Use batch processing based on the number of articles
-            $this->processBatchedWordpressArticles($data['itemListElement'], $result, $mediaModel, $ftpConfig, $sourceUrl, $superUserId, $total);
+            $this->processBatchedWordpressArticles($data['itemListElement'], $result, $mediaModel, $ftpConfig, $sourceUrl, $superUserId, $total, $tagMap);
 
             if ($mediaModel) {
                 $result['counts']['media'] = $mediaModel->getMediaStats()['downloaded'];
@@ -218,8 +225,9 @@ class ProcessorModel extends BaseDatabaseModel
             // Set completion status for successful migration
             $connectionType = $ftpConfig['connection_type'] ?? 'ftp';
             $completionMessage = sprintf(
-                'Migration completed successfully! Imported: %d articles, %d media files%s',
+                'Migration completed successfully! Imported: %d articles, %d taxonomies, %d media files%s',
                 $result['counts']['articles'],
+                $result['counts']['taxonomies'],
                 $result['counts']['media'],
                 $connectionType === 'zip' ? ' (from ZIP upload)' : ''
             );
@@ -239,12 +247,13 @@ class ProcessorModel extends BaseDatabaseModel
      * @param   string      $sourceUrl      Source URL
      * @param   ?int        $superUserId    Super user ID
      * @param   int         $total          Total number of articles
+     * @param   array       $tagMap         Map of tag slugs to tag IDs
      *
      * @return  void
      *
      * @since   1.0.0
      */
-    private function processBatchedWordpressArticles(array $articles, array &$result, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, ?int $superUserId, int $total): void
+    private function processBatchedWordpressArticles(array $articles, array &$result, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, ?int $superUserId, int $total, array $tagMap = []): void
     {
         $batchSize = $this->calculateBatchSize($total);
         $batches = array_chunk($articles, $batchSize);
@@ -257,7 +266,7 @@ class ProcessorModel extends BaseDatabaseModel
 
         foreach ($batches as $batchIndex => $batch) {
             try {
-                $this->processBatch($batch, $result, $mediaModel, $ftpConfig, $sourceUrl, $superUserId, $processedCount, $total, $batchIndex + 1, count($batches));
+                $this->processBatch($batch, $result, $mediaModel, $ftpConfig, $sourceUrl, $superUserId, $processedCount, $total, $batchIndex + 1, count($batches), $tagMap);
                 $processedCount += count($batch);
             } catch (\Exception $e) {
                 $result['errors'][] = sprintf('Error processing batch %d: %s', $batchIndex + 1, $e->getMessage());
@@ -300,12 +309,13 @@ class ProcessorModel extends BaseDatabaseModel
      * @param   int         $total          Total number of articles
      * @param   int         $batchNumber    Current batch number
      * @param   int         $totalBatches   Total number of batches
+     * @param   array       $tagMap         Map of tag slugs to tag IDs
      *
      * @return  void
      *
      * @since   1.0.0
      */
-    private function processBatch(array $batch, array &$result, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, ?int $superUserId, int $processedCount, int $total, int $batchNumber, int $totalBatches): void
+    private function processBatch(array $batch, array &$result, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, ?int $superUserId, int $processedCount, int $total, int $batchNumber, int $totalBatches, array $tagMap = []): void
     {
         $this->updateProgress(
             (int)(($processedCount / $total) * 90),
@@ -361,7 +371,7 @@ class ProcessorModel extends BaseDatabaseModel
         // Step 3: Process articles sequentially
         foreach ($batchData as $index => $article) {
             try {
-                $this->processWordpressArticle($article, $result, null, $ftpConfig, $sourceUrl, $superUserId);
+                $this->processWordpressArticle($article, $result, null, $ftpConfig, $sourceUrl, $superUserId, $tagMap);
                 $currentProgress = (int)((($processedCount + $index + 1) / $total) * 90);
                 $this->updateProgress(
                     $currentProgress,
@@ -391,11 +401,12 @@ class ProcessorModel extends BaseDatabaseModel
      * @param   array      $ftpConfig      FTP configuration.
      * @param   string     $sourceUrl      The source site URL.
      * @param   ?int       $superUserId    The ID of the super user to assign articles to.
+     * @param   array      $tagMap         Map of tag slugs to tag IDs.
      *
      * @return  void
      * @throws  \Exception
      */
-    private function processWordpressArticle(array $article, array &$result, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, ?int $superUserId): void
+    private function processWordpressArticle(array $article, array &$result, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, ?int $superUserId, array $tagMap = []): void
     {
         if ($this->articleExists($article['headline'])) {
             $result['counts']['skipped']++;
@@ -448,9 +459,25 @@ class ProcessorModel extends BaseDatabaseModel
         }
         $result['counts']['articles']++;
 
+        $articleId = $articleModel->getItem()->id;
+
         // Process custom fields
         if (!empty($article['customFields']) && is_array($article['customFields'])) {
-            $this->processCustomFields($articleModel->getItem()->id, $article['customFields']);
+            $this->processCustomFields($articleId, $article['customFields']);
+        }
+
+        // Process tags
+        if (!empty($article['tags']) && is_array($article['tags']) && !empty($tagMap)) {
+            $tagIds = [];
+            foreach ($article['tags'] as $tagSlug) {
+                if (isset($tagMap[$tagSlug])) {
+                    $tagIds[] = $tagMap[$tagSlug];
+                }
+            }
+            
+            if (!empty($tagIds)) {
+                $this->linkTagsToArticle($articleId, $tagIds);
+            }
         }
     }
 
@@ -516,6 +543,38 @@ class ProcessorModel extends BaseDatabaseModel
             }
         }
         return $result;
+    }
+    
+    /**
+     * Processes WordPress tags from the allTags array in the JSON structure.
+     *
+     * @param   array $tags    Array of tag data with name, slug, and description.
+     * @param   array &$counts The main counts array.
+     *
+     * @return  array Map of tag slugs to tag IDs.
+     */
+    private function processWordpressTags(array $tags, array &$counts): array
+    {
+        $tagMap = [];
+
+        foreach ($tags as $tagData) {
+            if (empty($tagData['name']) || empty($tagData['slug'])) {
+                continue;
+            }
+
+            try {
+                $tagId = $this->getOrCreateTag($tagData['name'], $counts, $tagData);
+                $tagMap[$tagData['slug']] = $tagId;
+            } catch (\Exception $e) {
+                // Log the error but continue processing other tags
+                Factory::getApplication()->enqueueMessage(
+                    sprintf('Error importing tag "%s": %s', $tagData['name'], $e->getMessage()),
+                    'warning'
+                );
+            }
+        }
+
+        return $tagMap;
     }
     
     /**
