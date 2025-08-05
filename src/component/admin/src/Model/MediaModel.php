@@ -78,6 +78,14 @@ class MediaModel extends BaseDatabaseModel
     protected $mediaBasePath;
 
     /**
+     * Cached upload prefix
+     *
+     * @var    string|null
+     * @since  1.0.0
+     */
+    protected ?string $cachedUploadPrefix = null;
+
+    /**
      * List of downloaded files
      *
      * @var    array
@@ -324,8 +332,8 @@ class MediaModel extends BaseDatabaseModel
         $resizedPath = $pathInfo['dirname'] . '/' . $pathInfo['filename'] . '-768x512.' . $pathInfo['extension'];
         $originalPath = $pathInfo['dirname'] . '/' . $pathInfo['basename'];
 
-        // Generate candidate remote paths based on detected structure
-        $candidatePaths = $this->generateCandidateRemotePaths($resizedPath, $originalPath);
+        // Generate candidate remote paths based on detected structure or get cached Paths
+        $candidatePaths = $this->getCachedOrGeneratedPaths($resizedPath, $originalPath);
 
         foreach ($candidatePaths as $remotePath) {
             $localFileName = $this->getLocalFileName($remotePath);
@@ -338,13 +346,18 @@ class MediaModel extends BaseDatabaseModel
             if (File::exists($localFilePath)) {
                 $newUrl = $this->mediaBaseUrl . $localFileName;
                 $this->downloadedFiles[$remotePath] = $newUrl;
+                //Cache the Path
+                $prefix = str_replace([$resizedPath, $originalPath], '', $remotePath);
+                $this->cachedUploadPrefix = $prefix;
                 return $newUrl;
             }
 
             if ($this->downloadFile($remotePath, $localFilePath)) {
                 $newUrl = $this->mediaBaseUrl . $localFileName;
                 $this->downloadedFiles[$remotePath] = $newUrl;
-
+                //Cache the Path
+                $prefix = str_replace([$resizedPath, $originalPath], '', $remotePath);
+                $this->cachedUploadPrefix = $prefix;
                 Factory::getApplication()->enqueueMessage(
                     sprintf('✅ Downloaded image: %s', basename($remotePath)),
                     'info'
@@ -360,6 +373,33 @@ class MediaModel extends BaseDatabaseModel
         );
 
         return null;
+    }
+
+    /**
+     * Get cached or generated candidate remote paths
+     *
+     * @param   string  $resizedPath   The resized image path (relative)
+     * @param   string  $originalPath  The original image path (relative)
+     *
+     * @return  array   Array of candidate remote paths to try
+     *
+     * @since   1.0.0
+     */
+    protected function getCachedOrGeneratedPaths(string $resizedPath, string $originalPath): array
+    {
+        // Use cached structure if available
+        if ($this->cachedUploadPrefix !== null) {
+            return [
+                $this->cachedUploadPrefix . $resizedPath,
+                $this->cachedUploadPrefix . $originalPath
+            ];
+        }
+
+        // Otherwise try all structures
+        $candidatePaths = $this->generateCandidateRemotePaths($resizedPath, $originalPath);
+
+        // As we test paths, we'll cache the one that works (see below)
+        return $candidatePaths;
     }
 
     /**
