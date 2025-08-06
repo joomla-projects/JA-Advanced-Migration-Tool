@@ -520,28 +520,94 @@ class ProcessorModel extends BaseDatabaseModel
     private function processTaxonomies(array $taxonomies, array &$counts): array
     {
         $result = ['errors' => [], 'map' => [], 'tagMap' => []];
+        $categorySourceData = []; // Store source data to retrieve parent IDs later
 
-        foreach ($taxonomies as $taxonomyType => $terms) {
-            if ($taxonomyType === 'category') {
-                foreach ($terms as $term) {
-                    try {
-                        $newCatId = $this->getOrCreateCategory($term['name'], $counts, $term);
-                        $result['map'][$term['term_id']] = $newCatId;
-                    } catch (\Exception $e) {
-                        $result['errors'][] = sprintf('Error importing category "%s": %s', $term['name'], $e->getMessage());
-                    }
-                }
-            } elseif ($taxonomyType === 'post_tag') {
-                foreach ($terms as $term) {
-                    try {
-                        $tagId = $this->getOrCreateTag($term['name'], $counts, $term);
-                        $result['tagMap'][$term['term_id']] = $tagId;
-                    } catch (\Exception $e) {
-                        $result['errors'][] = sprintf('Error importing tag "%s": %s', $term['name'], $e->getMessage());
-                    }
+        if (!empty($taxonomies['category'])) {
+            foreach ($taxonomies['category'] as $term) {
+                try {
+                    // Create the category without a parent for now
+                    $newCatId = $this->getOrCreateCategory($term['name'], $counts, $term);
+                    $result['map'][$term['term_id']] = $newCatId;
+
+                    // Store the source term data to access the parent ID in the next pass
+                    $categorySourceData[$term['term_id']] = $term;
+                } catch (\Exception $e) {
+                    $result['errors'][] = sprintf('Error importing category "%s": %s', $term['name'], $e->getMessage());
                 }
             }
         }
+
+        // Process tags
+        if (!empty($taxonomies['post_tag'])) {
+            foreach ($taxonomies['post_tag'] as $term) {
+                try {
+                    $tagId = $this->getOrCreateTag($term['name'], $counts, $term);
+                    $result['tagMap'][$term['term_id']] = $tagId;
+                } catch (\Exception $e) {
+                    $result['errors'][] = sprintf('Error importing tag "%s": %s', $term['name'], $e->getMessage());
+                }
+            }
+        }
+
+        // Link parent categories // Link parent categories
+        try
+        {
+            // 1. Get the Category Model instance *once* before the loop.
+            BaseDatabaseModel::addIncludePath(JPATH_ADMINISTRATOR . '/components/com_categories/models');
+            $mvcFactory    = Factory::getApplication()->bootComponent('com_categories')->getMVCFactory();
+            $categoryModel = $mvcFactory->createModel('Category', 'Administrator', ['ignore_request' => true]);
+
+            if (!$categoryModel)
+            {
+                throw new \RuntimeException('Could not create the Category model.');
+            }
+        }
+        catch (\Exception $e)
+        {
+            // If the model can't be created, it's a fatal error, so we stop.
+            throw new \RuntimeException('Could not create the Category model.');
+            $result['errors'][] = 'Fatal Error: Could not initialize the category model. ' . $e->getMessage();
+            return $result;
+        }
+
+        // 2. Loop through your source map to find parent-child relationships.
+        foreach ($categorySourceMap as $sourceTermId => $term)
+        {
+            $srcParent = (int) ($term['parent'] ?? 0);
+
+            // 3. Check if this term has a parent and if that parent has been mapped to a Joomla ID.
+            if ($srcParent > 0 && isset($result['map'][$sourceTermId], $result['map'][$srcParent]))
+            {
+                $childId  = $result['map'][$sourceTermId];
+                $parentId = $result['map'][$srcParent];
+
+                try
+                {
+                    // 4. Prepare the data and save. The model handles all the complex logic
+                    // of loading the category and recalculating the tree structure.
+                    $dataToSave = [
+                        'id'        => $childId,
+                        'parent_id' => $parentId,
+                    ];
+
+                    if (!$categoryModel->save($dataToSave))
+                    {
+                        throw new \RuntimeException($categoryModel->getError());
+                    }
+                }
+                catch (\Exception $e)
+                {
+                    // If one category fails, we record the error and continue with the rest.
+                    $result['errors'][] = sprintf(
+                        'Failed to set parent for category ID %d (child of %d): %s',
+                        $childId,
+                        $parentId,
+                        $e->getMessage()
+                    );
+                }
+            }
+        }
+
         return $result;
     }
     
@@ -904,23 +970,32 @@ class ProcessorModel extends BaseDatabaseModel
         $categoryId = $this->db->setQuery($query)->loadResult();
 
         if (!$categoryId) {
-            $categoryTable = Table::getInstance('Category');
+            $component = 'com_categories';
+            $app = Factory::getApplication();
+            $mvcFactory = $app->bootComponent($component)->getMVCFactory();
+            BaseDatabaseModel::addIncludePath(JPATH_ADMINISTRATOR . '/components/com_categories/models');
+            $categoryModel = $mvcFactory->createModel('Category', 'Administrator', ['ignore_request' => true]);
+
+            if (!$categoryModel) {
+                throw new \RuntimeException('Could not create the Category model.');
+            }
             $categoryData = [
                 'id'          => 0,
                 'title'       => $categoryName,
                 'alias'       => $alias,
                 'description' => $sourceData['description'] ?? '',
                 'extension'   => 'com_content',
+                'parent_id'   => 1,
                 'published'   => 1,
                 'access'      => 1,
                 'language'    => '*',
             ];
 
-            if (!$categoryTable->save($categoryData)) {
-                throw new \RuntimeException($categoryTable->getError());
+            if (!$categoryModel->save($categoryData)) {
+                throw new \RuntimeException($categoryModel->getError());
             }
             $counts['taxonomies']++;
-            $categoryId = $categoryTable->id;
+            $categoryId = $categoryModel->getState('category.id');
         }
 
         return (int) $categoryId;
@@ -1073,6 +1148,7 @@ class ProcessorModel extends BaseDatabaseModel
             'type'        => 'text',
             'context'     => $context,
             'state'       => 1,
+            'label'       => ucwords(str_replace(['_', '-'], ' ', $fieldName)),
             'language'    => '*',
             'description' => '',
             'params'      => '',
