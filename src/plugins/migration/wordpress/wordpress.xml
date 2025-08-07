@@ -1,15 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<extension version="5.0" type="plugin" group="migration" method="upgrade">
-    <name>plg_migration_wordpress</name>
+<extension method="upgrade" type="plugin" group="migration">
+    <name>PLG_MIGRATION_WORDPRESS</name>
+    <version>1.0.0</version>
+    <description>PLG_MIGRATION_WORDPRESS_XML_DESCRIPTION</description>
     <author>Rahul Singh</author>
     <creationDate>2025-06-05</creationDate>
     <copyright>(C) 2025 Open Source Matters, Inc.</copyright>
     <license>GNU General Public License version 2 or later; see LICENSE.txt</license>
-    <version>1.0.0</version>
-    <description>PLG_MIGRATION_WORDPRESS_XML_DESCRIPTION</description>
+    <namespace path="src">My\Plugin\Migration\Wordpress</namespace>
     <files>
-        <filename plugin="wordpress">wordpress.php</filename>
+        <folder plugin="wordpress">services</folder>
+        <folder>src</folder>
         <folder>language</folder>
     </files>
+    <languages>
+        <language tag="en-GB">language/en-GB/plg_migration_wordpress.ini</language>
+        <language tag="en-GB">language/en-GB/plg_migration_wordpress.sys.ini</language>
+    </languages>
     <scriptfile>script.php</scriptfile>
-</extension> 
+</extension>

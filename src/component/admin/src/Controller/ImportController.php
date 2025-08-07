@@ -7,7 +7,7 @@ namespace Binary\Component\CmsMigrator\Administrator\Controller;
 use Joomla\CMS\MVC\Controller\BaseController;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
-use Joomla\CMS\Filesystem\File;
+use Joomla\Filesystem\File;
 use Binary\Component\CmsMigrator\Administrator\Model\MediaModel;
 use Joomla\CMS\Response\JsonResponse;
 
@@ -38,8 +38,11 @@ class ImportController extends BaseController
         $sourceCms = $jform['source_cms'] ?? null;
         $sourceUrl = $jform['source_url'] ?? null;
         
-        // Get FTP configuration for media migration
-        $ftpConfig = [];
+        // Get media ZIP file if ZIP upload is selected
+        $mediaZipFile = $files['media_zip_file'] ?? null;
+        
+        // Get connection configuration for media migration
+        $connectionConfig = [];
         $mediaStorageMode = $jform['media_storage_mode'] ?? 'root';
         $mediaCustomDir = $jform['media_custom_dir'] ?? '';
         if (!empty($jform['enable_media_migration'])) {
@@ -49,15 +52,36 @@ class ImportController extends BaseController
                 $this->setRedirect('index.php?option=com_cmsmigrator');
                 return;
             }
-            $ftpConfig = [
-                'host' => $jform['ftp_host'] ?? '',
-                'port' => (int) ($jform['ftp_port'] ?? 21),
-                'username' => $jform['ftp_username'] ?? '',
-                'password' => $jform['ftp_password'] ?? '',
-                'passive' => !empty($jform['ftp_passive']),
-                'media_storage_mode' => $mediaStorageMode,
-                'media_custom_dir' => $mediaCustomDir
-            ];
+            
+            $connectionType = $jform['connection_type'] ?? 'ftp';
+            
+            if ($connectionType === 'zip') {
+                // Handle ZIP upload validation
+                if (empty($mediaZipFile) || $mediaZipFile['error'] !== UPLOAD_ERR_OK) {
+                    $app->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_FILE_ERROR'), 'error');
+                    $this->setRedirect('index.php?option=com_cmsmigrator');
+                    return;
+                }
+                
+                $connectionConfig = [
+                    'connection_type' => 'zip',
+                    'zip_file' => $mediaZipFile,
+                    'media_storage_mode' => $mediaStorageMode,
+                    'media_custom_dir' => $mediaCustomDir
+                ];
+            } else {
+                // Handle FTP/FTPS/SFTP configuration
+                $connectionConfig = [
+                    'connection_type' => $connectionType,
+                    'host' => $jform['ftp_host'] ?? '',
+                    'port' => (int) ($jform['ftp_port'] ?? ($connectionType === 'sftp' ? 22 : 21)),
+                    'username' => $jform['ftp_username'] ?? '',
+                    'password' => $jform['ftp_password'] ?? '',
+                    'passive' => !empty($jform['ftp_passive']),
+                    'media_storage_mode' => $mediaStorageMode,
+                    'media_custom_dir' => $mediaCustomDir
+                ];
+            }
         }
         
         //Ensures a file was uploaded and it was successful
@@ -70,7 +94,7 @@ class ImportController extends BaseController
         //Passes the data to ImportModel Function
         $model = $this->getModel('Import');
 
-        if (!$model->import($file, $sourceCms, $sourceUrl, $ftpConfig, $importAsSuperUser)) {
+        if (!$model->import($file, $sourceCms, $sourceUrl, $connectionConfig, $importAsSuperUser)) {
             $app->enqueueMessage($model->getError(), 'error');
             $this->setRedirect('index.php?option=com_cmsmigrator');
             return;
@@ -81,7 +105,41 @@ class ImportController extends BaseController
     }
 
     /**
-     * Test FTP connection
+     * Test connection (FTP, FTPS, or SFTP)
+     *
+     * @return void
+     */
+    public function testConnection()
+    {
+        // Check for request forgeries
+        $this->checkToken();
+        
+        $app = Factory::getApplication();
+        $input = $app->input;
+        
+        // Get connection configuration
+        $connectionConfig = [
+            'connection_type' => $input->getString('connection_type', 'ftp'),
+            'host' => $input->getString('host', ''),
+            'port' => $input->getInt('port', 21),
+            'username' => $input->getString('username', ''),
+            'password' => $input->getString('password', ''),
+            'passive' => $input->getBool('passive', true)
+        ];
+        
+        // Test connection
+        $mediaModel = new MediaModel();
+        $result = $mediaModel->testConnection($connectionConfig);
+        
+        // Send JSON response
+        $app->setHeader('Content-Type', 'application/json');
+        $app->sendHeaders();
+        echo json_encode($result);
+        $app->close();
+    }
+
+    /**
+     * Test FTP connection (legacy method for backward compatibility)
      *
      * @return void
      */
@@ -95,6 +153,7 @@ class ImportController extends BaseController
         
         // Get FTP configuration
         $ftpConfig = [
+            'connection_type' => 'ftp',
             'host' => $input->getString('host', ''),
             'port' => $input->getInt('port', 21),
             'username' => $input->getString('username', ''),
