@@ -16,11 +16,16 @@ use Joomla\CMS\Factory;
 use Joomla\CMS\MVC\Model\BaseDatabaseModel;
 use Joomla\CMS\Table\Table;
 use Joomla\CMS\User\UserHelper;
+use Joomla\CMS\Helper\TagsHelper;
 use Joomla\Component\Users\Administrator\Model\UserModel;
 use Joomla\Component\Categories\Administrator\Model\CategoryModel;
 use Joomla\Component\Content\Administrator\Model\ArticleModel;
 use Joomla\Component\Tags\Administrator\Model\TagModel;
 use Joomla\Component\Fields\Administrator\Model\FieldModel;
+use Joomla\CMS\Component\ComponentHelper;
+use Joomla\CMS\MVC\Model\AdminModel;
+use Joomla\CMS\UCM\UCMContent;
+use Joomla\CMS\UCM\UCMType;
 use Joomla\CMS\Filter\OutputFilter;
 use Joomla\CMS\Uri\Uri;
 use Binary\Component\CmsMigrator\Administrator\Model\MediaModel;
@@ -453,7 +458,9 @@ class ProcessorModel extends BaseDatabaseModel
         ];
 
         // Save the article
-        $articleModel = new ArticleModel(['ignore_request' => true]);
+        $mvcFactory = Factory::getApplication()->bootComponent('com_content')
+            ->getMVCFactory();
+        $articleModel = $mvcFactory->createModel('Article', 'Administrator', ['ignore_request' => true]);
         if (!$articleModel->save($articleData)) {
             throw new \RuntimeException('Failed to save article: ' . $articleModel->getError());
         }
@@ -713,7 +720,9 @@ class ProcessorModel extends BaseDatabaseModel
     private function processJsonPostsBatch(array $batch, array $userMap, array $categoryMap, array $tagMap, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, int $processedCount, int $total, int $batchNumber, int $totalBatches, array &$counts): array
     {
         $result = ['imported' => 0, 'skipped' => 0, 'errors' => []];
-        $articleModel = new ArticleModel(['ignore_request' => true]);
+        $mvcFactory = Factory::getApplication()->bootComponent('com_content')
+            ->getMVCFactory();
+        $articleModel = $mvcFactory->createModel('Article', 'Administrator', ['ignore_request' => true]);
         $defaultCatId = $this->getDefaultCategoryId();
 
         $this->updateProgress(
@@ -1259,36 +1268,19 @@ class ProcessorModel extends BaseDatabaseModel
      */
     protected function linkTagsToArticle(int $articleId, array $tagIds): void
     {
-        if (empty($tagIds)) {
-            return;
-        }
+        try {
+            $articleTable = Table::getInstance('Content', 'JTable');
 
-        // Remove existing tag mappings for this article
-        $deleteQuery = $this->db->getQuery(true)
-            ->delete('#__contentitem_tag_map')
-            ->where('type_alias = ' . $this->db->quote('com_content.article'))
-            ->where('content_item_id = ' . (int) $articleId);
-        $this->db->setQuery($deleteQuery)->execute();
-
-        // Add new tag mappings
-        foreach ($tagIds as $tagId) {
-            $mapping = new \stdClass();
-            $mapping->type_alias = 'com_content.article';
-            $mapping->core_content_id = $articleId;
-            $mapping->content_item_id = $articleId;
-            $mapping->tag_id = $tagId;
-            $mapping->tag_date = Factory::getDate()->toSql();
-            $mapping->type_id = 1; // Content type ID for articles
-
-            try {
-                $this->db->insertObject('#__contentitem_tag_map', $mapping);
-            } catch (\Exception $e) {
-                // Log error but don't fail the entire import
-                Factory::getApplication()->enqueueMessage(
-                    sprintf('Error linking tag %d to article %d: %s', $tagId, $articleId, $e->getMessage()),
-                    'warning'
-                );
+            if (!$articleTable->load($articleId)) {
+                throw new \RuntimeException("Article with ID {$articleId} not found.");
             }
+            $articleTable->newTags = $tagIds;
+            if (!$articleTable->store()) {
+                throw new \RuntimeException('Failed to store article tags: ' . $articleTable->getError());
+            }
+        } catch (\Exception $e) {
+            // Catch any errors and display a message.
+            Factory::getApplication()->enqueueMessage($e->getMessage(), 'error');
         }
     }
 
