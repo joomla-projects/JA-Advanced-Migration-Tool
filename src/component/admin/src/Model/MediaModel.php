@@ -13,8 +13,8 @@ namespace Binary\Component\CmsMigrator\Administrator\Model;
 
 use Joomla\CMS\Factory;
 use Joomla\CMS\MVC\Model\BaseDatabaseModel;
-use Joomla\CMS\Filesystem\File;
-use Joomla\CMS\Filesystem\Folder;
+use Joomla\Filesystem\File;
+use Joomla\Filesystem\Folder;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Uri\Uri;
 use phpseclib3\Net\SFTP;
@@ -134,7 +134,7 @@ class MediaModel extends BaseDatabaseModel
         $this->storageDir = preg_replace('/[^a-zA-Z0-9_-]/', '', $dir) ?: 'imports';
         $this->mediaBaseUrl = Uri::root() . 'images/' . $this->storageDir . '/';
         $this->mediaBasePath = JPATH_ROOT . '/images/' . $this->storageDir . '/';
-        if (!Folder::exists($this->mediaBasePath)) {
+        if (!is_dir($this->mediaBasePath)) {
             Folder::create($this->mediaBasePath);
         }
     }
@@ -332,24 +332,31 @@ class MediaModel extends BaseDatabaseModel
         $resizedPath = $pathInfo['dirname'] . '/' . $pathInfo['filename'] . '-768x512.' . $pathInfo['extension'];
         $originalPath = $pathInfo['dirname'] . '/' . $pathInfo['basename'];
 
+        // Always use the original filename for local storage (without -768x512 suffix)
+        $localFileName = $originalPath;
+        $localFilePath = $this->mediaBasePath . $localFileName;
+
+        // Check if file already exists locally
+        if (is_file($localFilePath)) {
+            $newUrl = $this->mediaBaseUrl . $localFileName;
+            return $newUrl;
+        }
+
+        // Check if we already downloaded this file
+        foreach ($this->downloadedFiles as $remotePath => $url) {
+            if ($url === $this->mediaBaseUrl . $localFileName) {
+                return $url;
+            }
+        }
+
         // Generate candidate remote paths based on detected structure or get cached Paths
         $candidatePaths = $this->getCachedOrGeneratedPaths($resizedPath, $originalPath);
 
         foreach ($candidatePaths as $remotePath) {
-            $localFileName = $this->getLocalFileName($remotePath);
-            $localFilePath = $this->mediaBasePath . $localFileName;
-
-            if (isset($this->downloadedFiles[$remotePath])) {
-                return $this->downloadedFiles[$remotePath];
-            }
-
-            if (File::exists($localFilePath)) {
-                $newUrl = $this->mediaBaseUrl . $localFileName;
-                $this->downloadedFiles[$remotePath] = $newUrl;
-                //Cache the Path
-                $prefix = str_replace([$resizedPath, $originalPath], '', $remotePath);
-                $this->cachedUploadPrefix = $prefix;
-                return $newUrl;
+            // Ensure local directory exists
+            $localDir = dirname($localFilePath);
+            if (!is_dir($localDir)) {
+                Folder::create($localDir);
             }
 
             if ($this->downloadFile($remotePath, $localFilePath)) {
@@ -359,7 +366,7 @@ class MediaModel extends BaseDatabaseModel
                 $prefix = str_replace([$resizedPath, $originalPath], '', $remotePath);
                 $this->cachedUploadPrefix = $prefix;
                 Factory::getApplication()->enqueueMessage(
-                    sprintf('✅ Downloaded image: %s', basename($remotePath)),
+                    sprintf('✅ Downloaded image: %s (saved as %s)', basename($remotePath), basename($localFileName)),
                     'info'
                 );
 
@@ -476,7 +483,7 @@ class MediaModel extends BaseDatabaseModel
         }
 
         $localDir = dirname($localPath);
-        if (!Folder::exists($localDir)) {
+        if (!is_dir($localDir)) {
             Folder::create($localDir);
         }
 
@@ -508,7 +515,7 @@ class MediaModel extends BaseDatabaseModel
         }
 
         $localDir = dirname($localPath);
-        if (!Folder::exists($localDir)) {
+        if (!is_dir($localDir)) {
             Folder::create($localDir);
         }
 
@@ -870,7 +877,7 @@ class MediaModel extends BaseDatabaseModel
             $extractPath = $this->mediaBasePath;
             
             // Ensure extraction directory exists
-            if (!Folder::exists($extractPath)) {
+            if (!is_dir($extractPath)) {
                 Folder::create($extractPath);
             }
 
@@ -921,7 +928,7 @@ class MediaModel extends BaseDatabaseModel
                     
                     // Ensure target directory exists
                     $targetDir = dirname($targetPath);
-                    if (!Folder::exists($targetDir)) {
+                    if (!is_dir($targetDir)) {
                         Folder::create($targetDir);
                     }
                     
@@ -1034,7 +1041,7 @@ class MediaModel extends BaseDatabaseModel
         $localFilePath = $this->mediaBasePath . $relativePath;
 
         // Check if the file exists in the extracted ZIP
-        if (File::exists($localFilePath)) {
+        if (is_file($localFilePath)) {
             $newUrl = $this->mediaBaseUrl . $relativePath;
             $this->downloadedFiles[$originalUrl] = $newUrl;
             return $newUrl;
@@ -1045,7 +1052,7 @@ class MediaModel extends BaseDatabaseModel
         $fileName = array_pop($pathParts);
         $dirPath = $this->mediaBasePath . implode('/', $pathParts);
 
-        if (Folder::exists($dirPath)) {
+        if (is_dir($dirPath)) {
             $files = Folder::files($dirPath);
             foreach ($files as $file) {
                 if (strtolower($file) === strtolower($fileName)) {
@@ -1300,20 +1307,28 @@ class MediaModel extends BaseDatabaseModel
         $resizedPath = $pathInfo['dirname'] . '/' . $pathInfo['filename'] . '-768x512.' . $pathInfo['extension'];
         $originalPath = $pathInfo['dirname'] . '/' . $pathInfo['basename'];
 
+        // Always use the original filename for local storage (without -768x512 suffix)
+        $localFileName = $originalPath;
+        $localFilePath = $this->mediaBasePath . $localFileName;
+
+        // Skip if already downloaded
+        if (is_file($localFilePath)) {
+            return [];
+        }
+
+        // Check if we already have this file downloaded
+        foreach ($this->downloadedFiles as $remotePath => $url) {
+            if ($url === $this->mediaBaseUrl . $localFileName) {
+                return [];
+            }
+        }
+
         $paths = [];
         
         // Generate candidate remote paths based on detected structure
         $candidatePaths = $this->generateCandidateRemotePaths($resizedPath, $originalPath);
         
         foreach ($candidatePaths as $remotePath) {
-            $localFileName = $this->getLocalFileName($remotePath);
-            $localFilePath = $this->mediaBasePath . $localFileName;
-
-            // Skip if already downloaded
-            if (isset($this->downloadedFiles[$remotePath]) || File::exists($localFilePath)) {
-                continue;
-            }
-
             $paths[] = [
                 'remote' => $remotePath,
                 'local' => $localFilePath,
@@ -1341,7 +1356,7 @@ class MediaModel extends BaseDatabaseModel
             
             foreach ($paths as $pathInfo) {
                 $localDir = dirname($pathInfo['local']);
-                if (!Folder::exists($localDir)) {
+                if (!is_dir($localDir)) {
                     Folder::create($localDir);
                 }
 

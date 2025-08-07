@@ -17,17 +17,11 @@ use Joomla\CMS\MVC\Model\BaseDatabaseModel;
 use Joomla\CMS\Table\Table;
 use Joomla\CMS\User\UserHelper;
 use Joomla\CMS\Helper\TagsHelper;
-use Joomla\Component\Users\Administrator\Model\UserModel;
-use Joomla\Component\Categories\Administrator\Model\CategoryModel;
-use Joomla\Component\Content\Administrator\Model\ArticleModel;
-use Joomla\Component\Tags\Administrator\Model\TagModel;
-use Joomla\Component\Fields\Administrator\Model\FieldModel;
-use Joomla\CMS\Component\ComponentHelper;
-use Joomla\CMS\MVC\Model\AdminModel;
-use Joomla\CMS\UCM\UCMContent;
-use Joomla\CMS\UCM\UCMType;
 use Joomla\CMS\Filter\OutputFilter;
 use Joomla\CMS\Uri\Uri;
+use Joomla\CMS\Application\CMSApplicationInterface;
+use Joomla\Database\DatabaseInterface;
+use Joomla\CMS\MVC\Factory\MVCFactoryInterface;
 use Binary\Component\CmsMigrator\Administrator\Model\MediaModel;
 
 /**
@@ -40,24 +34,46 @@ use Binary\Component\CmsMigrator\Administrator\Model\MediaModel;
 class ProcessorModel extends BaseDatabaseModel
 {
     /**
-     * Database object
+     * Application instance
      *
-     * @var    \Joomla\Database\DatabaseDriver
+     * @var    CMSApplicationInterface
      * @since  1.0.0
      */
-    protected $db;
+    protected CMSApplicationInterface $app;
+
+    /**
+     * MVC Factory instance
+     *
+     * @var    MVCFactoryInterface
+     * @since  1.0.0
+     */
+    protected MVCFactoryInterface $mvcFactory;
+
+    /**
+     * Database instance
+     *
+     * @var    DatabaseInterface
+     * @since  1.0.0
+     */
+    protected DatabaseInterface $db;
 
     /**
      * Constructor
      *
-     * @param   array  $config  An optional associative array of configuration settings.
+     * @param   array                       $config     An optional associative array of configuration settings.
+     * @param   MVCFactoryInterface|null    $factory    The factory.
+     * @param   CMSApplicationInterface     $app        The application.
+     * @param   DatabaseInterface           $db         The database.
      *
      * @since   1.0.0
      */
-    public function __construct(array $config = [])
+    public function __construct(array $config = [], ?MVCFactoryInterface $factory = null, ?CMSApplicationInterface $app = null, ?DatabaseInterface $db = null)
     {
         parent::__construct($config);
-        $this->db = Factory::getDbo();
+        
+        $this->app = $app ?: Factory::getApplication();
+        $this->mvcFactory = $factory ?: $this->app->bootComponent('com_cmsmigrator')->getMVCFactory();
+        $this->db = $db ?: Factory::getContainer()->get(DatabaseInterface::class);
     }
 
     /**
@@ -206,7 +222,7 @@ class ProcessorModel extends BaseDatabaseModel
 
         $this->executeInTransaction(function () use ($data, $sourceUrl, $ftpConfig, $importAsSuperUser, &$result) {
             $mediaModel = $this->initializeMediaModel($ftpConfig);
-            $superUserId = $importAsSuperUser ? Factory::getUser()->id : null;
+            $superUserId = $importAsSuperUser ? $this->app->getIdentity()->id : null;
             
             // Process tags first if they exist in the data
             $tagMap = [];
@@ -264,7 +280,7 @@ class ProcessorModel extends BaseDatabaseModel
         $batches = array_chunk($articles, $batchSize);
         $processedCount = 0;
 
-        Factory::getApplication()->enqueueMessage(
+        $this->app->enqueueMessage(
             sprintf('Processing %d articles in %d batches (batch size: %d)', $total, count($batches), $batchSize),
             'info'
         );
@@ -556,13 +572,12 @@ class ProcessorModel extends BaseDatabaseModel
             }
         }
 
-        // Link parent categories // Link parent categories
+        // Link parent categories
         try
         {
             // 1. Get the Category Model instance *once* before the loop.
-            BaseDatabaseModel::addIncludePath(JPATH_ADMINISTRATOR . '/components/com_categories/models');
-            $mvcFactory    = Factory::getApplication()->bootComponent('com_categories')->getMVCFactory();
-            $categoryModel = $mvcFactory->createModel('Category', 'Administrator', ['ignore_request' => true]);
+            $categoriesMvcFactory = $this->app->bootComponent('com_categories')->getMVCFactory();
+            $categoryModel = $categoriesMvcFactory->createModel('Category', 'Administrator', ['ignore_request' => true]);
 
             if (!$categoryModel)
             {
@@ -578,7 +593,7 @@ class ProcessorModel extends BaseDatabaseModel
         }
 
         // 2. Loop through your source map to find parent-child relationships.
-        foreach ($categorySourceMap as $sourceTermId => $term)
+        foreach ($categorySourceData as $sourceTermId => $term)
         {
             $srcParent = (int) ($term['parent'] ?? 0);
 
@@ -640,7 +655,7 @@ class ProcessorModel extends BaseDatabaseModel
                 $tagMap[$tagData['slug']] = $tagId;
             } catch (\Exception $e) {
                 // Log the error but continue processing other tags
-                Factory::getApplication()->enqueueMessage(
+                $this->app->enqueueMessage(
                     sprintf('Error importing tag "%s": %s', $tagData['name'], $e->getMessage()),
                     'warning'
                 );
@@ -677,7 +692,7 @@ class ProcessorModel extends BaseDatabaseModel
         $batches = array_chunk($posts, $batchSize, true);
         $processedCount = 0;
 
-        Factory::getApplication()->enqueueMessage(
+        $this->app->enqueueMessage(
             sprintf('Processing %d JSON posts in %d batches (batch size: %d)', $totalPosts, count($batches), $batchSize),
             'info'
         );
@@ -783,7 +798,7 @@ class ProcessorModel extends BaseDatabaseModel
                         $catId = $categoryMap[$primary['term_id']];
                     }
                 }
-
+            
                 $articleData = [
                     'id'         => 0,
                     'title'      => $post['post_title'],
@@ -824,7 +839,7 @@ class ProcessorModel extends BaseDatabaseModel
                                 $tagIds[] = $tagId;
                             } catch (\Exception $e) {
                                 // Log error but continue with other tags
-                                Factory::getApplication()->enqueueMessage(
+                                $this->app->enqueueMessage(
                                     sprintf('Error creating tag "%s" for article "%s": %s', $tagName, $post['post_title'], $e->getMessage()),
                                     'warning'
                                 );
@@ -872,7 +887,7 @@ class ProcessorModel extends BaseDatabaseModel
         
         // For ZIP uploads, we don't need host credentials, just the connection type
         if ($connectionType === 'zip') {
-            $mediaModel = new MediaModel();
+            $mediaModel = $this->mvcFactory->createModel('Media', 'Administrator', ['ignore_request' => true]);
             $storageDir = (($ftpConfig['media_storage_mode'] ?? 'root') === 'custom' && !empty($ftpConfig['media_custom_dir']))
                 ? $ftpConfig['media_custom_dir']
                 : 'imports';
@@ -880,7 +895,7 @@ class ProcessorModel extends BaseDatabaseModel
             
             // Process ZIP upload immediately when initializing the model
             if (!$mediaModel->connect($ftpConfig)) {
-                Factory::getApplication()->enqueueMessage('Failed to process ZIP upload for media migration', 'error');
+                $this->app->enqueueMessage('Failed to process ZIP upload for media migration', 'error');
                 return null;
             }
             
@@ -892,7 +907,7 @@ class ProcessorModel extends BaseDatabaseModel
             return null;
         }
 
-        $mediaModel = new MediaModel();
+        $mediaModel = $this->mvcFactory->createModel('Media', 'Administrator', ['ignore_request' => true]);
         $storageDir = (($ftpConfig['media_storage_mode'] ?? 'root') === 'custom' && !empty($ftpConfig['media_custom_dir']))
             ? $ftpConfig['media_custom_dir']
             : 'imports';
@@ -979,11 +994,8 @@ class ProcessorModel extends BaseDatabaseModel
         $categoryId = $this->db->setQuery($query)->loadResult();
 
         if (!$categoryId) {
-            $component = 'com_categories';
-            $app = Factory::getApplication();
-            $mvcFactory = $app->bootComponent($component)->getMVCFactory();
-            BaseDatabaseModel::addIncludePath(JPATH_ADMINISTRATOR . '/components/com_categories/models');
-            $categoryModel = $mvcFactory->createModel('Category', 'Administrator', ['ignore_request' => true]);
+            $categoriesMvcFactory = $this->app->bootComponent('com_categories')->getMVCFactory();
+            $categoryModel = $categoriesMvcFactory->createModel('Category', 'Administrator', ['ignore_request' => true]);
 
             if (!$categoryModel) {
                 throw new \RuntimeException('Could not create the Category model.');
@@ -1033,8 +1045,9 @@ class ProcessorModel extends BaseDatabaseModel
         $tagId = $this->db->setQuery($query)->loadResult();
 
         if (!$tagId) {
-            // Get the root tag to use as parent
-            $tagModel = new TagModel(['ignore_request' => true]);
+            $tagsMvcFactory = $this->app->bootComponent('com_tags')->getMVCFactory();
+            $tagModel = $tagsMvcFactory->createModel('Tag', 'Administrator', ['ignore_request' => true]);
+            
             $tagData = [
                 'id'          => 0,
                 'title'       => $tagName,
@@ -1117,7 +1130,7 @@ class ProcessorModel extends BaseDatabaseModel
                     $this->saveCustomFieldValue($fieldId, $articleId, $fieldValue);
                 }
             } catch (\Exception $e) {
-                Factory::getApplication()->enqueueMessage(
+                $this->app->enqueueMessage(
                     sprintf('Error processing custom field "%s": %s', $fieldName, $e->getMessage()),
                     'warning'
                 );
@@ -1148,7 +1161,9 @@ class ProcessorModel extends BaseDatabaseModel
             return $existingId;
         }
 
-        $fieldModel = new FieldModel(['ignore_request' => true]);
+        $fieldsMvcFactory = $this->app->bootComponent('com_fields')->getMVCFactory();
+        $fieldModel = $fieldsMvcFactory->createModel('Field', 'Administrator', ['ignore_request' => true]);
+        
         $fieldData  = [
             'id'          => 0,
             'title'       => ucwords(str_replace(['_', '-'], ' ', $fieldName)),
@@ -1185,7 +1200,7 @@ class ProcessorModel extends BaseDatabaseModel
         }
         catch (\Exception $e)
         {
-            Factory::getApplication()->enqueueMessage(
+            $this->app->enqueueMessage(
                 sprintf('Error creating custom field "%s": %s', $fieldName, $e->getMessage()),
                 'warning'
             );
@@ -1296,7 +1311,7 @@ class ProcessorModel extends BaseDatabaseModel
     {
         $progressFile = JPATH_SITE . '/media/com_cmsmigrator/imports/progress.json';
         $data = ['percent' => $percent, 'status' => $status, 'timestamp' => time()];
-        \Joomla\CMS\Filesystem\File::write($progressFile, json_encode($data));
+        \Joomla\Filesystem\File::write($progressFile, json_encode($data));
     }
 
     /**

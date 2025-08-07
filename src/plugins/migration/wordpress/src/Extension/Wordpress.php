@@ -1,38 +1,48 @@
 <?php
 
-/**
- * @package     Joomla.Plugin
- * @subpackage  Migration.Wordpress
- * @copyright   Copyright (C) 2025 Open Source Matters, Inc.
- * @license     GNU General Public License version 2 or later; see LICENSE.txt
- */
+namespace My\Plugin\Migration\Wordpress\Extension;
 
 defined('_JEXEC') or die;
 
-use Joomla\CMS\Event\AbstractEvent;
 use Joomla\CMS\Plugin\CMSPlugin;
+use Joomla\Event\Event;
+use Joomla\Event\SubscriberInterface;
+use DateTime;
 
 /**
  * WordPress Migration Plugin
  *
  * @since  1.0.0
  */
-class PlgMigrationWordpress extends CMSPlugin
+class Wordpress extends CMSPlugin implements SubscriberInterface
 {
+    /**
+     * Returns an array of events this subscriber will listen to.
+     *
+     * @return  array
+     *
+     * @since   1.0.0
+     */
+    public static function getSubscribedEvents(): array
+    {
+        return [
+            'onMigrationConvert' => 'onMigrationConvert',
+        ];
+    }
+
     /**
      * Handles the onMigrationConvert event.
      *
-     * @param   AbstractEvent  $event  The event object.
+     * @param   Event  $event  The event object.
      *
      * @return  void
      *
      * @since   1.0.0
      */
-    public function onMigrationConvert(AbstractEvent $event)
+    public function onMigrationConvert(Event $event)
     {
-        $args      = $event->getArguments();
-        $sourceCms = $args['sourceCms'] ?? null;
-        $filePath  = $args['filePath']  ?? null;
+        // Use this format to get the arguments for both Joomla 4 and Joomla 5
+        [$sourceCms, $filePath] = array_values($event->getArguments());
 
         if ($sourceCms !== 'wordpress' || empty($filePath)) {
             return;
@@ -183,6 +193,7 @@ class PlgMigrationWordpress extends CMSPlugin
             'mediaItems'     => $mediaItems,
         ];
 
+        // Return result using the modern approach
         $event->addResult(json_encode($final, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
     }
 }

@@ -7,7 +7,7 @@ namespace Binary\Component\CmsMigrator\Administrator\Controller;
 use Joomla\CMS\MVC\Controller\BaseController;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
-use Joomla\CMS\Filesystem\File;
+use Joomla\Filesystem\File;
 use Binary\Component\CmsMigrator\Administrator\Model\MediaModel;
 use Joomla\CMS\Response\JsonResponse;
 
