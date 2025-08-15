@@ -33,7 +33,7 @@
             name="enable_media_migration"
             type="radio"
             label="Enable Media Migration"
-            description="Enable FTP-based media migration from WordPress wp-content/uploads folder"
+            description="Enable media migration from WordPress. Choose FTP/SFTP to download files directly from your server, or ZIP upload to extract a ZIP file containing your wp-content/uploads folder."
             class="btn-group btn-group-yesno"
             default="0">
             <option value="1">JYES</option>
@@ -41,53 +41,77 @@
         </field>
 
         <field
+            name="connection_type"
+            type="list"
+            label="Connection Type"
+            description="Choose between FTP, FTPS, SFTP or ZIP upload for media migration"
+            class="form-select"
+            default="ftp"
+            showon="enable_media_migration:1">
+            <option value="ftp">FTP (File Transfer Protocol)</option>
+            <option value="ftps">FTPS (FTP over SSL/TLS)</option>
+            <option value="sftp">SFTP (Secure File Transfer Protocol)</option>
+            <option value="zip">ZIP Upload (Upload wp-content/uploads folder as ZIP)</option>
+        </field>
+
+        <field
             name="ftp_host"
             type="text"
-            label="FTP Host"
-            description="FTP server hostname or IP address (e.g., ftp.yourwordpresssite.com)"
+            label="Server Host"
+            description="Server hostname or IP address (e.g., ftp.yourwordpresssite.com)"
             class="form-control"
-            showon="enable_media_migration:1"
+            showon="enable_media_migration:1[AND]connection_type:ftp,ftps,sftp"
         />
 
         <field
             name="ftp_port"
             type="number"
-            label="FTP Port"
-            description="FTP server port (default: 21)"
+            label="Server Port"
+            description="Server port (FTP default: 21, FTPS default: 21, SFTP default: 22)"
             class="form-control"
             default="21"
-            showon="enable_media_migration:1"
+            showon="enable_media_migration:1[AND]connection_type:ftp,ftps,sftp"
         />
 
         <field
             name="ftp_username"
             type="text"
-            label="FTP Username"
-            description="FTP login username"
+            label="Username"
+            description="Login username"
             class="form-control"
-            showon="enable_media_migration:1"
+            showon="enable_media_migration:1[AND]connection_type:ftp,ftps,sftp"
         />
 
         <field
             name="ftp_password"
             type="password"
-            label="FTP Password"
-            description="FTP login password"
+            label="Password"
+            description="Login password"
             class="form-control"
-            showon="enable_media_migration:1"
+            showon="enable_media_migration:1[AND]connection_type:ftp,ftps,sftp"
         />
 
         <field
             name="ftp_passive"
             type="radio"
-            label="Use Passive FTP"
-            description="Enable passive FTP mode (recommended for most servers)"
+            label="Use Passive Mode"
+            description="Enable passive mode (FTP/FTPS only - recommended for most FTP servers)"
             class="btn-group btn-group-yesno"
             default="1"
-            showon="enable_media_migration:1">
+            showon="enable_media_migration:1[AND]connection_type:ftp,ftps">
             <option value="1">JYES</option>
             <option value="0">JNO</option>
         </field>
+
+        <field
+            name="media_zip_file"
+            type="file"
+            label="WordPress Uploads ZIP File"
+            description="Upload a ZIP file containing your WordPress wp-content/uploads folder structure"
+            class="form-control"
+            accept=".zip"
+            showon="enable_media_migration:1,connection_type:zip"
+        />
 
         <field
             name="media_storage_mode"

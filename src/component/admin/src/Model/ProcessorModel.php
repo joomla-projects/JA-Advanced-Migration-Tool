@@ -16,12 +16,12 @@ use Joomla\CMS\Factory;
 use Joomla\CMS\MVC\Model\BaseDatabaseModel;
 use Joomla\CMS\Table\Table;
 use Joomla\CMS\User\UserHelper;
-use Joomla\Component\Users\Administrator\Model\UserModel;
-use Joomla\Component\Categories\Administrator\Model\CategoryModel;
-use Joomla\Component\Content\Administrator\Model\ArticleModel;
-use Joomla\Component\Fields\Administrator\Model\FieldModel;
+use Joomla\CMS\Helper\TagsHelper;
 use Joomla\CMS\Filter\OutputFilter;
 use Joomla\CMS\Uri\Uri;
+use Joomla\CMS\Application\CMSApplicationInterface;
+use Joomla\Database\DatabaseInterface;
+use Joomla\CMS\MVC\Factory\MVCFactoryInterface;
 use Binary\Component\CmsMigrator\Administrator\Model\MediaModel;
 
 /**
@@ -34,24 +34,46 @@ use Binary\Component\CmsMigrator\Administrator\Model\MediaModel;
 class ProcessorModel extends BaseDatabaseModel
 {
     /**
-     * Database object
+     * Application instance
      *
-     * @var    \Joomla\Database\DatabaseDriver
+     * @var    CMSApplicationInterface
      * @since  1.0.0
      */
-    protected $db;
+    protected CMSApplicationInterface $app;
+
+    /**
+     * MVC Factory instance
+     *
+     * @var    MVCFactoryInterface
+     * @since  1.0.0
+     */
+    protected MVCFactoryInterface $mvcFactory;
+
+    /**
+     * Database instance
+     *
+     * @var    DatabaseInterface
+     * @since  1.0.0
+     */
+    protected DatabaseInterface $db;
 
     /**
      * Constructor
      *
-     * @param   array  $config  An optional associative array of configuration settings.
+     * @param   array                       $config     An optional associative array of configuration settings.
+     * @param   MVCFactoryInterface|null    $factory    The factory.
+     * @param   CMSApplicationInterface     $app        The application.
+     * @param   DatabaseInterface           $db         The database.
      *
      * @since   1.0.0
      */
-    public function __construct(array $config = [])
+    public function __construct(array $config = [], ?MVCFactoryInterface $factory = null, ?CMSApplicationInterface $app = null, ?DatabaseInterface $db = null)
     {
         parent::__construct($config);
-        $this->db = Factory::getDbo();
+        
+        $this->app = $app ?: Factory::getApplication();
+        $this->mvcFactory = $factory ?: $this->app->bootComponent('com_cmsmigrator')->getMVCFactory();
+        $this->db = $db ?: Factory::getContainer()->get(DatabaseInterface::class);
     }
 
     /**
@@ -59,7 +81,7 @@ class ProcessorModel extends BaseDatabaseModel
      *
      * @param   array   $data                 The migration data.
      * @param   string  $sourceUrl            The source URL.
-     * @param   array   $ftpConfig            FTP configuration.
+     * @param   array   $ftpConfig            Connection configuration (FTP/FTPS/SFTP).
      * @param   bool    $importAsSuperUser    Whether to import as a super user.
      *
      * @return  array   The result of the processing.
@@ -110,7 +132,7 @@ class ProcessorModel extends BaseDatabaseModel
      *
      * @param   array   $data       The migration data.
      * @param   string  $sourceUrl  The source URL.
-     * @param   array   $ftpConfig  FTP configuration.
+     * @param   array   $ftpConfig  Connection configuration (FTP/FTPS/SFTP).
      *
      * @return  array   The result of the processing.
      */
@@ -133,16 +155,18 @@ class ProcessorModel extends BaseDatabaseModel
             }
             
             $categoryMap = [];
+            $tagMap = [];
             if (!empty($data['taxonomies'])) {
                 $taxonomyResult = $this->processTaxonomies($data['taxonomies'], $result['counts']);
                 $categoryMap = $taxonomyResult['map'];
+                $tagMap = $taxonomyResult['tagMap'];
                 $result['errors'] = array_merge($result['errors'], $taxonomyResult['errors']);
             }
 
             if (!empty($data['post_types'])) {
                 foreach ($data['post_types'] as $postType => $posts) {
                     if ($postType === 'post' || $postType === 'page') {
-                        $postResult = $this->processPosts($posts, $userMap, $categoryMap, $mediaModel, $ftpConfig, $sourceUrl);
+                        $postResult = $this->processPosts($posts, $userMap, $categoryMap, $tagMap, $mediaModel, $ftpConfig, $sourceUrl, $result['counts']);
                         $result['counts']['articles'] += $postResult['imported'];
                         $result['counts']['skipped'] += $postResult['skipped'];
                         $result['errors'] = array_merge($result['errors'], $postResult['errors']);
@@ -155,6 +179,20 @@ class ProcessorModel extends BaseDatabaseModel
             }
         }, $result);
 
+        if (!$result['success']) {
+            $this->updateProgress(100, 'Migration failed!');
+        } else {
+            // Set completion status for successful migration
+            $connectionType = $ftpConfig['connection_type'] ?? 'ftp';
+            $completionMessage = sprintf(
+                'Migration completed successfully! Imported: %d articles, %d media files%s',
+                $result['counts']['articles'],
+                $result['counts']['media'],
+                $connectionType === 'zip' ? ' (from ZIP upload)' : ''
+            );
+            $this->updateProgress(100, $completionMessage);
+        }
+
         return $result;
     }
 
@@ -163,7 +201,7 @@ class ProcessorModel extends BaseDatabaseModel
      *
      * @param   array   $data               The migration data.
      * @param   string  $sourceUrl          The source URL.
-     * @param   array   $ftpConfig          FTP configuration.
+     * @param   array   $ftpConfig          Connection configuration (FTP/FTPS/SFTP).
      * @param   bool    $importAsSuperUser  Whether to import as a super user.
      *
      * @return  array   The result of the processing.
@@ -184,11 +222,18 @@ class ProcessorModel extends BaseDatabaseModel
 
         $this->executeInTransaction(function () use ($data, $sourceUrl, $ftpConfig, $importAsSuperUser, &$result) {
             $mediaModel = $this->initializeMediaModel($ftpConfig);
-            $superUserId = $importAsSuperUser ? Factory::getUser()->id : null;
+            $superUserId = $importAsSuperUser ? $this->app->getIdentity()->id : null;
+            
+            // Process tags first if they exist in the data
+            $tagMap = [];
+            if (!empty($data['allTags']) && is_array($data['allTags'])) {
+                $tagMap = $this->processWordpressTags($data['allTags'], $result['counts']);
+            }
+            
             $total = count($data['itemListElement']);
             
             // Use batch processing based on the number of articles
-            $this->processBatchedWordpressArticles($data['itemListElement'], $result, $mediaModel, $ftpConfig, $sourceUrl, $superUserId, $total);
+            $this->processBatchedWordpressArticles($data['itemListElement'], $result, $mediaModel, $ftpConfig, $sourceUrl, $superUserId, $total, $tagMap);
 
             if ($mediaModel) {
                 $result['counts']['media'] = $mediaModel->getMediaStats()['downloaded'];
@@ -197,6 +242,17 @@ class ProcessorModel extends BaseDatabaseModel
 
         if (!$result['success']) {
             $this->updateProgress(100, 'Migration failed!');
+        } else {
+            // Set completion status for successful migration
+            $connectionType = $ftpConfig['connection_type'] ?? 'ftp';
+            $completionMessage = sprintf(
+                'Migration completed successfully! Imported: %d articles, %d taxonomies, %d media files%s',
+                $result['counts']['articles'],
+                $result['counts']['taxonomies'],
+                $result['counts']['media'],
+                $connectionType === 'zip' ? ' (from ZIP upload)' : ''
+            );
+            $this->updateProgress(100, $completionMessage);
         }
 
         return $result;
@@ -212,25 +268,26 @@ class ProcessorModel extends BaseDatabaseModel
      * @param   string      $sourceUrl      Source URL
      * @param   ?int        $superUserId    Super user ID
      * @param   int         $total          Total number of articles
+     * @param   array       $tagMap         Map of tag slugs to tag IDs
      *
      * @return  void
      *
      * @since   1.0.0
      */
-    private function processBatchedWordpressArticles(array $articles, array &$result, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, ?int $superUserId, int $total): void
+    private function processBatchedWordpressArticles(array $articles, array &$result, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, ?int $superUserId, int $total, array $tagMap = []): void
     {
         $batchSize = $this->calculateBatchSize($total);
         $batches = array_chunk($articles, $batchSize);
         $processedCount = 0;
 
-        Factory::getApplication()->enqueueMessage(
+        $this->app->enqueueMessage(
             sprintf('Processing %d articles in %d batches (batch size: %d)', $total, count($batches), $batchSize),
             'info'
         );
 
         foreach ($batches as $batchIndex => $batch) {
             try {
-                $this->processBatch($batch, $result, $mediaModel, $ftpConfig, $sourceUrl, $superUserId, $processedCount, $total, $batchIndex + 1, count($batches));
+                $this->processBatch($batch, $result, $mediaModel, $ftpConfig, $sourceUrl, $superUserId, $processedCount, $total, $batchIndex + 1, count($batches), $tagMap);
                 $processedCount += count($batch);
             } catch (\Exception $e) {
                 $result['errors'][] = sprintf('Error processing batch %d: %s', $batchIndex + 1, $e->getMessage());
@@ -273,12 +330,13 @@ class ProcessorModel extends BaseDatabaseModel
      * @param   int         $total          Total number of articles
      * @param   int         $batchNumber    Current batch number
      * @param   int         $totalBatches   Total number of batches
+     * @param   array       $tagMap         Map of tag slugs to tag IDs
      *
      * @return  void
      *
      * @since   1.0.0
      */
-    private function processBatch(array $batch, array &$result, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, ?int $superUserId, int $processedCount, int $total, int $batchNumber, int $totalBatches): void
+    private function processBatch(array $batch, array &$result, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, ?int $superUserId, int $processedCount, int $total, int $batchNumber, int $totalBatches, array $tagMap = []): void
     {
         $this->updateProgress(
             (int)(($processedCount / $total) * 90),
@@ -334,7 +392,7 @@ class ProcessorModel extends BaseDatabaseModel
         // Step 3: Process articles sequentially
         foreach ($batchData as $index => $article) {
             try {
-                $this->processWordpressArticle($article, $result, null, $ftpConfig, $sourceUrl, $superUserId);
+                $this->processWordpressArticle($article, $result, null, $ftpConfig, $sourceUrl, $superUserId, $tagMap);
                 $currentProgress = (int)((($processedCount + $index + 1) / $total) * 90);
                 $this->updateProgress(
                     $currentProgress,
@@ -364,11 +422,12 @@ class ProcessorModel extends BaseDatabaseModel
      * @param   array      $ftpConfig      FTP configuration.
      * @param   string     $sourceUrl      The source site URL.
      * @param   ?int       $superUserId    The ID of the super user to assign articles to.
+     * @param   array      $tagMap         Map of tag slugs to tag IDs.
      *
      * @return  void
      * @throws  \Exception
      */
-    private function processWordpressArticle(array $article, array &$result, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, ?int $superUserId): void
+    private function processWordpressArticle(array $article, array &$result, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, ?int $superUserId, array $tagMap = []): void
     {
         if ($this->articleExists($article['headline'])) {
             $result['counts']['skipped']++;
@@ -381,7 +440,7 @@ class ProcessorModel extends BaseDatabaseModel
             $content = $mediaModel->migrateMediaInContent($ftpConfig, $content, $sourceUrl);
         } else {
             // Convert WordPress URLs to Joomla URLs even when media migration is disabled
-            $content = $this->convertWordPressUrlsToJoomla($content, $ftpConfig);
+            $content = $this->convertWordPressUrlsToJoomla($content, is_array($ftpConfig) ? $ftpConfig : []);
         }
 
         [$introtext, $fulltext] = (strpos($content, '') !== false)
@@ -415,15 +474,33 @@ class ProcessorModel extends BaseDatabaseModel
         ];
 
         // Save the article
-        $articleModel = new ArticleModel(['ignore_request' => true]);
+        $mvcFactory = Factory::getApplication()->bootComponent('com_content')
+            ->getMVCFactory();
+        $articleModel = $mvcFactory->createModel('Article', 'Administrator', ['ignore_request' => true]);
         if (!$articleModel->save($articleData)) {
             throw new \RuntimeException('Failed to save article: ' . $articleModel->getError());
         }
         $result['counts']['articles']++;
 
+        $articleId = $articleModel->getItem()->id;
+
         // Process custom fields
         if (!empty($article['customFields']) && is_array($article['customFields'])) {
-            $this->processCustomFields($articleModel->getItem()->id, $article['customFields']);
+            $this->processCustomFields($articleId, $article['customFields']);
+        }
+
+        // Process tags
+        if (!empty($article['tags']) && is_array($article['tags']) && !empty($tagMap)) {
+            $tagIds = [];
+            foreach ($article['tags'] as $tagSlug) {
+                if (isset($tagMap[$tagSlug])) {
+                    $tagIds[] = $tagMap[$tagSlug];
+                }
+            }
+            
+            if (!empty($tagIds)) {
+                $this->linkTagsToArticle($articleId, $tagIds);
+            }
         }
     }
 
@@ -456,31 +533,136 @@ class ProcessorModel extends BaseDatabaseModel
     }
 
     /**
-     * Processes a batch of taxonomies (categories) from the JSON import.
+     * Processes a batch of taxonomies (categories and tags) from the JSON import.
      *
      * @param   array $taxonomies Array of taxonomy data.
      * @param   array &$counts    The main counts array.
      *
-     * @return  array An array containing the category map and any errors.
+     * @return  array An array containing the category map, tag map and any errors.
      */
     private function processTaxonomies(array $taxonomies, array &$counts): array
     {
-        $result = ['errors' => [], 'map' => []];
+        $result = ['errors' => [], 'map' => [], 'tagMap' => []];
+        $categorySourceData = []; // Store source data to retrieve parent IDs later
 
-        foreach ($taxonomies as $taxonomyType => $terms) {
-            if ($taxonomyType !== 'category' && $taxonomyType !== 'post_tag') {
-                continue;
-            }
-            foreach ($terms as $term) {
+        if (!empty($taxonomies['category'])) {
+            foreach ($taxonomies['category'] as $term) {
                 try {
+                    // Create the category without a parent for now
                     $newCatId = $this->getOrCreateCategory($term['name'], $counts, $term);
                     $result['map'][$term['term_id']] = $newCatId;
+
+                    // Store the source term data to access the parent ID in the next pass
+                    $categorySourceData[$term['term_id']] = $term;
                 } catch (\Exception $e) {
                     $result['errors'][] = sprintf('Error importing category "%s": %s', $term['name'], $e->getMessage());
                 }
             }
         }
+
+        // Process tags
+        if (!empty($taxonomies['post_tag'])) {
+            foreach ($taxonomies['post_tag'] as $term) {
+                try {
+                    $tagId = $this->getOrCreateTag($term['name'], $counts, $term);
+                    $result['tagMap'][$term['term_id']] = $tagId;
+                } catch (\Exception $e) {
+                    $result['errors'][] = sprintf('Error importing tag "%s": %s', $term['name'], $e->getMessage());
+                }
+            }
+        }
+
+        // Link parent categories
+        try
+        {
+            // 1. Get the Category Model instance *once* before the loop.
+            $categoriesMvcFactory = $this->app->bootComponent('com_categories')->getMVCFactory();
+            $categoryModel = $categoriesMvcFactory->createModel('Category', 'Administrator', ['ignore_request' => true]);
+
+            if (!$categoryModel)
+            {
+                throw new \RuntimeException('Could not create the Category model.');
+            }
+        }
+        catch (\Exception $e)
+        {
+            // If the model can't be created, it's a fatal error, so we stop.
+            throw new \RuntimeException('Could not create the Category model.');
+            $result['errors'][] = 'Fatal Error: Could not initialize the category model. ' . $e->getMessage();
+            return $result;
+        }
+
+        // 2. Loop through your source map to find parent-child relationships.
+        foreach ($categorySourceData as $sourceTermId => $term)
+        {
+            $srcParent = (int) ($term['parent'] ?? 0);
+
+            // 3. Check if this term has a parent and if that parent has been mapped to a Joomla ID.
+            if ($srcParent > 0 && isset($result['map'][$sourceTermId], $result['map'][$srcParent]))
+            {
+                $childId  = $result['map'][$sourceTermId];
+                $parentId = $result['map'][$srcParent];
+
+                try
+                {
+                    // 4. Prepare the data and save. The model handles all the complex logic
+                    // of loading the category and recalculating the tree structure.
+                    $dataToSave = [
+                        'id'        => $childId,
+                        'parent_id' => $parentId,
+                    ];
+
+                    if (!$categoryModel->save($dataToSave))
+                    {
+                        throw new \RuntimeException($categoryModel->getError());
+                    }
+                }
+                catch (\Exception $e)
+                {
+                    // If one category fails, we record the error and continue with the rest.
+                    $result['errors'][] = sprintf(
+                        'Failed to set parent for category ID %d (child of %d): %s',
+                        $childId,
+                        $parentId,
+                        $e->getMessage()
+                    );
+                }
+            }
+        }
+
         return $result;
+    }
+    
+    /**
+     * Processes WordPress tags from the allTags array in the JSON structure.
+     *
+     * @param   array $tags    Array of tag data with name, slug, and description.
+     * @param   array &$counts The main counts array.
+     *
+     * @return  array Map of tag slugs to tag IDs.
+     */
+    private function processWordpressTags(array $tags, array &$counts): array
+    {
+        $tagMap = [];
+
+        foreach ($tags as $tagData) {
+            if (empty($tagData['name']) || empty($tagData['slug'])) {
+                continue;
+            }
+
+            try {
+                $tagId = $this->getOrCreateTag($tagData['name'], $counts, $tagData);
+                $tagMap[$tagData['slug']] = $tagId;
+            } catch (\Exception $e) {
+                // Log the error but continue processing other tags
+                $this->app->enqueueMessage(
+                    sprintf('Error importing tag "%s": %s', $tagData['name'], $e->getMessage()),
+                    'warning'
+                );
+            }
+        }
+
+        return $tagMap;
     }
     
     /**
@@ -489,13 +671,15 @@ class ProcessorModel extends BaseDatabaseModel
      * @param   array       $posts        Array of post data.
      * @param   array       $userMap      Map of source user IDs to Joomla user IDs.
      * @param   array       $categoryMap  Map of source category IDs to Joomla category IDs.
+     * @param   array       $tagMap       Map of source tag IDs to Joomla tag IDs.
      * @param   ?MediaModel $mediaModel   The media model instance.
      * @param   array       $ftpConfig    FTP configuration.
      * @param   string      $sourceUrl    The source URL.
+     * @param   array       &$counts      The main counts array passed by reference.
      *
      * @return  array Result of the post import.
      */
-    private function processPosts(array $posts, array $userMap, array $categoryMap, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl): array
+    private function processPosts(array $posts, array $userMap, array $categoryMap, array $tagMap, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, array &$counts): array
     {
         $result = ['imported' => 0, 'skipped' => 0, 'errors' => []];
         $totalPosts = count($posts);
@@ -508,14 +692,14 @@ class ProcessorModel extends BaseDatabaseModel
         $batches = array_chunk($posts, $batchSize, true);
         $processedCount = 0;
 
-        Factory::getApplication()->enqueueMessage(
+        $this->app->enqueueMessage(
             sprintf('Processing %d JSON posts in %d batches (batch size: %d)', $totalPosts, count($batches), $batchSize),
             'info'
         );
 
         foreach ($batches as $batchIndex => $batch) {
             try {
-                $batchResult = $this->processJsonPostsBatch($batch, $userMap, $categoryMap, $mediaModel, $ftpConfig, $sourceUrl, $processedCount, $totalPosts, $batchIndex + 1, count($batches));
+                $batchResult = $this->processJsonPostsBatch($batch, $userMap, $categoryMap, $tagMap, $mediaModel, $ftpConfig, $sourceUrl, $processedCount, $totalPosts, $batchIndex + 1, count($batches), $counts);
                 $result['imported'] += $batchResult['imported'];
                 $result['skipped'] += $batchResult['skipped'];
                 $result['errors'] = array_merge($result['errors'], $batchResult['errors']);
@@ -534,6 +718,7 @@ class ProcessorModel extends BaseDatabaseModel
      * @param   array       $batch          Array of posts in this batch
      * @param   array       $userMap        Map of source user IDs to Joomla user IDs
      * @param   array       $categoryMap    Map of source category IDs to Joomla category IDs
+     * @param   array       $tagMap         Map of source tag IDs to Joomla tag IDs
      * @param   ?MediaModel $mediaModel     Media model instance
      * @param   array       $ftpConfig      FTP configuration
      * @param   string      $sourceUrl      Source URL
@@ -541,15 +726,18 @@ class ProcessorModel extends BaseDatabaseModel
      * @param   int         $total          Total number of posts
      * @param   int         $batchNumber    Current batch number
      * @param   int         $totalBatches   Total number of batches
+     * @param   array       &$counts        The main counts array passed by reference
      *
      * @return  array  Result of the batch processing
      *
      * @since   1.0.0
      */
-    private function processJsonPostsBatch(array $batch, array $userMap, array $categoryMap, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, int $processedCount, int $total, int $batchNumber, int $totalBatches): array
+    private function processJsonPostsBatch(array $batch, array $userMap, array $categoryMap, array $tagMap, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, int $processedCount, int $total, int $batchNumber, int $totalBatches, array &$counts): array
     {
         $result = ['imported' => 0, 'skipped' => 0, 'errors' => []];
-        $articleModel = new ArticleModel(['ignore_request' => true]);
+        $mvcFactory = Factory::getApplication()->bootComponent('com_content')
+            ->getMVCFactory();
+        $articleModel = $mvcFactory->createModel('Article', 'Administrator', ['ignore_request' => true]);
         $defaultCatId = $this->getDefaultCategoryId();
 
         $this->updateProgress(
@@ -581,7 +769,7 @@ class ProcessorModel extends BaseDatabaseModel
                 $post['post_content'] = $updatedContent;
             } elseif (!$mediaModel && !empty($content)) {
                 // Convert WordPress URLs to Joomla URLs even when media migration is disabled
-                $post['post_content'] = $this->convertWordPressUrlsToJoomla($content, $ftpConfig);
+                $post['post_content'] = $this->convertWordPressUrlsToJoomla($content, is_array($ftpConfig) ? $ftpConfig : []);
             }
             
             $batchData[$postId] = $post;
@@ -610,7 +798,7 @@ class ProcessorModel extends BaseDatabaseModel
                         $catId = $categoryMap[$primary['term_id']];
                     }
                 }
-
+            
                 $articleData = [
                     'id'         => 0,
                     'title'      => $post['post_title'],
@@ -629,6 +817,42 @@ class ProcessorModel extends BaseDatabaseModel
                 }
 
                 $newId = $articleModel->getItem()->id;
+                
+                // Link tags to the article
+                $tagIds = [];
+                
+                // Process tags from terms['post_tag'] (structured data)
+                if (!empty($post['terms']['post_tag']) && !empty($tagMap)) {
+                    foreach ($post['terms']['post_tag'] as $tag) {
+                        if (isset($tagMap[$tag['term_id']])) {
+                            $tagIds[] = $tagMap[$tag['term_id']];
+                        }
+                    }
+                }
+                
+                // Process tags from tags_input (simple array) - create tags if they don't exist
+                if (!empty($post['tags_input']) && is_array($post['tags_input'])) {
+                    foreach ($post['tags_input'] as $tagName) {
+                        if (!empty($tagName)) {
+                            try {
+                                $tagId = $this->getOrCreateTag($tagName, $counts);
+                                $tagIds[] = $tagId;
+                            } catch (\Exception $e) {
+                                // Log error but continue with other tags
+                                $this->app->enqueueMessage(
+                                    sprintf('Error creating tag "%s" for article "%s": %s', $tagName, $post['post_title'], $e->getMessage()),
+                                    'warning'
+                                );
+                            }
+                        }
+                    }
+                }
+                
+                // Link all collected tags to the article
+                if (!empty($tagIds)) {
+                    $this->linkTagsToArticle($newId, array_unique($tagIds));
+                }
+                
                 if (!empty($post['metadata']) && is_array($post['metadata'])) {
                     $fields = [];
                     foreach ($post['metadata'] as $key => $vals) {
@@ -658,11 +882,32 @@ class ProcessorModel extends BaseDatabaseModel
      */
     private function initializeMediaModel(array $ftpConfig): ?MediaModel
     {
+        // Check if media migration is enabled
+        $connectionType = $ftpConfig['connection_type'] ?? '';
+        
+        // For ZIP uploads, we don't need host credentials, just the connection type
+        if ($connectionType === 'zip') {
+            $mediaModel = $this->mvcFactory->createModel('Media', 'Administrator', ['ignore_request' => true]);
+            $storageDir = (($ftpConfig['media_storage_mode'] ?? 'root') === 'custom' && !empty($ftpConfig['media_custom_dir']))
+                ? $ftpConfig['media_custom_dir']
+                : 'imports';
+            $mediaModel->setStorageDirectory($storageDir);
+            
+            // Process ZIP upload immediately when initializing the model
+            if (!$mediaModel->connect($ftpConfig)) {
+                $this->app->enqueueMessage('Failed to process ZIP upload for media migration', 'error');
+                return null;
+            }
+            
+            return $mediaModel;
+        }
+        
+        // For FTP/FTPS/SFTP, require host configuration
         if (empty($ftpConfig['host'])) {
             return null;
         }
 
-        $mediaModel = new MediaModel();
+        $mediaModel = $this->mvcFactory->createModel('Media', 'Administrator', ['ignore_request' => true]);
         $storageDir = (($ftpConfig['media_storage_mode'] ?? 'root') === 'custom' && !empty($ftpConfig['media_custom_dir']))
             ? $ftpConfig['media_custom_dir']
             : 'imports';
@@ -749,26 +994,80 @@ class ProcessorModel extends BaseDatabaseModel
         $categoryId = $this->db->setQuery($query)->loadResult();
 
         if (!$categoryId) {
-            $categoryTable = Table::getInstance('Category');
+            $categoriesMvcFactory = $this->app->bootComponent('com_categories')->getMVCFactory();
+            $categoryModel = $categoriesMvcFactory->createModel('Category', 'Administrator', ['ignore_request' => true]);
+
+            if (!$categoryModel) {
+                throw new \RuntimeException('Could not create the Category model.');
+            }
             $categoryData = [
                 'id'          => 0,
                 'title'       => $categoryName,
                 'alias'       => $alias,
                 'description' => $sourceData['description'] ?? '',
                 'extension'   => 'com_content',
+                'parent_id'   => 1,
                 'published'   => 1,
                 'access'      => 1,
                 'language'    => '*',
             ];
 
-            if (!$categoryTable->save($categoryData)) {
-                throw new \RuntimeException($categoryTable->getError());
+            if (!$categoryModel->save($categoryData)) {
+                throw new \RuntimeException($categoryModel->getError());
             }
             $counts['taxonomies']++;
-            $categoryId = $categoryTable->id;
+            $categoryId = $categoryModel->getState('category.id');
         }
 
         return (int) $categoryId;
+    }
+
+    /**
+     * Gets an existing tag ID by its name or creates a new one using Joomla's tag system.
+     *
+     * @param   string $tagName    The tag name.
+     * @param   array  &$counts    The counts array, passed by reference.
+     * @param   ?array $sourceData Optional array of source data (e.g., for slug, description).
+     *
+     * @return  int The tag ID.
+     * @throws  \RuntimeException If saving fails.
+     */
+    protected function getOrCreateTag(string $tagName, array &$counts, ?array $sourceData = null): int
+    {
+        $alias = $sourceData['slug'] ?? OutputFilter::stringURLSafe($tagName);
+
+        // Check if tag already exists
+        $query = $this->db->getQuery(true)
+            ->select('id')
+            ->from('#__tags')
+            ->where('alias = ' . $this->db->quote($alias));
+
+        $tagId = $this->db->setQuery($query)->loadResult();
+
+        if (!$tagId) {
+            $tagsMvcFactory = $this->app->bootComponent('com_tags')->getMVCFactory();
+            $tagModel = $tagsMvcFactory->createModel('Tag', 'Administrator', ['ignore_request' => true]);
+            
+            $tagData = [
+                'id'          => 0,
+                'title'       => $tagName,
+                'alias'       => $alias,
+                'description' => $sourceData['description'] ?? '',
+                'published'   => 1,
+                'access'      => 1,
+                'language'    => '*',
+            ];
+
+            if (!$tagModel->save($tagData)) {
+                // The model's save method will handle nested set logic automatically
+                throw new \RuntimeException('Failed to save tag: ' . $tagModel->getError());
+            }
+            
+            $counts['taxonomies']++;
+            $tagId = $tagModel->getItem()->id;
+        }
+
+        return (int) $tagId;
     }
 
     /**
@@ -831,7 +1130,7 @@ class ProcessorModel extends BaseDatabaseModel
                     $this->saveCustomFieldValue($fieldId, $articleId, $fieldValue);
                 }
             } catch (\Exception $e) {
-                Factory::getApplication()->enqueueMessage(
+                $this->app->enqueueMessage(
                     sprintf('Error processing custom field "%s": %s', $fieldName, $e->getMessage()),
                     'warning'
                 );
@@ -862,7 +1161,9 @@ class ProcessorModel extends BaseDatabaseModel
             return $existingId;
         }
 
-        $fieldModel = new FieldModel(['ignore_request' => true]);
+        $fieldsMvcFactory = $this->app->bootComponent('com_fields')->getMVCFactory();
+        $fieldModel = $fieldsMvcFactory->createModel('Field', 'Administrator', ['ignore_request' => true]);
+        
         $fieldData  = [
             'id'          => 0,
             'title'       => ucwords(str_replace(['_', '-'], ' ', $fieldName)),
@@ -871,6 +1172,7 @@ class ProcessorModel extends BaseDatabaseModel
             'type'        => 'text',
             'context'     => $context,
             'state'       => 1,
+            'label'       => ucwords(str_replace(['_', '-'], ' ', $fieldName)),
             'language'    => '*',
             'description' => '',
             'params'      => '',
@@ -898,7 +1200,7 @@ class ProcessorModel extends BaseDatabaseModel
         }
         catch (\Exception $e)
         {
-            Factory::getApplication()->enqueueMessage(
+            $this->app->enqueueMessage(
                 sprintf('Error creating custom field "%s": %s', $fieldName, $e->getMessage()),
                 'warning'
             );
@@ -971,6 +1273,33 @@ class ProcessorModel extends BaseDatabaseModel
     }
 
     /**
+     * Links tags to an article using Joomla's content-tag mapping system.
+     *
+     * @param   int   $articleId The article ID.
+     * @param   array $tagIds    Array of tag IDs to link.
+     *
+     * @return  void
+     * @since   1.0.0
+     */
+    protected function linkTagsToArticle(int $articleId, array $tagIds): void
+    {
+        try {
+            $articleTable = Table::getInstance('Content', 'JTable');
+
+            if (!$articleTable->load($articleId)) {
+                throw new \RuntimeException("Article with ID {$articleId} not found.");
+            }
+            $articleTable->newTags = $tagIds;
+            if (!$articleTable->store()) {
+                throw new \RuntimeException('Failed to store article tags: ' . $articleTable->getError());
+            }
+        } catch (\Exception $e) {
+            // Catch any errors and display a message.
+            Factory::getApplication()->enqueueMessage($e->getMessage(), 'error');
+        }
+    }
+
+    /**
      * Updates a progress file for the UI to monitor.
      *
      * @param   int    $percent The completion percentage.
@@ -982,7 +1311,7 @@ class ProcessorModel extends BaseDatabaseModel
     {
         $progressFile = JPATH_SITE . '/media/com_cmsmigrator/imports/progress.json';
         $data = ['percent' => $percent, 'status' => $status, 'timestamp' => time()];
-        \Joomla\CMS\Filesystem\File::write($progressFile, json_encode($data));
+        \Joomla\Filesystem\File::write($progressFile, json_encode($data));
     }
 
     /**
