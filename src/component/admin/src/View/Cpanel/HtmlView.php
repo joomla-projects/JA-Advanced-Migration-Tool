@@ -101,102 +101,26 @@ class HtmlView extends BaseHtmlView
         HTMLHelper::_('behavior.formvalidator');
         HTMLHelper::_('behavior.keepalive');
 
-        // Custom JavaScript for conditional field visibility and validation
-        $script = "
-        document.addEventListener('DOMContentLoaded', function() {
-            const mediaToggle = document.querySelector('[name=\"jform[enable_media_migration]\"]');
-            const connectionType = document.querySelector('[name=\"jform[connection_type]\"]');
-            const storageMode = document.querySelector('[name=\"jform[media_storage_mode]\"]');
-            const customDirRow = document.getElementById('media-custom-dir-row');
-            const customDirInput = document.querySelector('[name=\"jform[media_custom_dir]\"]');
-            const ftpFields = document.querySelectorAll('[name^=\"jform[ftp_\"]');
-            const zipFileField = document.querySelector('[name=\"jform[media_zip_file]\"]');
-            const testFtpButton = document.getElementById('test-ftp-button');
-            const testFtpResult = document.getElementById('test-ftp-result');
+        // Get the Web Asset Manager
+        $wa = $this->document->getWebAssetManager();
 
-            function toggleConnectionFields() {
-                const isEnabled = mediaToggle && (mediaToggle.checked || mediaToggle.value === '1');
-                const connType = connectionType ? connectionType.value : 'ftp';
-                
-                // Show/hide FTP fields based on connection type
-                ftpFields.forEach(function(field) {
-                    const shouldShow = isEnabled && (connType === 'ftp' || connType === 'ftps' || connType === 'sftp');
-                    field.closest('div.control-group, .control-wrapper, .field-box').style.display = shouldShow ? 'block' : 'none';
-                });
+        // Register and use custom assets
+        $wa->useScript('core')
+           ->useScript('com_cmsmigrator.init')
+           ->useScript('com_cmsmigrator.admin')
+           ->useStyle('com_cmsmigrator.admin')
+           ->useScript('com_cmsmigrator.migration-form');
 
-                // Show/hide ZIP file field
-                if (zipFileField) {
-                    const shouldShowZip = isEnabled && connType === 'zip';
-                    zipFileField.closest('div.control-group, .control-wrapper, .field-box').style.display = shouldShowZip ? 'block' : 'none';
-                }
-
-                // Show/hide test connection button
-                if (testFtpButton) {
-                    const shouldShowTest = isEnabled && (connType === 'ftp' || connType === 'ftps' || connType === 'sftp');
-                    testFtpButton.closest('.control-group, .control-wrapper, .field-box').style.display = shouldShowTest ? 'block' : 'none';
-                }
-
-                if (testFtpResult) {
-                    testFtpResult.innerHTML = '';
-                }
-            }
-
-            function toggleCustomDir() {
-                if (storageMode && storageMode.value === 'custom') {
-                    customDirRow.style.display = 'block';
-                } else {
-                    customDirRow.style.display = 'none';
-                    if (customDirInput) customDirInput.value = '';
-                }
-            }
-
-            if (mediaToggle) {
-                mediaToggle.addEventListener('change', toggleConnectionFields);
-            }
-
-            if (connectionType) {
-                connectionType.addEventListener('change', toggleConnectionFields);
-            }
-
-            if (storageMode) {
-                storageMode.addEventListener('change', toggleCustomDir);
-                toggleCustomDir();
-            }
-
-            // Initialize on load
-            toggleConnectionFields();
-
-            const form = document.getElementById('migration-form');
-            if (form) {
-                form.addEventListener('submit', function(e) {
-                    const mediaEnabled = document.querySelector('[name=\"jform[enable_media_migration]\"]:checked');
-                    if (mediaEnabled && mediaEnabled.value === '1') {
-                        const connType = connectionType ? connectionType.value : 'ftp';
-                        
-                        if (connType === 'ftp' || connType === 'ftps' || connType === 'sftp') {
-                            const ftpHost = document.querySelector('[name=\"jform[ftp_host]\"]').value;
-                            const ftpUsername = document.querySelector('[name=\"jform[ftp_username]\"]').value;
-                            const ftpPassword = document.querySelector('[name=\"jform[ftp_password]\"]').value;
-
-                            if (!ftpHost || !ftpUsername || !ftpPassword) {
-                                e.preventDefault();
-                                alert('" . Text::_('COM_CMSMIGRATOR_MEDIA_FTP_FIELDS_REQUIRED') . "');
-                                return;
-                            }
-                        } else if (connType === 'zip') {
-                            const zipFile = document.querySelector('[name=\"jform[media_zip_file]\"]');
-                            if (!zipFile || !zipFile.files || zipFile.files.length === 0) {
-                                e.preventDefault();
-                                alert('" . Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_FILE_ERROR') . "');
-                                return;
-                            }
-                        }
-                    }
-                });
-            }
-        });
-        ";
-
-        $this->document->addScriptDeclaration($script);
+        // Add script options for translations (instead of direct text in JavaScript)
+        $this->document->addScriptOptions('com_cmsmigrator.translations', [
+            'ftpFieldsRequired' => Text::_('COM_CMSMIGRATOR_MEDIA_FTP_FIELDS_REQUIRED'),
+            'zipFileError'      => Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_FILE_ERROR')
+        ]);
+        
+        // Load language strings for JavaScript
+        Text::script('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_TESTING');
+        Text::script('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS');
+        Text::script('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_FAILED');
+        Text::script('COM_CMSMIGRATOR_MEDIA_CONNECTION_FIELDS_REQUIRED');
     }
 }

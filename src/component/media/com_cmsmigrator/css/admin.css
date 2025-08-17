@@ -1,0 +1,23 @@
+/**
+ * @package     Joomla.Administrator
+ * @subpackage  com_cmsmigrator
+ * @copyright   Copyright (C) 2025 Open Source Matters, Inc.
+ * @license     GNU General Public License version 2 or later; see LICENSE.txt
+ */
+
+/* Media storage mode button styling */
+#media-storage-mode-group .btn {
+  min-width: 180px;
+  font-weight: 500;
+}
+
+#media-storage-mode-group .btn.active,
+#media-storage-mode-group .btn:active {
+  background: #007db0;
+  color: #fff;
+}
+
+#media-storage-mode-group .btn-check:checked + .btn {
+  background: #007db0;
+  color: #fff;
+}
