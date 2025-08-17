@@ -4,6 +4,7 @@
 defined('_JEXEC') or die;
 
 use Joomla\CMS\Factory;
+use Joomla\Database\DatabaseInterface;
 
 /**
  * Installer script for the WordPress Migration Plugin.
@@ -27,7 +28,7 @@ class PlgMigrationWordpressInstallerScript
         // Only act on fresh installs or updates.
         if (in_array($type, ['install', 'update'], true))
         {
-            $db = Factory::getDbo();
+            $db = Factory::getContainer()->get(DatabaseInterface::class);
             $query = $db->getQuery(true)
                 ->update($db->quoteName('#__extensions'))
                 ->set($db->quoteName('enabled') . ' = 1')

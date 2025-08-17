@@ -52,7 +52,7 @@ class Com_CmsMigratorInstallerScript
             $this->createMediaFolder();
 
             // Execute SQL installation file
-            $db = Factory::getDbo();
+            $db = Factory::getContainer()->get('DatabaseDriver');
             $sqlFile = JPATH_ADMINISTRATOR . '/components/com_cmsmigrator/sql/install.mysql.utf8.sql';
             
             if (file_exists($sqlFile)) {
