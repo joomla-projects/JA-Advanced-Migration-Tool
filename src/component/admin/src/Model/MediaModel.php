@@ -13,6 +13,7 @@ namespace Binary\Component\CmsMigrator\Administrator\Model;
 
 use Joomla\CMS\Factory;
 use Joomla\CMS\MVC\Model\BaseDatabaseModel;
+use Joomla\Database\DatabaseInterface;
 use Joomla\Filesystem\File;
 use Joomla\Filesystem\Folder;
 use Joomla\CMS\Language\Text;
@@ -175,7 +176,7 @@ class MediaModel extends BaseDatabaseModel
     public function __construct(array $config = [])
     {
         parent::__construct($config);
-        $this->db = Factory::getDbo();
+        $this->db = Factory::getContainer()->get(DatabaseInterface::class);
         $this->setStorageDirectory('imports');
     }
 

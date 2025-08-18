@@ -30,6 +30,12 @@ class ImportController extends BaseController
         
         // Retrieves form data (jform) and uploaded files.
         $app = Factory::getApplication();
+        $this->app = $app;
+        try {
+            $this->mvcFactory = $this->app->bootComponent('com_cmsmigrator')->getMVCFactory();
+        } catch (\Throwable $e) {
+            $this->mvcFactory = null;
+        }
         $input = $app->input;
         $jform = $input->get('jform', [], 'array');
         $files = $input->files->get('jform');
@@ -127,9 +133,9 @@ class ImportController extends BaseController
             'passive' => $input->getBool('passive', true)
         ];
         
-        // Test connection
-        $mediaModel = new MediaModel();
-        $result = $mediaModel->testConnection($connectionConfig);
+        // Test connection using controller's model helper to avoid mvcFactory issues
+        $mediaModel = $this->getModel('Media', 'Administrator', ['ignore_request' => true]);
+        $result = $mediaModel ? $mediaModel->testConnection($connectionConfig) : ['success' => false, 'message' => 'Could not create Media model'];
         
         // Send JSON response
         $app->setHeader('Content-Type', 'application/json');
@@ -162,8 +168,8 @@ class ImportController extends BaseController
         ];
         
         // Test connection
-        $mediaModel = new MediaModel();
-        $result = $mediaModel->testConnection($ftpConfig);
+        $mediaModel = $this->getModel('Media', 'Administrator');
+        $result = $mediaModel ? $mediaModel->testConnection($ftpConfig) : ['success' => false, 'message' => 'Could not create Media model'];
         
         // Send JSON response
         $app->setHeader('Content-Type', 'application/json');

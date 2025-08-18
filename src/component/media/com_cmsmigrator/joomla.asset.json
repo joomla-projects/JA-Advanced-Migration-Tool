@@ -1,0 +1,32 @@
+{
+  "$schema": "https://developer.joomla.org/schemas/json-schema/web_assets.json",
+  "name": "com_cmsmigrator",
+  "version": "1.0.0",
+  "description": "Advanced Migration Tool for Joomla",
+  "license": "GPL-2.0+",
+  "assets": [
+    {
+      "name": "com_cmsmigrator.init",
+      "type": "script",
+      "uri": "com_cmsmigrator/init.js",
+      "dependencies": ["core"]
+    },
+    {
+      "name": "com_cmsmigrator.admin",
+      "type": "script",
+      "uri": "com_cmsmigrator/admin.js",
+      "dependencies": ["core", "com_cmsmigrator.init"]
+    },
+    {
+      "name": "com_cmsmigrator.admin",
+      "type": "style",
+      "uri": "com_cmsmigrator/admin.css"
+    },
+    {
+      "name": "com_cmsmigrator.migration-form",
+      "type": "script",
+      "uri": "com_cmsmigrator/migration-form.js",
+      "dependencies": ["core", "com_cmsmigrator.init"]
+    }
+  ]
+}

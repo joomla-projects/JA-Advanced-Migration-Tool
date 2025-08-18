@@ -23,6 +23,10 @@ use Joomla\CMS\Application\CMSApplicationInterface;
 use Joomla\Database\DatabaseInterface;
 use Joomla\CMS\MVC\Factory\MVCFactoryInterface;
 use Binary\Component\CmsMigrator\Administrator\Model\MediaModel;
+use Joomla\CMS\Component\ComponentHelper;
+use Joomla\Component\Menus\Administrator\Table\MenuTable;
+use Joomla\Component\Menus\Administrator\Table\MenuTypeTable;
+use Joomla\Component\Content\Administrator\Table\ArticleTable;
 
 /**
  * Processor Model
@@ -140,7 +144,7 @@ class ProcessorModel extends BaseDatabaseModel
     {
         $result = [
             'success' => true,
-            'counts'  => ['users' => 0, 'taxonomies' => 0, 'articles' => 0, 'media' => 0, 'skipped' => 0],
+            'counts'  => ['users' => 0, 'taxonomies' => 0, 'articles' => 0, 'media' => 0, 'menu_types' => 0, 'menu_items' => 0, 'skipped' => 0],
             'errors'  => []
         ];
 
@@ -163,6 +167,7 @@ class ProcessorModel extends BaseDatabaseModel
                 $result['errors'] = array_merge($result['errors'], $taxonomyResult['errors']);
             }
 
+            $postMap = [];
             if (!empty($data['post_types'])) {
                 foreach ($data['post_types'] as $postType => $posts) {
                     if ($postType === 'post' || $postType === 'page') {
@@ -170,8 +175,20 @@ class ProcessorModel extends BaseDatabaseModel
                         $result['counts']['articles'] += $postResult['imported'];
                         $result['counts']['skipped'] += $postResult['skipped'];
                         $result['errors'] = array_merge($result['errors'], $postResult['errors']);
+                        // Store the post mapping for menu processing
+                        $postMap = array_merge($postMap, $postResult['map'] ?? []);
                     }
                 }
+            }
+
+            // Process navigation menus if they exist
+            if (!empty($data['navigation_menus'])) {
+                $contentMap = [
+                    'posts' => $postMap,
+                    'categories' => $categoryMap
+                ];
+                $menuResult = $this->processMenus($data['navigation_menus'], $contentMap, $result['counts']);
+                $result['errors'] = array_merge($result['errors'], $menuResult['errors']);
             }
 
             if ($mediaModel) {
@@ -185,9 +202,11 @@ class ProcessorModel extends BaseDatabaseModel
             // Set completion status for successful migration
             $connectionType = $ftpConfig['connection_type'] ?? 'ftp';
             $completionMessage = sprintf(
-                'Migration completed successfully! Imported: %d articles, %d media files%s',
+                'Migration completed successfully! Imported: %d articles, %d media files, %d menu types, %d menu items%s',
                 $result['counts']['articles'],
                 $result['counts']['media'],
+                $result['counts']['menu_types'],
+                $result['counts']['menu_items'],
                 $connectionType === 'zip' ? ' (from ZIP upload)' : ''
             );
             $this->updateProgress(100, $completionMessage);
@@ -681,7 +700,7 @@ class ProcessorModel extends BaseDatabaseModel
      */
     private function processPosts(array $posts, array $userMap, array $categoryMap, array $tagMap, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, array &$counts): array
     {
-        $result = ['imported' => 0, 'skipped' => 0, 'errors' => []];
+        $result = ['imported' => 0, 'skipped' => 0, 'errors' => [], 'map' => []];
         $totalPosts = count($posts);
         
         if ($totalPosts === 0) {
@@ -703,6 +722,7 @@ class ProcessorModel extends BaseDatabaseModel
                 $result['imported'] += $batchResult['imported'];
                 $result['skipped'] += $batchResult['skipped'];
                 $result['errors'] = array_merge($result['errors'], $batchResult['errors']);
+                $result['map'] = array_merge($result['map'], $batchResult['map']);
                 $processedCount += count($batch);
             } catch (\Exception $e) {
                 $result['errors'][] = sprintf('Error processing JSON posts batch %d: %s', $batchIndex + 1, $e->getMessage());
@@ -734,7 +754,7 @@ class ProcessorModel extends BaseDatabaseModel
      */
     private function processJsonPostsBatch(array $batch, array $userMap, array $categoryMap, array $tagMap, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, int $processedCount, int $total, int $batchNumber, int $totalBatches, array &$counts): array
     {
-        $result = ['imported' => 0, 'skipped' => 0, 'errors' => []];
+        $result = ['imported' => 0, 'skipped' => 0, 'errors' => [], 'map' => []];
         $mvcFactory = Factory::getApplication()->bootComponent('com_content')
             ->getMVCFactory();
         $articleModel = $mvcFactory->createModel('Article', 'Administrator', ['ignore_request' => true]);
@@ -817,6 +837,9 @@ class ProcessorModel extends BaseDatabaseModel
                 }
 
                 $newId = $articleModel->getItem()->id;
+                
+                // Map WordPress post ID to Joomla article ID
+                $result['map'][$postId] = $newId;
                 
                 // Link tags to the article
                 $tagIds = [];
@@ -1284,7 +1307,7 @@ class ProcessorModel extends BaseDatabaseModel
     protected function linkTagsToArticle(int $articleId, array $tagIds): void
     {
         try {
-            $articleTable = Table::getInstance('Content', 'JTable');
+            $articleTable = new ArticleTable($this->db);
 
             if (!$articleTable->load($articleId)) {
                 throw new \RuntimeException("Article with ID {$articleId} not found.");
@@ -1367,5 +1390,211 @@ class ProcessorModel extends BaseDatabaseModel
             ->where('title = ' . $this->db->quote($title));
 
         return (bool) $this->db->setQuery($query)->loadResult();
+    }
+
+    /**
+     * Processes an array of WordPress menus and imports them into Joomla.
+     *
+     * @param   array  $menus       The array of menu data from the WordPress JSON export.
+     * @param   array  $contentMap  A mapping of old WordPress IDs to new Joomla IDs.
+     * Example: ['posts' => [123 => 45], 'categories' => [10 => 8]]
+     * @param   array  &$counts     An array to keep track of import counts.
+     *
+     * @return  array  An array containing the results of the operation.
+     */
+    protected function processMenus(array $menus, array $contentMap, array &$counts): array
+    {
+        $result = ['map' => [], 'errors' => []];
+        $wpToJoomlaMenuItemMap = []; // CRITICAL: Maps old WP menu item IDs to new Joomla menu item IDs.
+
+        foreach ($menus as $wpMenuName => $wpMenuItems) {
+            try {
+                // Step 1: Create the Joomla Menu container (Menu Type) if it doesn't exist.
+                $menuTypeTable = new MenuTypeTable($this->db);
+                
+                // Check if the menu type already exists to avoid errors on re-run
+                if (!$menuTypeTable->load(['menutype' => $wpMenuName])) {
+                    $menuTypeData = [
+                        'menutype'    => $wpMenuName,
+                        'title'       => ucfirst($wpMenuName),
+                        'description' => 'Imported from WordPress on ' . date('Y-m-d'),
+                    ];
+
+                    if (!$menuTypeTable->save($menuTypeData)) {
+                        throw new \RuntimeException('Failed to save menu type: ' . $menuTypeTable->getError());
+                    }
+                    $counts['menu_types']++;
+                }
+
+                // Step 2: First Pass - Import only TOP-LEVEL menu items.
+                if (empty($wpMenuItems) || !is_array($wpMenuItems)) {
+                    continue; // Skip if there are no items
+                }
+
+                foreach ($wpMenuItems as $item) {
+                    if ((string) ($item['menu_item_parent'] ?? '0') !== '0') {
+                        continue;
+                    }
+
+                    $menuItemTable = new MenuTable($this->db);
+                    list($link, $type) = $this->generateJoomlaLink($item, $contentMap);
+
+                    $menuItemData = [
+                        'menutype'     => $wpMenuName,
+                        'title'        => $item['title'] ?? 'Untitled',
+                        'alias'        => OutputFilter::stringURLSafe($item['title']),
+                        'path'         => OutputFilter::stringURLSafe($item['title']),
+                        'link'         => $link,
+                        'type'         => $type,
+                        'published'    => 1,
+                        'parent_id'    => 1, // Top-level items are children of the Root
+                        'level'        => 1,
+                        'component_id' => $this->getComponentIdFromLink($link),
+                        'browserNav'   => 0, // Open in same window
+                        'access'       => 1, // Public
+                        'language'     => '*',
+                        'ordering'     => $item['menu_order'] ?? 0,
+                    ];
+
+                    if (!$menuItemTable->save($menuItemData)) {
+                        throw new \RuntimeException('Menu Item Save Failed (Pass 1): ' . $menuItemTable->getError());
+                    }
+
+                    // Map the old WordPress ID to the new Joomla ID for the second pass
+                    $wpToJoomlaMenuItemMap[$item['ID']] = $menuItemTable->id;
+                    $counts['menu_items']++;
+                }
+
+                // Step 3: Second Pass - Import all CHILD menu items.
+                foreach ($wpMenuItems as $item) {
+                    if ((string) ($item['menu_item_parent'] ?? '0') === '0') {
+                        continue; // Skip top-level items on this pass
+                    }
+
+                    $wpParentId = $item['menu_item_parent'];
+
+                    // Ensure the parent was successfully imported in the first pass
+                    if (!isset($wpToJoomlaMenuItemMap[$wpParentId])) {
+                        $result['errors'][] = sprintf('Skipping child item "%s" because its parent (WP ID: %s) was not found.', $item['title'], $wpParentId);
+                        continue;
+                    }
+
+                    $joomlaParentId = $wpToJoomlaMenuItemMap[$wpParentId];
+
+                    // Load the parent to get its level and path for the new child
+                    $parentTable = new MenuTable($this->db);
+                    $parentTable->load($joomlaParentId);
+
+                    $menuItemTable = new MenuTable($this->db);
+                    list($link, $type) = $this->generateJoomlaLink($item, $contentMap);
+                    
+                    $alias = OutputFilter::stringURLSafe($item['title']);
+
+                    $menuItemData = [
+                        'menutype'     => $wpMenuName,
+                        'title'        => $item['title'] ?? 'Untitled',
+                        'alias'        => $alias,
+                        'path'         => $parentTable->path . '/' . $alias,
+                        'link'         => $link,
+                        'type'         => $type,
+                        'published'    => 1,
+                        'parent_id'    => $joomlaParentId, // Set the correct Joomla parent ID
+                        'level'        => $parentTable->level + 1,
+                        'component_id' => $this->getComponentIdFromLink($link),
+                        'browserNav'   => 0,
+                        'access'       => 1,
+                        'language'     => '*',
+                        'ordering'     => $item['menu_order'] ?? 0,
+                    ];
+
+                    if (!$menuItemTable->save($menuItemData)) {
+                        throw new \RuntimeException('Menu Item Save Failed (Pass 2): ' . $menuItemTable->getError());
+                    }
+
+                    // Also map this new child item in case it is a parent itself
+                    $wpToJoomlaMenuItemMap[$item['ID']] = $menuItemTable->id;
+                    $counts['menu_items']++;
+                }
+
+            } catch (\Exception $e) {
+                $result['errors'][] = sprintf('CRITICAL ERROR importing menu "%s": %s', $wpMenuName, $e->getMessage());
+            }
+        }
+
+        $result['map'] = $wpToJoomlaMenuItemMap;
+        return $result;
+    }
+
+    /**
+     * Helper function to generate the correct Joomla link string and type.
+     *
+     * @param   array  $wpItem      A single WordPress menu item.
+     * @param   array  $contentMap  The master content map.
+     *
+     * @return  array  An array containing [string $link, string $type].
+     */
+    private function generateJoomlaLink(array $wpItem, array $contentMap): array
+    {
+        switch ($wpItem['object'] ?? 'custom') {
+            case 'page':
+            case 'post':
+                // Use the content map to find the new Joomla Article ID
+                $wpId = $wpItem['object_id'] ?? 0;
+                $joomlaId = $contentMap['posts'][$wpId] ?? 0;
+                
+                if ($joomlaId) {
+                    return ['index.php?option=com_content&view=article&id=' . (int) $joomlaId, 'component'];
+                }
+                break;
+
+            case 'category':
+                // Use the content map to find the new Joomla Category ID
+                $wpId = $wpItem['object_id'] ?? 0;
+                $joomlaId = $contentMap['categories'][$wpId] ?? 0;
+
+                if ($joomlaId) {
+                    return ['index.php?option=com_content&view=category&layout=blog&id=' . (int) $joomlaId, 'component'];
+                }
+                break;
+                
+            case 'custom':
+            default:
+                // For custom links, just use the URL directly.
+                return [$wpItem['url'] ?? '#', 'url'];
+        }
+        
+        // Fallback if the mapped content was not found
+        return ['#', 'url'];
+    }
+
+    /**
+     * Helper to get the component ID from a link string.
+     *
+     * @param   string  $link  The Joomla link string.
+     *
+     * @return  int     The component ID.
+     */
+    private function getComponentIdFromLink(string $link): int
+    {
+        if (strpos($link, 'option=com_content') !== false) {
+            return ComponentHelper::getComponent('com_content')->id;
+        }
+
+        // Fallback for other components, e.g., URL types handled by com_wrapper
+        if (strpos($link, 'option=com_wrapper') !== false || strpos($link, 'http') === 0) {
+            return ComponentHelper::getComponent('com_wrapper')->id;
+        }
+
+        // A more robust fallback to parse the component from the link
+        parse_str($link, $queryParams);
+        if (!empty($queryParams['option'])) {
+            $component = ComponentHelper::getComponent($queryParams['option']);
+            if ($component && $component->id) {
+                return $component->id;
+            }
+        }
+        
+        // Default to com_wrapper if no specific component is found
+        return ComponentHelper::getComponent('com_wrapper')->id;
     }
 }
