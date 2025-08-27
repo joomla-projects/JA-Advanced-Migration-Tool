@@ -1062,14 +1062,23 @@ class ProcessorModel extends BaseDatabaseModel
     protected function getOrCreateUser(string $username, string $email, array &$counts, ?array $sourceData = null): int
     {
         $userId = UserHelper::getUserId($username);
+        static $dummyHash = null;
 
+        // Generate once and reuse for all users
+        if ($dummyHash === null) {
+            $randomPassword = bin2hex(random_bytes(8));
+            $dummyHash = UserHelper::hashPassword($randomPassword);
+            
+            // Save the password to admin only to reuse or send mass mails
+            // file_put_contents(JPATH_ROOT . '/migration_password.txt', "Temp password: $randomPassword\n");
+        }
         if (!$userId) {
             $user = new \Joomla\CMS\User\User;
             $userData = [
                 'name'         => $sourceData['display_name'] ?? $username,
                 'username'     => $username,
                 'email'        => $email,
-                'password'     => UserHelper::hashPassword(UserHelper::genRandomPassword()),
+                'password'     => $dummyHash,
                 'registerDate' => isset($sourceData['user_registered']) ? (new Date($sourceData['user_registered']))->toSql() : Factory::getDate()->toSql(),
                 'groups'       => [2], // Registered
                 'requireReset' => 1,
