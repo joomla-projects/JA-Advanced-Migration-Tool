@@ -7,48 +7,23 @@ namespace Binary\Component\CmsMigrator\Administrator\Model;
 use Binary\Component\CmsMigrator\Administrator\Event\MigrationEvent;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
-use Joomla\CMS\MVC\Model\BaseDatabaseModel;
+use Joomla\CMS\MVC\Model\BaseModel;
 use Joomla\CMS\Plugin\PluginHelper;
 use Joomla\CMS\Http\HttpFactory;
 use Joomla\Filesystem\File;
 use Joomla\Filesystem\Folder;
-use Joomla\CMS\Application\CMSApplicationInterface;
-use Joomla\CMS\MVC\Factory\MVCFactoryInterface;
 
 //handles all the Mapping and Chain of Events logic as of Now.
-class ImportModel extends BaseDatabaseModel
+class ImportModel extends BaseModel
 {
-    /**
-     * Application instance
-     *
-     * @var    CMSApplicationInterface
-     * @since  1.0.0
-     */
-    protected CMSApplicationInterface $app;
-
-    /**
-     * MVC Factory instance
-     *
-     * @var    MVCFactoryInterface
-     * @since  1.0.0
-     */
-    protected MVCFactoryInterface $mvcFactory;
-
     /**
      * Constructor
      *
-     * @param   array                       $config     An optional associative array of configuration settings.
-     * @param   MVCFactoryInterface|null    $factory    The factory.
-     * @param   CMSApplicationInterface     $app        The application.
-     *
-     * @since   1.0.0
+     * @param   array  $config  An optional associative array of configuration settings
      */
-    public function __construct(array $config = [], ?MVCFactoryInterface $factory = null, ?CMSApplicationInterface $app = null)
+    public function __construct($config = [])
     {
         parent::__construct($config);
-        
-        $this->app = $app ?: Factory::getApplication();
-        $this->mvcFactory = $factory ?: $this->app->bootComponent('com_cmsmigrator')->getMVCFactory();
     }
     //Our importFunction doesn't know how to convert/parse this data
     public function import($file, $sourceCms, $sourceUrl = '', $ftpConfig = [], $importAsSuperUser = false)
@@ -67,7 +42,7 @@ class ImportModel extends BaseDatabaseModel
             }
         } else {
             PluginHelper::importPlugin('migration');
-            $dispatcher = $this->app->getDispatcher();
+            $dispatcher = Factory::getApplication()->getDispatcher();
 
             // Fire the "onMigrationConvert" event to allow plugins to convert the file
             $event = new MigrationEvent('onMigrationConvert', ['sourceCms' => $sourceCms, 'filePath' => $file['tmp_name']]);
@@ -97,9 +72,9 @@ class ImportModel extends BaseDatabaseModel
 
             try {
                 File::write($filePath, $convertedData);
-                $this->app->enqueueMessage(Text::sprintf('COM_CMSMIGRATOR_JSON_SAVED', $filePath), 'message');
+                Factory::getApplication()->enqueueMessage(Text::sprintf('COM_CMSMIGRATOR_JSON_SAVED', $filePath), 'message');
             } catch (\Exception $e) {
-                $this->app->enqueueMessage(Text::sprintf('COM_CMSMIGRATOR_JSON_SAVE_FAILED', $e->getMessage()), 'error');
+                Factory::getApplication()->enqueueMessage(Text::sprintf('COM_CMSMIGRATOR_JSON_SAVE_FAILED', $e->getMessage()), 'error');
             }
         }
 
@@ -116,7 +91,8 @@ class ImportModel extends BaseDatabaseModel
         }
         
         try {
-            $processor = $this->mvcFactory->createModel('Processor', 'Administrator', ['ignore_request' => true]);
+            $mvcFactory = Factory::getApplication()->bootComponent('com_cmsmigrator')->getMVCFactory();
+            $processor = $mvcFactory->createModel('Processor', 'Administrator', ['ignore_request' => true]);
             //Processor function to process data to Joomla Tables
             $result = $processor->process($data, $sourceUrl, $ftpConfig, $importAsSuperUser);
          
@@ -127,7 +103,7 @@ class ImportModel extends BaseDatabaseModel
                           Text::sprintf('COM_CMSMIGRATOR_IMPORT_TAXONOMIES_COUNT', $result['counts']['taxonomies']) . '<br>' .
                           Text::sprintf('COM_CMSMIGRATOR_IMPORT_MEDIA_COUNT', $result['counts']['media'] ?? 0) . '<br>' .
                           Text::sprintf('COM_CMSMIGRATOR_IMPORT_SKIPPED_COUNT', $result['counts']['skipped'] ?? 0);
-                $this->app->enqueueMessage($message, 'message');
+                Factory::getApplication()->enqueueMessage($message, 'message');
             } else {
                 $message = Text::_('COM_CMSMIGRATOR_IMPORT_PARTIAL') . '<br>' .
                           Text::sprintf('COM_CMSMIGRATOR_IMPORT_USERS_COUNT', $result['counts']['users']) . '<br>' .
@@ -136,11 +112,11 @@ class ImportModel extends BaseDatabaseModel
                           Text::sprintf('COM_CMSMIGRATOR_IMPORT_MEDIA_COUNT', $result['counts']['media'] ?? 0) . '<br>' .
                           Text::sprintf('COM_CMSMIGRATOR_IMPORT_SKIPPED_COUNT', $result['counts']['skipped'] ?? 0) . '<br>' .
                           implode("\n", $result['errors']);
-                $this->app->enqueueMessage($message, 'warning');
+                Factory::getApplication()->enqueueMessage($message, 'warning');
                 return false;
             }
         } catch (\Exception $e) {
-            $this->app->enqueueMessage(Text::sprintf('COM_CMSMIGRATOR_IMPORT_ERROR', $e->getMessage()), 'error');
+            Factory::getApplication()->enqueueMessage(Text::sprintf('COM_CMSMIGRATOR_IMPORT_ERROR', $e->getMessage()), 'error');
             return false;
         }
 

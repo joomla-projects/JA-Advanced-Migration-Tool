@@ -12,8 +12,7 @@ namespace Binary\Component\CmsMigrator\Administrator\Model;
 \defined('_JEXEC') or die;
 
 use Joomla\CMS\Factory;
-use Joomla\CMS\MVC\Model\BaseDatabaseModel;
-use Joomla\Database\DatabaseInterface;
+use Joomla\CMS\MVC\Model\BaseModel;
 use Joomla\Filesystem\File;
 use Joomla\Filesystem\Folder;
 use Joomla\CMS\Language\Text;
@@ -28,16 +27,8 @@ use phpseclib3\Net\SSH2;
  *
  * @since  1.0.0
  */
-class MediaModel extends BaseDatabaseModel
+class MediaModel extends BaseModel
 {
-    /**
-     * Database object
-     *
-     * @var    \Joomla\Database\DatabaseDriver
-     * @since  1.0.0
-     */
-    protected $db;
-
     /**
      * FTP connection resource
      *
@@ -166,19 +157,6 @@ class MediaModel extends BaseDatabaseModel
         return $this->documentRoot;
     }
 
-    /**
-     * Constructor
-     *
-     * @param   array  $config  An optional associative array of configuration settings.
-     *
-     * @since   1.0.0
-     */
-    public function __construct(array $config = [])
-    {
-        parent::__construct($config);
-        $this->db = Factory::getContainer()->get(DatabaseInterface::class);
-        $this->setStorageDirectory('imports');
-    }
 
     /**
      * Migrate media in content

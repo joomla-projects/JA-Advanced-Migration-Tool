@@ -31,11 +31,6 @@ class ImportController extends BaseController
         // Retrieves form data (jform) and uploaded files.
         $app = Factory::getApplication();
         $this->app = $app;
-        try {
-            $this->mvcFactory = $this->app->bootComponent('com_cmsmigrator')->getMVCFactory();
-        } catch (\Throwable $e) {
-            $this->mvcFactory = null;
-        }
         $input = $app->input;
         $jform = $input->get('jform', [], 'array');
         $files = $input->files->get('jform');

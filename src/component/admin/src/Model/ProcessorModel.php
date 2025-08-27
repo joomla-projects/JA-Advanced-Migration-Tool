@@ -19,13 +19,10 @@ use Joomla\CMS\User\UserHelper;
 use Joomla\CMS\Helper\TagsHelper;
 use Joomla\CMS\Filter\OutputFilter;
 use Joomla\CMS\Uri\Uri;
-use Joomla\CMS\Application\CMSApplicationInterface;
-use Joomla\Database\DatabaseInterface;
-use Joomla\CMS\MVC\Factory\MVCFactoryInterface;
 use Binary\Component\CmsMigrator\Administrator\Model\MediaModel;
 use Joomla\CMS\Component\ComponentHelper;
 use Joomla\Component\Menus\Administrator\Table\MenuTable;
-use Joomla\Component\Menus\Administrator\Table\MenuTypeTable;
+use Joomla\CMS\Table\MenuType;
 use Joomla\Component\Content\Administrator\Table\ArticleTable;
 
 /**
@@ -37,48 +34,6 @@ use Joomla\Component\Content\Administrator\Table\ArticleTable;
  */
 class ProcessorModel extends BaseDatabaseModel
 {
-    /**
-     * Application instance
-     *
-     * @var    CMSApplicationInterface
-     * @since  1.0.0
-     */
-    protected CMSApplicationInterface $app;
-
-    /**
-     * MVC Factory instance
-     *
-     * @var    MVCFactoryInterface
-     * @since  1.0.0
-     */
-    protected MVCFactoryInterface $mvcFactory;
-
-    /**
-     * Database instance
-     *
-     * @var    DatabaseInterface
-     * @since  1.0.0
-     */
-    protected DatabaseInterface $db;
-
-    /**
-     * Constructor
-     *
-     * @param   array                       $config     An optional associative array of configuration settings.
-     * @param   MVCFactoryInterface|null    $factory    The factory.
-     * @param   CMSApplicationInterface     $app        The application.
-     * @param   DatabaseInterface           $db         The database.
-     *
-     * @since   1.0.0
-     */
-    public function __construct(array $config = [], ?MVCFactoryInterface $factory = null, ?CMSApplicationInterface $app = null, ?DatabaseInterface $db = null)
-    {
-        parent::__construct($config);
-        
-        $this->app = $app ?: Factory::getApplication();
-        $this->mvcFactory = $factory ?: $this->app->bootComponent('com_cmsmigrator')->getMVCFactory();
-        $this->db = $db ?: Factory::getContainer()->get(DatabaseInterface::class);
-    }
 
     /**
      * Processes migration data by routing to the appropriate processor.
@@ -114,18 +69,18 @@ class ProcessorModel extends BaseDatabaseModel
      */
     private function executeInTransaction(callable $processor, array &$result): void
     {
-        $this->db->transactionStart();
+        $this->getDatabase()->transactionStart();
         try {
             $processor();
 
             if (empty($result['errors'])) {
-                $this->db->transactionCommit();
+                $this->getDatabase()->transactionCommit();
             } else {
-                $this->db->transactionRollback();
+                $this->getDatabase()->transactionRollback();
                 $result['success'] = false;
             }
         } catch (\Exception $e) {
-            $this->db->transactionRollback();
+            $this->getDatabase()->transactionRollback();
             $result['success'] = false;
             $result['errors'][] = 'Import failed: ' . $e->getMessage();
         }
@@ -241,7 +196,7 @@ class ProcessorModel extends BaseDatabaseModel
 
         $this->executeInTransaction(function () use ($data, $sourceUrl, $ftpConfig, $importAsSuperUser, &$result) {
             $mediaModel = $this->initializeMediaModel($ftpConfig);
-            $superUserId = $importAsSuperUser ? $this->app->getIdentity()->id : null;
+            $superUserId = $importAsSuperUser ? Factory::getApplication()->getIdentity()->id : null;
             
             // Process tags first if they exist in the data
             $tagMap = [];
@@ -299,7 +254,7 @@ class ProcessorModel extends BaseDatabaseModel
         $batches = array_chunk($articles, $batchSize);
         $processedCount = 0;
 
-        $this->app->enqueueMessage(
+        Factory::getApplication()->enqueueMessage(
             sprintf('Processing %d articles in %d batches (batch size: %d)', $total, count($batches), $batchSize),
             'info'
         );
@@ -595,7 +550,7 @@ class ProcessorModel extends BaseDatabaseModel
         try
         {
             // 1. Get the Category Model instance *once* before the loop.
-            $categoriesMvcFactory = $this->app->bootComponent('com_categories')->getMVCFactory();
+            $categoriesMvcFactory = Factory::getApplication()->bootComponent('com_categories')->getMVCFactory();
             $categoryModel = $categoriesMvcFactory->createModel('Category', 'Administrator', ['ignore_request' => true]);
 
             if (!$categoryModel)
@@ -674,7 +629,7 @@ class ProcessorModel extends BaseDatabaseModel
                 $tagMap[$tagData['slug']] = $tagId;
             } catch (\Exception $e) {
                 // Log the error but continue processing other tags
-                $this->app->enqueueMessage(
+                Factory::getApplication()->enqueueMessage(
                     sprintf('Error importing tag "%s": %s', $tagData['name'], $e->getMessage()),
                     'warning'
                 );
@@ -711,7 +666,7 @@ class ProcessorModel extends BaseDatabaseModel
         $batches = array_chunk($posts, $batchSize, true);
         $processedCount = 0;
 
-        $this->app->enqueueMessage(
+        Factory::getApplication()->enqueueMessage(
             sprintf('Processing %d JSON posts in %d batches (batch size: %d)', $totalPosts, count($batches), $batchSize),
             'info'
         );
@@ -862,7 +817,7 @@ class ProcessorModel extends BaseDatabaseModel
                                 $tagIds[] = $tagId;
                             } catch (\Exception $e) {
                                 // Log error but continue with other tags
-                                $this->app->enqueueMessage(
+                                Factory::getApplication()->enqueueMessage(
                                     sprintf('Error creating tag "%s" for article "%s": %s', $tagName, $post['post_title'], $e->getMessage()),
                                     'warning'
                                 );
@@ -910,7 +865,7 @@ class ProcessorModel extends BaseDatabaseModel
         
         // For ZIP uploads, we don't need host credentials, just the connection type
         if ($connectionType === 'zip') {
-            $mediaModel = $this->mvcFactory->createModel('Media', 'Administrator', ['ignore_request' => true]);
+            $mediaModel = $this->getMVCFactory()->createModel('Media', 'Administrator', ['ignore_request' => true]);
             $storageDir = (($ftpConfig['media_storage_mode'] ?? 'root') === 'custom' && !empty($ftpConfig['media_custom_dir']))
                 ? $ftpConfig['media_custom_dir']
                 : 'imports';
@@ -918,7 +873,7 @@ class ProcessorModel extends BaseDatabaseModel
             
             // Process ZIP upload immediately when initializing the model
             if (!$mediaModel->connect($ftpConfig)) {
-                $this->app->enqueueMessage('Failed to process ZIP upload for media migration', 'error');
+                Factory::getApplication()->enqueueMessage('Failed to process ZIP upload for media migration', 'error');
                 return null;
             }
             
@@ -930,7 +885,7 @@ class ProcessorModel extends BaseDatabaseModel
             return null;
         }
 
-        $mediaModel = $this->mvcFactory->createModel('Media', 'Administrator', ['ignore_request' => true]);
+        $mediaModel = $this->getMVCFactory()->createModel('Media', 'Administrator', ['ignore_request' => true]);
         $storageDir = (($ftpConfig['media_storage_mode'] ?? 'root') === 'custom' && !empty($ftpConfig['media_custom_dir']))
             ? $ftpConfig['media_custom_dir']
             : 'imports';
@@ -1008,16 +963,16 @@ class ProcessorModel extends BaseDatabaseModel
     {
         $alias = $sourceData['slug'] ?? OutputFilter::stringURLSafe($categoryName);
 
-        $query = $this->db->getQuery(true)
+        $query = $this->getDatabase()->getQuery(true)
             ->select('id')
             ->from('#__categories')
-            ->where('alias = ' . $this->db->quote($alias))
-            ->where('extension = ' . $this->db->quote('com_content'));
+            ->where('alias = ' . $this->getDatabase()->quote($alias))
+            ->where('extension = ' . $this->getDatabase()->quote('com_content'));
 
-        $categoryId = $this->db->setQuery($query)->loadResult();
+        $categoryId = $this->getDatabase()->setQuery($query)->loadResult();
 
         if (!$categoryId) {
-            $categoriesMvcFactory = $this->app->bootComponent('com_categories')->getMVCFactory();
+            $categoriesMvcFactory = Factory::getApplication()->bootComponent('com_categories')->getMVCFactory();
             $categoryModel = $categoriesMvcFactory->createModel('Category', 'Administrator', ['ignore_request' => true]);
 
             if (!$categoryModel) {
@@ -1060,15 +1015,15 @@ class ProcessorModel extends BaseDatabaseModel
         $alias = $sourceData['slug'] ?? OutputFilter::stringURLSafe($tagName);
 
         // Check if tag already exists
-        $query = $this->db->getQuery(true)
+        $query = $this->getDatabase()->getQuery(true)
             ->select('id')
             ->from('#__tags')
-            ->where('alias = ' . $this->db->quote($alias));
+            ->where('alias = ' . $this->getDatabase()->quote($alias));
 
-        $tagId = $this->db->setQuery($query)->loadResult();
+        $tagId = $this->getDatabase()->setQuery($query)->loadResult();
 
         if (!$tagId) {
-            $tagsMvcFactory = $this->app->bootComponent('com_tags')->getMVCFactory();
+            $tagsMvcFactory = Factory::getApplication()->bootComponent('com_tags')->getMVCFactory();
             $tagModel = $tagsMvcFactory->createModel('Tag', 'Administrator', ['ignore_request' => true]);
             
             $tagData = [
@@ -1153,7 +1108,7 @@ class ProcessorModel extends BaseDatabaseModel
                     $this->saveCustomFieldValue($fieldId, $articleId, $fieldValue);
                 }
             } catch (\Exception $e) {
-                $this->app->enqueueMessage(
+                Factory::getApplication()->enqueueMessage(
                     sprintf('Error processing custom field "%s": %s', $fieldName, $e->getMessage()),
                     'warning'
                 );
@@ -1172,19 +1127,19 @@ class ProcessorModel extends BaseDatabaseModel
         $alias   = OutputFilter::stringURLSafe($fieldName);
         $context = 'com_content.article';
 
-        $query = $this->db->getQuery(true)
+        $query = $this->getDatabase()->getQuery(true)
             ->select('id')
-            ->from($this->db->quoteName('#__fields'))
-            ->where('context = ' . $this->db->quote($context))
-            ->where('name    = ' . $this->db->quote($fieldName));
-        $existingId = (int) $this->db->setQuery($query)->loadResult();
+            ->from($this->getDatabase()->quoteName('#__fields'))
+            ->where('context = ' . $this->getDatabase()->quote($context))
+            ->where('name    = ' . $this->getDatabase()->quote($fieldName));
+        $existingId = (int) $this->getDatabase()->setQuery($query)->loadResult();
 
         if ($existingId)
         {
             return $existingId;
         }
 
-        $fieldsMvcFactory = $this->app->bootComponent('com_fields')->getMVCFactory();
+        $fieldsMvcFactory = Factory::getApplication()->bootComponent('com_fields')->getMVCFactory();
         $fieldModel = $fieldsMvcFactory->createModel('Field', 'Administrator', ['ignore_request' => true]);
         
         $fieldData  = [
@@ -1208,12 +1163,12 @@ class ProcessorModel extends BaseDatabaseModel
                 $err = $fieldModel->getError();
                 if (strpos($err, 'COM_FIELDS_ERROR_UNIQUE_NAME') !== false)
                 {
-                    $query = $this->db->getQuery(true)
+                    $query = $this->getDatabase()->getQuery(true)
                         ->select('id')
-                        ->from($this->db->quoteName('#__fields'))
-                        ->where('context = ' . $this->db->quote($context))
-                        ->where('name    = ' . $this->db->quote($fieldName));
-                    return (int) $this->db->setQuery($query)->loadResult();
+                        ->from($this->getDatabase()->quoteName('#__fields'))
+                        ->where('context = ' . $this->getDatabase()->quote($context))
+                        ->where('name    = ' . $this->getDatabase()->quote($fieldName));
+                    return (int) $this->getDatabase()->setQuery($query)->loadResult();
                 }
 
                 throw new \RuntimeException('Failed to create custom field: ' . $err);
@@ -1223,7 +1178,7 @@ class ProcessorModel extends BaseDatabaseModel
         }
         catch (\Exception $e)
         {
-            $this->app->enqueueMessage(
+            Factory::getApplication()->enqueueMessage(
                 sprintf('Error creating custom field "%s": %s', $fieldName, $e->getMessage()),
                 'warning'
             );
@@ -1246,7 +1201,7 @@ class ProcessorModel extends BaseDatabaseModel
         $fieldValue->item_id  = $articleId;
         $fieldValue->value    = $value;
 
-        $this->db->insertObject('#__fields_values', $fieldValue, ['field_id', 'item_id']);
+        $this->getDatabase()->insertObject('#__fields_values', $fieldValue, ['field_id', 'item_id']);
     }
 
     /**
@@ -1256,13 +1211,13 @@ class ProcessorModel extends BaseDatabaseModel
      */
     private function getDefaultCategoryId(): int
     {
-        $query = $this->db->getQuery(true)
+        $query = $this->getDatabase()->getQuery(true)
             ->select('id')
-            ->from($this->db->quoteName('#__categories'))
-            ->where($this->db->quoteName('path') . ' = ' . $this->db->quote('uncategorised'))
-            ->where($this->db->quoteName('extension') . ' = ' . $this->db->quote('com_content'));
+            ->from($this->getDatabase()->quoteName('#__categories'))
+            ->where($this->getDatabase()->quoteName('path') . ' = ' . $this->getDatabase()->quote('uncategorised'))
+            ->where($this->getDatabase()->quoteName('extension') . ' = ' . $this->getDatabase()->quote('com_content'));
             
-        return (int) $this->db->setQuery($query)->loadResult() ?: 2; // Fallback to root
+        return (int) $this->getDatabase()->setQuery($query)->loadResult() ?: 2; // Fallback to root
     }
 
     /**
@@ -1307,7 +1262,7 @@ class ProcessorModel extends BaseDatabaseModel
     protected function linkTagsToArticle(int $articleId, array $tagIds): void
     {
         try {
-            $articleTable = new ArticleTable($this->db);
+            $articleTable = new ArticleTable($this->getDatabase());
 
             if (!$articleTable->load($articleId)) {
                 throw new \RuntimeException("Article with ID {$articleId} not found.");
@@ -1367,12 +1322,12 @@ class ProcessorModel extends BaseDatabaseModel
      */
     protected function aliasExists(string $alias): bool
     {
-        $query = $this->db->getQuery(true)
+        $query = $this->getDatabase()->getQuery(true)
             ->select('1')
             ->from('#__content')
-            ->where('alias = ' . $this->db->quote($alias));
+            ->where('alias = ' . $this->getDatabase()->quote($alias));
 
-        return (bool) $this->db->setQuery($query)->loadResult();
+        return (bool) $this->getDatabase()->setQuery($query)->loadResult();
     }
 
     /**
@@ -1384,12 +1339,12 @@ class ProcessorModel extends BaseDatabaseModel
      */
     protected function articleExists(string $title): bool
     {
-        $query = $this->db->getQuery(true)
+        $query = $this->getDatabase()->getQuery(true)
             ->select('1')
             ->from('#__content')
-            ->where('title = ' . $this->db->quote($title));
+            ->where('title = ' . $this->getDatabase()->quote($title));
 
-        return (bool) $this->db->setQuery($query)->loadResult();
+        return (bool) $this->getDatabase()->setQuery($query)->loadResult();
     }
 
     /**
@@ -1410,7 +1365,7 @@ class ProcessorModel extends BaseDatabaseModel
         foreach ($menus as $wpMenuName => $wpMenuItems) {
             try {
                 // Step 1: Create the Joomla Menu container (Menu Type) if it doesn't exist.
-                $menuTypeTable = new MenuTypeTable($this->db);
+                $menuTypeTable = new MenuType($this->getDatabase());
                 
                 // Check if the menu type already exists to avoid errors on re-run
                 if (!$menuTypeTable->load(['menutype' => $wpMenuName])) {
@@ -1436,7 +1391,7 @@ class ProcessorModel extends BaseDatabaseModel
                         continue;
                     }
 
-                    $menuItemTable = new MenuTable($this->db);
+                    $menuItemTable = new MenuTable($this->getDatabase());
                     list($link, $type) = $this->generateJoomlaLink($item, $contentMap);
 
                     $menuItemData = [
@@ -1482,10 +1437,10 @@ class ProcessorModel extends BaseDatabaseModel
                     $joomlaParentId = $wpToJoomlaMenuItemMap[$wpParentId];
 
                     // Load the parent to get its level and path for the new child
-                    $parentTable = new MenuTable($this->db);
+                    $parentTable = new MenuTable($this->getDatabase());
                     $parentTable->load($joomlaParentId);
 
-                    $menuItemTable = new MenuTable($this->db);
+                    $menuItemTable = new MenuTable($this->getDatabase());
                     list($link, $type) = $this->generateJoomlaLink($item, $contentMap);
                     
                     $alias = OutputFilter::stringURLSafe($item['title']);
