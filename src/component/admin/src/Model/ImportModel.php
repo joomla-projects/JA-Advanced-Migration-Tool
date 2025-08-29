@@ -32,13 +32,11 @@ class ImportModel extends BaseModel
         // Handle JSON import directly, bypassing plugin event
         if ($sourceCms === 'json') {
             if (!isset($file['tmp_name']) || !is_readable($file['tmp_name'])) {
-                $this->setError(Text::_('COM_CMSMIGRATOR_INVALID_FILE'));
-                return false;
+                throw new \RuntimeException(Text::_('COM_CMSMIGRATOR_INVALID_FILE'));
             }
             $convertedData = file_get_contents($file['tmp_name']);
             if (empty($convertedData)) {
-                $this->setError(Text::_('COM_CMSMIGRATOR_EMPTY_JSON_FILE'));
-                return false;
+                throw new \RuntimeException(Text::_('COM_CMSMIGRATOR_EMPTY_JSON_FILE'));
             }
         } else {
             PluginHelper::importPlugin('migration');
@@ -79,15 +77,13 @@ class ImportModel extends BaseModel
         }
 
         if (!$convertedData) {
-            $this->setError(Text::sprintf('COM_CMSMIGRATOR_NO_PLUGIN_FOUND', $sourceCms));
-            return false;
+            throw new \RuntimeException(Text::sprintf('COM_CMSMIGRATOR_NO_PLUGIN_FOUND', $sourceCms));
         }
 
         $data = json_decode($convertedData, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            $this->setError(Text::_('COM_CMSMIGRATOR_INVALID_JSON_FORMAT_FROM_PLUGIN'));
-            return false;
+            throw new \RuntimeException(Text::_('COM_CMSMIGRATOR_INVALID_JSON_FORMAT_FROM_PLUGIN'));
         }
         
         try {
