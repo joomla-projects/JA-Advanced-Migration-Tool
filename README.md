@@ -1,7 +1,13 @@
-# JA-Advanced-Migration-Tool
+# Advanced Migration Tool
 Joomla Academy Project to develop a migration tool from other CMS to Joomla
 
 This project focuses on expanding Joomla's migration capabilities, building on the foundation laid by the WordPress migration tool.
+
+## 📚 Documentation
+
+- **[Project Brief](docs/PROJECT_BRIEF.md)** - Project overview
+- **[User Guide](docs/User_Documentation.md)** - Complete migration instructions
+- **[Developer Guide](docs/Developer_Documentation.md)** - Technical documentation
 
 **Project Objectives:**
 - Develop a framework-agnostic migration system
@@ -28,5 +34,4 @@ This project focuses on expanding Joomla's migration capabilities, building on t
 - Shirielle Williams
 - Gary Barclay
 
-
-  for more information on the Joomla Academy see: https://github.com/joomla-projects/Joomla-Academy-Onboarding
+For more information on the Joomla Academy see: https://github.com/joomla-projects/Joomla-Academy-Onboarding
