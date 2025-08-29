@@ -73,8 +73,7 @@ class ArticleTable extends Table
     public function check()
     {
         if (trim($this->title) == '') {
-            $this->setError('Article title is required');
-            return false;
+            throw new \RuntimeException('Article title is required');
         }
 
         if (trim($this->alias) == '') {

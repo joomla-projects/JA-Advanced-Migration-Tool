@@ -30,13 +30,7 @@ class ImportController extends BaseController
         
         // Retrieves form data (jform) and uploaded files.
         $app = Factory::getApplication();
-        $this->app = $app;
-        try {
-            $this->mvcFactory = $this->app->bootComponent('com_cmsmigrator')->getMVCFactory();
-        } catch (\Throwable $e) {
-            $this->mvcFactory = null;
-        }
-        $input = $app->input;
+        $input = $app->getInput();
         $jform = $input->get('jform', [], 'array');
         $files = $input->files->get('jform');
 
@@ -100,8 +94,14 @@ class ImportController extends BaseController
         //Passes the data to ImportModel Function
         $model = $this->getModel('Import');
 
-        if (!$model->import($file, $sourceCms, $sourceUrl, $connectionConfig, $importAsSuperUser)) {
-            $app->enqueueMessage($model->getError(), 'error');
+        try {
+            if (!$model->import($file, $sourceCms, $sourceUrl, $connectionConfig, $importAsSuperUser)) {
+                $app->enqueueMessage('Import failed', 'error');
+                $this->setRedirect('index.php?option=com_cmsmigrator');
+                return;
+            }
+        } catch (\Exception $e) {
+            $app->enqueueMessage($e->getMessage(), 'error');
             $this->setRedirect('index.php?option=com_cmsmigrator');
             return;
         }
@@ -121,7 +121,7 @@ class ImportController extends BaseController
         $this->checkToken();
         
         $app = Factory::getApplication();
-        $input = $app->input;
+        $input = $app->getInput();
         
         // Get connection configuration
         $connectionConfig = [
@@ -155,7 +155,7 @@ class ImportController extends BaseController
         $this->checkToken();
         
         $app = Factory::getApplication();
-        $input = $app->input;
+        $input = $app->getInput();
         
         // Get FTP configuration
         $ftpConfig = [
