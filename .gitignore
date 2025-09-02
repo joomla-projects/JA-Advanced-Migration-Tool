@@ -11,19 +11,16 @@
 *.tar
 *.zip
 
-# Logs and databases #
-######################
+# Logs and databases
 *.log
 *.sqlite
 
-# Temporary files #
-###################
+# Temporary files
 *.swp
 *.swap
 *.bak
 
-# OS generated files #
-######################
+# OS generated files
 .DS_Store
 .DS_Store?
 ._*
@@ -36,22 +33,32 @@ Thumbs.db
 /.idea
 .idea
 
-# Composer #
-############
-vendor
-composer.lock
-node_modules
+# Composer
+/vendor/
+/composer.lock
 
-# Phing related #
-#################
+# Node (npm/yarn/pnpm)
+/node_modules/
+
+# Phing related
 build/ftp.build.properties
 build/paths.build.properties
 
-# Visual Code #
-###############
-.vscode
+# Visual Studio Code
+.vscode/
 
-# Tests #
-#########
-/tests/coverage
-phpunit.xml
+# PHPUnit tests
+/phpunit.xml
+/phpunit.xml.dist
+/tests/coverage/
+
+# Cypress tests
+/cypress/videos/
+/cypress/screenshots/
+/cypress/results/
+/cypress/downloads/
+/cypress/reports/
+
+# Environment files
+.env
+.env.*
