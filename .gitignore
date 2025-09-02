@@ -49,8 +49,24 @@ build/paths.build.properties
 
 # PHPUnit tests
 /phpunit.xml
-/phpunit.xml.dist
 /tests/coverage/
+.phpunit.result.cache
+
+# Test files that should be ignored
+/tests/temp/
+/tests/tmp/
+/tests/unit/temp/
+/tests/unit/tmp/
+/tests/cache/
+*.test.tmp
+test*.tmp
+
+# Coverage reports
+/coverage/
+/tests/coverage/
+coverage.xml
+clover.xml
+coverage.clover
 
 # Cypress tests
 /cypress/videos/
@@ -58,6 +74,18 @@ build/paths.build.properties
 /cypress/results/
 /cypress/downloads/
 /cypress/reports/
+
+# Media uploads and temporary files
+/media/com_cmsmigrator/imports/
+/media/com_cmsmigrator/temp/
+/media/com_cmsmigrator/cache/
+/media/com_cmsmigrator/uploads/
+
+# Runtime and cache files
+/cache/
+/tmp/
+*.cache
+.cache/
 
 # Environment files
 .env
