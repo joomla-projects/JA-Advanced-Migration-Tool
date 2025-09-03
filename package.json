@@ -18,7 +18,11 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "cypress run"
+    "test": "cypress run",
+    "test:open": "cypress open",
+    "test:admin": "cypress run --spec \"tests/e2e/login-admin.cy.js\"",
+    "test:install": "cypress run --spec \"tests/e2e/install-extension.cy.js\"",
+    "test:e2e": "cypress run --spec \"tests/e2e/**/*.cy.js\""
   },
   "dependencies": {
     "cypress": "^15.0.0",

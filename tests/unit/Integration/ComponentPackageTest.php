@@ -17,10 +17,16 @@ class ComponentPackageTest extends TestCase
     public function testCreateComponentPackage(): void
     {
         $componentPath = realpath(__DIR__ . '/../../../src/component');
-        $outputPath = realpath(__DIR__ . '/../../..') . DIRECTORY_SEPARATOR . 'com_cmsmigrator.zip';
+        $outputPath = realpath(__DIR__ . '/../../..') . DIRECTORY_SEPARATOR . 'cypress' . DIRECTORY_SEPARATOR . 'fixtures' . DIRECTORY_SEPARATOR . 'com_cmsmigrator.zip';
         
         // Ensure component directory exists
         $this->assertDirectoryExists($componentPath, 'Component directory does not exist');
+        
+        // Ensure cypress/fixtures directory exists
+        $fixturesDir = dirname($outputPath);
+        if (!is_dir($fixturesDir)) {
+            mkdir($fixturesDir, 0755, true);
+        }
         
         // Remove existing zip if present
         if (file_exists($outputPath)) {
@@ -50,7 +56,7 @@ class ComponentPackageTest extends TestCase
         // Verify zip contains expected files
         $this->verifyZipContents($outputPath);
         
-        echo "\n✅ Component package created successfully: com_cmsmigrator.zip\n";
+        echo "\n✅ Component package created successfully: cypress/fixtures/com_cmsmigrator.zip\n";
         echo "📦 Package size: " . $this->formatBytes(filesize($outputPath)) . "\n";
         echo "📁 Package location: " . $outputPath . "\n";
     }

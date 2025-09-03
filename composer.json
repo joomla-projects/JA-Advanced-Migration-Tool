@@ -35,7 +35,8 @@
         "test:unit": "phpunit --colors=always",
         "test": [
             "@test:syntax",
-            "@test:unit"
+            "@test:unit",
+            "npm test"
         ]
     }
 }
