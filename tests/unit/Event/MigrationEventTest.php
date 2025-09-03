@@ -104,7 +104,7 @@ class MigrationEventTest extends TestCase
         $results = $this->event->getResults();
         
         $this->assertIsArray($results);
-        $this->assertContains($result, $results);
+        $this->assertContainsEquals($result, $results);
         $this->assertCount(1, $results);
     }
 
@@ -125,9 +125,9 @@ class MigrationEventTest extends TestCase
         
         $this->assertIsArray($results);
         $this->assertCount(3, $results);
-        $this->assertContains($result1, $results);
-        $this->assertContains($result2, $results);
-        $this->assertContains($result3, $results);
+        $this->assertContainsEquals($result1, $results);
+        $this->assertContainsEquals($result2, $results);
+        $this->assertContainsEquals($result3, $results);
     }
 
     /**

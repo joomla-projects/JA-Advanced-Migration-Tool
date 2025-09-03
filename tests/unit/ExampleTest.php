@@ -13,11 +13,11 @@ use PHPUnit\Framework\TestCase;
 class ExampleTest extends TestCase
 {
     /**
-     * Test that true is true (basic test to verify PHPUnit is working)
+     * Test that PHPUnit is working correctly
      */
-    public function testTrueIsTrue(): void
+    public function testPHPUnitIsWorking(): void
     {
-        $this->assertTrue(true);
+        $this->assertIsString('test');
     }
 
     /**

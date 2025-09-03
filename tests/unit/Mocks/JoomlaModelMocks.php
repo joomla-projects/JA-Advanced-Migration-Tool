@@ -33,3 +33,51 @@ class BaseDatabaseModel extends BaseModel
         return $this->dbo;
     }
 }
+
+namespace Joomla\Database;
+
+/**
+ * Mock class for DatabaseQuery for testing
+ */
+class DatabaseQuery
+{
+    public function select($columns)
+    {
+        return $this;
+    }
+    
+    public function from($table)
+    {
+        return $this;
+    }
+    
+    public function where($condition)
+    {
+        return $this;
+    }
+    
+    public function insert($table)
+    {
+        return $this;
+    }
+    
+    public function values($values)
+    {
+        return $this;
+    }
+    
+    public function update($table)
+    {
+        return $this;
+    }
+    
+    public function set($sets)
+    {
+        return $this;
+    }
+    
+    public function delete($table)
+    {
+        return $this;
+    }
+}

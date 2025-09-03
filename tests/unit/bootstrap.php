@@ -57,6 +57,24 @@ spl_autoload_register(function ($class) {
     }
 });
 
+// Set up autoloader for plugin classes
+spl_autoload_register(function ($class) {
+    $prefix = 'My\\Plugin\\Migration\\';
+    $baseDir = __DIR__ . '/../../src/plugins/migration/';
+    
+    $len = strlen($prefix);
+    if (strncmp($prefix, $class, $len) !== 0) {
+        return;
+    }
+    
+    $relativeClass = substr($class, $len);
+    $file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
+    
+    if (file_exists($file)) {
+        require $file;
+    }
+});
+
 // Set up autoloader for test helper classes
 spl_autoload_register(function ($class) {
     $prefix = 'Binary\\Component\\CmsMigrator\\Tests\\';
@@ -76,6 +94,24 @@ spl_autoload_register(function ($class) {
 });
 
 // Optionally mock Joomla framework (from joomla/test) if available
-if (class_exists('\Joomla\Test\Stubs\StubsLoader')) {
-    \Joomla\Test\Stubs\StubsLoader::register();
-}
+// if (class_exists('\\Joomla\\Test\\Stubs\\StubsLoader')) {
+//     \\Joomla\\Test\\Stubs\\StubsLoader::register();
+// }
+
+// Stubs autoloader
+spl_autoload_register(function ($class) {
+    $prefix = 'Joomla\\';
+    $baseDir = __DIR__ . '/stubs/';
+    
+    $len = strlen($prefix);
+    if (strncmp($prefix, $class, $len) !== 0) {
+        return;
+    }
+    
+    $relativeClass = substr($class, $len);
+    $file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
+    
+    if (file_exists($file)) {
+        require $file;
+    }
+});

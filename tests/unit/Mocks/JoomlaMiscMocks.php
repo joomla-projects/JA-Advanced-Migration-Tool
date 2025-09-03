@@ -114,6 +114,16 @@ class CMSApplication
         // Mock implementation
     }
     
+    public function getInput()
+    {
+        return new \Joomla\Input\Input();
+    }
+    
+    public function setRedirect($url)
+    {
+        // Mock implementation
+    }
+    
     public function setHeader($name, $value)
     {
         // Mock implementation
@@ -193,6 +203,26 @@ class DatabaseDriver
         // Mock implementation
     }
     
+    public function getQuery($new = false)
+    {
+        return new \Joomla\Database\DatabaseQuery();
+    }
+    
+    public function setQuery($query)
+    {
+        return $this;
+    }
+    
+    public function loadResult()
+    {
+        return null;
+    }
+    
+    public function quote($value)
+    {
+        return "'" . addslashes($value) . "'";
+    }
+    
     public function insertObject($table, $object, $key = null)
     {
         // Mock implementation
@@ -220,6 +250,8 @@ namespace Joomla\CMS\Factory;
  */
 class Factory
 {
+    public static $application;
+    
     public static function getDate($date = 'now')
     {
         return new \DateTime($date);
@@ -227,6 +259,9 @@ class Factory
     
     public static function getApplication()
     {
+        if (self::$application) {
+            return self::$application;
+        }
         return new \Joomla\CMS\Application\CMSApplication();
     }
     

@@ -858,7 +858,7 @@ class ProcessorModel extends BaseDatabaseModel
      *
      * @return  ?MediaModel A MediaModel instance or null.
      */
-    private function initializeMediaModel(array $ftpConfig): ?MediaModel
+    protected function initializeMediaModel(array $ftpConfig): ?MediaModel
     {
         // Check if media migration is enabled
         $connectionType = $ftpConfig['connection_type'] ?? '';
@@ -1497,7 +1497,7 @@ class ProcessorModel extends BaseDatabaseModel
      *
      * @return  array  An array containing [string $link, string $type].
      */
-    private function generateJoomlaLink(array $wpItem, array $contentMap): array
+    protected function generateJoomlaLink(array $wpItem, array $contentMap): array
     {
         switch ($wpItem['object'] ?? 'custom') {
             case 'page':
@@ -1538,7 +1538,7 @@ class ProcessorModel extends BaseDatabaseModel
      *
      * @return  int     The component ID.
      */
-    private function getComponentIdFromLink(string $link): int
+    protected function getComponentIdFromLink(string $link): int
     {
         if (strpos($link, 'option=com_content') !== false) {
             return ComponentHelper::getComponent('com_content')->id;

@@ -421,6 +421,6 @@ class ComponentIntegrationTest extends TestCase
         $this->assertDirectoryExists($mediaDir);
 
         // Success - workflow simulation completed
-        $this->assertTrue(true);
+        $this->assertIsString($convertedData);
     }
 }

@@ -23,6 +23,11 @@ class Table
         $this->_db = $db;
     }
     
+    public function getDatabase()
+    {
+        return $this->_db;
+    }
+    
     public function bind($array, $ignore = '')
     {
         foreach ($array as $key => $value) {

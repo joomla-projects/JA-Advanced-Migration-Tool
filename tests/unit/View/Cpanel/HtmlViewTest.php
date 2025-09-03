@@ -162,8 +162,8 @@ class HtmlViewTest extends TestCase
         // Test that the method exists and is protected
         $this->assertTrue($method->isProtected());
         
-        // Don't actually call it to avoid framework dependencies
-        $this->assertTrue(true);
+        // Test that the method name is correct
+        $this->assertEquals('addScripts', $method->getName());
     }
 
     /**

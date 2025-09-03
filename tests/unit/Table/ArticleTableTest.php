@@ -219,10 +219,6 @@ class ArticleTableTest extends TestCase
      */
     public function testDatabaseConnectionIsSetCorrectly(): void
     {
-        $reflection = new \ReflectionClass($this->table);
-        $dbProperty = $reflection->getProperty('_db');
-        $dbProperty->setAccessible(true);
-        
-        $this->assertSame($this->mockDatabase, $dbProperty->getValue($this->table));
+        $this->assertSame($this->mockDatabase, $this->table->getDatabase());
     }
 }
