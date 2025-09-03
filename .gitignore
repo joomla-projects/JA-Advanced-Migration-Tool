@@ -87,6 +87,10 @@ coverage.clover
 *.cache
 .cache/
 
+# Build artifacts
+com_cmsmigrator.zip
+*.zip.backup
+
 # Environment files
 .env
 .env.*
