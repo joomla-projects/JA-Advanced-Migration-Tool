@@ -24,7 +24,7 @@ describe("Joomla Extension Installation Test ", () => {
 
     // Use cy.selectFile to simulate drag and drop of the local ZIP file
     cy.get('input[type="file"]#install_package').selectFile(
-      "com_cmsmigrator.zip",
+      "cypress/fixtures/com_cmsmigrator.zip",
       { action: "drag-drop", force: true }
     );
 
