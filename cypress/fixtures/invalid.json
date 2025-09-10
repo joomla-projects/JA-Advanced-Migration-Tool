@@ -1,0 +1,16 @@
+{
+    "version": "1.0",
+    "content": {
+        "articles": [
+            {
+                "title": "Invalid Article",
+                "alias": "invalid-article",
+                "introtext": "This article has invalid data.",
+                "state": "invalid_state",
+                "catid": "invalid_cat",
+                "created": "invalid_date",
+                "created_by": "invalid_user"
+            }
+        ]
+    }
+}

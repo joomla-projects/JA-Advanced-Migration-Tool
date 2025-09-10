@@ -2,7 +2,13 @@
     "name": "binary/cms-migrator",
     "description": "Advanced Migration Tool for Joomla - Migrate from WordPress and other CMS platforms",
     "type": "joomla-component",
-    "keywords": ["joomla", "migration", "wordpress", "cms", "import"],
+    "keywords": [
+        "joomla",
+        "migration",
+        "wordpress",
+        "cms",
+        "import"
+    ],
     "license": "GPL-2.0-or-later",
     "require": {
         "php": ">=7.4.0",
@@ -14,7 +20,23 @@
             "Binary\\Component\\CmsMigrator\\": "src/component/admin/src/"
         }
     },
-    "extra": {
-        "joomla-component-name": "com_cmsmigrator"
+    "require-dev": {
+        "phpunit/phpunit": "^10",
+        "joomla/test": "^2",
+        "mockery/mockery": "^1.6"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Binary\\Component\\CmsMigrator\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test:syntax": "php ./tests/check_syntax.php",
+        "test:unit": "phpunit --colors=always",
+        "test": [
+            "@test:syntax",
+            "@test:unit",
+            "npm test"
+        ]
     }
 }

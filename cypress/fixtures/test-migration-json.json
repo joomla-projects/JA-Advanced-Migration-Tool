@@ -1,0 +1,524 @@
+{
+    "users": [
+        {
+            "ID": "1",
+            "user_login": "moujvlph",
+            "user_pass": "$wp$2y$10$dvwas4fjYcJQuvbmCVSZdeReZ9RF7s19\/fW\/HaOD.L0rc2sssuSjG",
+            "user_nicename": "moujvlph",
+            "user_email": "binaryrahul404@gmail.com",
+            "user_url": "http:\/\/wpmigrate.cloudaccess.host\/httpdocs",
+            "user_registered": "2025-08-05 06:21:47",
+            "user_activation_key": "",
+            "user_status": "0",
+            "display_name": "moujvlph",
+            "metadata": {
+                "nickname": [
+                    "moujvlph"
+                ],
+                "first_name": [
+                    ""
+                ],
+                "last_name": [
+                    ""
+                ],
+                "description": [
+                    ""
+                ],
+                "rich_editing": [
+                    "true"
+                ],
+                "syntax_highlighting": [
+                    "true"
+                ],
+                "comment_shortcuts": [
+                    "false"
+                ],
+                "admin_color": [
+                    "fresh"
+                ],
+                "use_ssl": [
+                    "0"
+                ],
+                "show_admin_bar_front": [
+                    "true"
+                ],
+                "locale": [
+                    ""
+                ],
+                "gqe_capabilities": [
+                    "a:1:{s:13:\"administrator\";b:1;}"
+                ],
+                "gqe_user_level": [
+                    "10"
+                ],
+                "dismissed_wp_pointers": [
+                    ""
+                ],
+                "show_welcome_panel": [
+                    "0"
+                ],
+                "gqe_dashboard_quick_press_last_post_id": [
+                    "30"
+                ],
+                "community-events-location": [
+                    "a:1:{s:2:\"ip\";s:13:\"110.224.163.0\";}"
+                ],
+                "astra-sites-on-active": [
+                    "notice-dismissed"
+                ],
+                "closedpostboxes_dashboard": [
+                    "a:1:{i:0;s:18:\"dashboard_activity\";}"
+                ],
+                "metaboxhidden_dashboard": [
+                    "a:0:{}"
+                ],
+                "gqe_persisted_preferences": [
+                    "a:3:{s:4:\"core\";a:2:{s:26:\"isComplementaryAreaVisible\";b:1;s:10:\"openPanels\";a:3:{i:0;s:11:\"post-status\";i:1;s:23:\"taxonomy-panel-category\";i:2;s:23:\"taxonomy-panel-post_tag\";}}s:14:\"core\/edit-post\";a:1:{s:12:\"welcomeGuide\";b:0;}s:9:\"_modified\";s:24:\"2025-08-19T10:26:41.557Z\";}"
+                ],
+                "managenav-menuscolumnshidden": [
+                    "a:5:{i:0;s:11:\"link-target\";i:1;s:11:\"css-classes\";i:2;s:3:\"xfn\";i:3;s:11:\"description\";i:4;s:15:\"title-attribute\";}"
+                ],
+                "metaboxhidden_nav-menus": [
+                    "a:2:{i:0;s:12:\"add-post_tag\";i:1;s:15:\"add-post_format\";}"
+                ],
+                "nav_menu_recently_edited": [
+                    "6"
+                ],
+                "session_tokens": [
+                    "a:2:{s:64:\"fb24f55173f69fa4dd0359f8c7875942e57ee2b8b76c7473f360476473939bea\";a:4:{s:10:\"expiration\";i:1755774205;s:2:\"ip\";s:14:\"106.219.90.159\";s:2:\"ua\";s:111:\"Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/139.0.0.0 Safari\/537.36\";s:5:\"login\";i:1755601405;}s:64:\"b4343573f6bc445c56f1c4858864759484fb4f52966cec633882fcd04f4a793d\";a:4:{s:10:\"expiration\";i:1756827477;s:2:\"ip\";s:14:\"106.219.90.159\";s:2:\"ua\";s:111:\"Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/139.0.0.0 Safari\/537.36\";s:5:\"login\";i:1755617877;}}"
+                ]
+            }
+        }
+    ],
+    "post_types": {
+        "post": [
+            {
+                "ID": 22,
+                "post_author": "1",
+                "post_date": "2025-08-19 10:27:17",
+                "post_date_gmt": "2025-08-19 10:27:17",
+                "post_content": "<!-- wp:paragraph -->\n<p>Coding agents are evolving from autocomplete sidekicks into autonomous collaborators that plan, build, test, and ship software. In parallel, open\u2011source weights are reshaping who gets to innovate, how fast we move, and the economics of developer tools. Here\u2019s what\u2019s coming\u2014and how to prepare.<\/p>\n<!-- \/wp:paragraph -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">What are coding agents?<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:paragraph -->\n<p>Coding agents extend beyond token\u2011level completion. They <em>observe<\/em> your repo and tools, <em>reason<\/em> about tasks, <em>act<\/em> across the toolchain, and <em>reflect<\/em> on outcomes. Think of them as orchestration layers that coordinate models, linters, build systems, package managers, and test runners to deliver working software.<\/p>\n<!-- \/wp:paragraph -->\n\n<!-- wp:paragraph -->\n<p><strong>From assistive to autonomous:<\/strong> autocomplete \u2192 chat copilots \u2192 task\u2011level agents \u2192 release\u2011capable systems with CI\/CD hooks and policy\u2011aware approvals.<\/p>\n<!-- \/wp:paragraph -->\n\n<!-- wp:image {\"id\":25,\"sizeSlug\":\"large\",\"linkDestination\":\"none\"} -->\n<figure class=\"wp-block-image size-large\"><img src=\"https:\/\/wpmigrate.cloudaccess.host\/wp-content\/uploads\/2025\/08\/oss_models-1024x576.png\" alt=\"\" class=\"wp-image-25\"\/><\/figure>\n<!-- \/wp:image -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Why open\u2011source weights matter<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:paragraph -->\n<p>Open\u2011source weights democratize iteration. Teams can fine\u2011tune locally, audit behavior, and run on sovereign or air\u2011gapped infrastructure. This reduces vendor lock\u2011in, lowers inference cost at scale, and invites a faster\u2011moving ecosystem of adapters, tool use, and domain expertise.<\/p>\n<!-- \/wp:paragraph -->\n\n<!-- wp:heading {\"level\":3} -->\n<h3 class=\"wp-block-heading\">Upsides<\/h3>\n<!-- \/wp:heading -->\n\n<!-- wp:list -->\n<ul class=\"wp-block-list\"><!-- wp:list-item -->\n<li>Customizable behavior and memory aligned to your codebase.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li>Cost control via self\u2011hosting or hybrid serving.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li>Security &amp; compliance with on\u2011prem \/ VPC deployments.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li>Community\u2011driven evals, patches, and guardrails.<\/li>\n<!-- \/wp:list-item --><\/ul>\n<!-- \/wp:list -->\n\n<!-- wp:heading {\"level\":3} -->\n<h3 class=\"wp-block-heading\">Tensions<\/h3>\n<!-- \/wp:heading -->\n\n<!-- wp:list -->\n<ul class=\"wp-block-list\"><!-- wp:list-item -->\n<li>Operational complexity: model serving, updates, drift.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li>Quality variance across checkpoints and fine\u2011tunes.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li>Licensing nuance for commercial redistribution.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li>Need for robust red\u2011team and policy enforcement.<\/li>\n<!-- \/wp:list-item --><\/ul>\n<!-- \/wp:list -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">The capability curve<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:paragraph -->\n<p>Expect a steady shift from \u201cwrite a function\u201d to \u201cown a feature\u201d:<\/p>\n<!-- \/wp:paragraph -->\n\n<!-- wp:list {\"ordered\":true} -->\n<ol class=\"wp-block-list\"><!-- wp:list-item -->\n<li><strong>2025:<\/strong> Reliable single\u2011PR changes with tests, guided by issue templates and repo maps.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>2026:<\/strong> Multi\u2011repo refactors, schema migrations, and cross\u2011service coordination via planners.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>2027+:<\/strong> Roadmap\u2011level execution: design \u2192 scaffold \u2192 implement \u2192 benchmark \u2192 deploy under human governance.<\/li>\n<!-- \/wp:list-item --><\/ol>\n<!-- \/wp:list -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Anatomy of a modern agent<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:paragraph -->\n<p>A pragmatic reference architecture many teams converge on:<\/p>\n<!-- \/wp:paragraph -->\n\n<!-- wp:list -->\n<ul class=\"wp-block-list\"><!-- wp:list-item -->\n<li><strong>Memory:<\/strong> hybrid RAG over code, issues, architecture notes.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Tools:<\/strong> editor ops, CLI, container builds, test runners, linters, package managers.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Evaluators:<\/strong> unit\/integration tests, coverage gates, static &amp; supply\u2011chain checks.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Governance:<\/strong> policy rules for secrets, licenses, data boundaries, and approvals.<\/li>\n<!-- \/wp:list-item --><\/ul>\n<!-- \/wp:list -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Benefits<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:list -->\n<ul class=\"wp-block-list\"><!-- wp:list-item -->\n<li><strong>Throughput:<\/strong> parallel task execution across branches and services.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Quality:<\/strong> tests\u2011first generation with feedback\u2011driven retries.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Knowledge capture:<\/strong> codifies tribal knowledge as prompts, checklists, and evaluators.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Developer experience:<\/strong> reduces toil in scaffolding, migrations, and boilerplate.<\/li>\n<!-- \/wp:list-item --><\/ul>\n<!-- \/wp:list -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Risks &amp; guardrails<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:list -->\n<ul class=\"wp-block-list\"><!-- wp:list-item -->\n<li><strong>Spec drift:<\/strong> agents over\u2011optimize for passing tests while missing intent. Mitigate with design docs and traceable requirements.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Security:<\/strong> tool execution implies blast radius. Use sandboxing, allow\u2011lists, and ephemeral credentials.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Data leakage:<\/strong> strict context filters; prefer local inference for sensitive code.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Over\u2011automation:<\/strong> keep humans in the loop for design, migration plans, and approvals.<\/li>\n<!-- \/wp:list-item --><\/ul>\n<!-- \/wp:list -->\n\n<!-- wp:paragraph -->\n<p><strong>Rule of thumb:<\/strong> automate the <em>doing<\/em>; keep humans for the <em>deciding<\/em>.<\/p>\n<!-- \/wp:paragraph -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Ecosystem shifts to watch<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:list -->\n<ul class=\"wp-block-list\"><!-- wp:list-item -->\n<li><strong>Model plurality:<\/strong> specialized small models alongside generalists; routers pick the right one per task.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Open weights + adapters:<\/strong> thin task\u2011specific fine\u2011tunes shared like npm packages.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Eval culture:<\/strong> repo\u2011native evals (golden tests, perf budgets) replace generic leaderboards.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Policy\u2011aware CI:<\/strong> PRs include diffs, trace graphs, and risk reports auto\u2011generated by agents.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>IDE as OS:<\/strong> editors expose agent APIs for navigation, edits, and previews with strong permissions.<\/li>\n<!-- \/wp:list-item --><\/ul>\n<!-- \/wp:list -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Adoption playbook<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:list {\"ordered\":true} -->\n<ol class=\"wp-block-list\"><!-- wp:list-item -->\n<li><strong>Inventory the work:<\/strong> list repetitive tasks (scaffolds, SDK bumps, churn areas).<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Harden the rails:<\/strong> fast tests, clear coding standards, precommit hooks, reproducible dev envs.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Start narrow:<\/strong> pick one repo and one class of change (e.g., log sanitization, schema change).<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Make evals first\u2011class:<\/strong> define success metrics and failure modes before enabling write access.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Hybrid serving:<\/strong> route sensitive work to open weights on local GPUs; burst to hosted when safe.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Document decisions:<\/strong> require agents to output design notes, tradeoffs, and rollback plans.<\/li>\n<!-- \/wp:list-item --><\/ol>\n<!-- \/wp:list -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Roadmap: near &amp; mid\u2011term<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:heading {\"level\":3} -->\n<h3 class=\"wp-block-heading\">1\u20133 years<\/h3>\n<!-- \/wp:heading -->\n\n<!-- wp:list -->\n<ul class=\"wp-block-list\"><!-- wp:list-item -->\n<li>Agent PRs become routine for chores, upgrades, and small features.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li>Common adapters emerge for frameworks, cloud SDKs, and testing stacks.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li>Licensing clarity for open weights with standard policy profiles.<\/li>\n<!-- \/wp:list-item --><\/ul>\n<!-- \/wp:list -->\n\n<!-- wp:heading {\"level\":3} -->\n<h3 class=\"wp-block-heading\">3\u20135 years<\/h3>\n<!-- \/wp:heading -->\n\n<!-- wp:list -->\n<ul class=\"wp-block-list\"><!-- wp:list-item -->\n<li>Release\u2011capable agents negotiate with other agents (SRE, QA) via policy and SLAs.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li>Architecture\u2011level planning with cost\/perf simulators before code is written.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li>Education shifts to <em>systems thinking + verification<\/em> over memorizing APIs.<\/li>\n<!-- \/wp:list-item --><\/ul>\n<!-- \/wp:list -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Conclusion<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:paragraph -->\n<p>Coding agents will not replace developers; they will replace workflows that resist automation. Open\u2011source weights ensure this future is widely accessible, auditable, and adaptable. Teams that invest in tests, policy, and evaluators will compound the fastest. The rest will copy their playbooks\u2014or be automated by them.<\/p>\n<!-- \/wp:paragraph -->\n\n<!-- wp:paragraph -->\n<p><\/p>\n<!-- \/wp:paragraph -->",
+                "post_title": "The Future of Coding Agents &amp; Open\u2011Source",
+                "post_excerpt": "",
+                "post_status": "publish",
+                "comment_status": "open",
+                "ping_status": "open",
+                "post_password": "",
+                "post_name": "the-future-of-coding-agents-open%e2%80%91source",
+                "to_ping": "",
+                "pinged": "",
+                "post_modified": "2025-08-19 10:59:13",
+                "post_modified_gmt": "2025-08-19 10:59:13",
+                "post_content_filtered": "",
+                "post_parent": 0,
+                "guid": "https:\/\/wpmigrate.cloudaccess.host\/?p=22",
+                "menu_order": 0,
+                "post_type": "post",
+                "post_mime_type": "",
+                "comment_count": "0",
+                "filter": "raw",
+                "ancestors": [],
+                "page_template": "",
+                "post_category": [
+                    3
+                ],
+                "tags_input": [
+                    "models"
+                ],
+                "permalink": "https:\/\/wpmigrate.cloudaccess.host\/?p=22",
+                "metadata": {
+                    "_edit_lock": [
+                        "1755601156:1"
+                    ]
+                },
+                "featured_image_url": false,
+                "terms": {
+                    "category": [
+                        {
+                            "term_id": 3,
+                            "name": "Technology",
+                            "slug": "technology",
+                            "term_group": 0,
+                            "term_taxonomy_id": 3,
+                            "taxonomy": "category",
+                            "description": "",
+                            "parent": 0,
+                            "count": 2,
+                            "filter": "raw"
+                        }
+                    ],
+                    "post_tag": [
+                        {
+                            "term_id": 5,
+                            "name": "models",
+                            "slug": "models",
+                            "term_group": 0,
+                            "term_taxonomy_id": 5,
+                            "taxonomy": "post_tag",
+                            "description": "",
+                            "parent": 0,
+                            "count": 1,
+                            "filter": "raw"
+                        }
+                    ],
+                    "post_format": []
+                }
+            },
+            {
+                "ID": 12,
+                "post_author": "1",
+                "post_date": "2025-08-19 10:07:28",
+                "post_date_gmt": "2025-08-19 10:07:28",
+                "post_content": "<!-- wp:paragraph -->\n<p><\/p>\n<!-- \/wp:paragraph -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">What is MCP?<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:paragraph -->\n<p>The <strong>Model Context Protocol (MCP)<\/strong> is an open\u2011source, application\u2011layer standard introduced by Anthropic in November 2024, designed to standardize how large language models (LLMs) connect to external tools, systems, and data sources. It uses JSON\u2011RPC\u202f2.0 for communication and supports multiple transport methods, enabling seamless interoperability between AI systems and tools.<\/p>\n<!-- \/wp:paragraph -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Why Was MCP Created?<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:paragraph -->\n<p>Traditional AI tool integration requires building custom connectors for each API. MCP solves this by acting like a universal \u201cadapter\u201d\u2014much like USB\u2011C for AI\u2014so developers can expose services via a single, reusable interface.<\/p>\n<!-- \/wp:paragraph -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Core Architecture<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:paragraph -->\n<p>MCP follows a clear client\u2013server structure:<\/p>\n<!-- \/wp:paragraph -->\n\n<!-- wp:list -->\n<ul class=\"wp-block-list\"><!-- wp:list-item -->\n<li><strong>MCP Host<\/strong>: AI applications (e.g., Claude Desktop, IDEs) that coordinate the interactions.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>MCP Client<\/strong>: Manages one\u2011to\u2011one connections between the host and each server.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>MCP Server<\/strong>: Exposes tools, resources, and prompt templates from local or external data sources<\/li>\n<!-- \/wp:list-item --><\/ul>\n<!-- \/wp:list -->\n\n<!-- wp:paragraph -->\n<p>Communication is structured via JSON\u2011RPC 2.0 over transports like:<\/p>\n<!-- \/wp:paragraph -->\n\n<!-- wp:list -->\n<ul class=\"wp-block-list\"><!-- wp:list-item -->\n<li><strong>Stdio<\/strong>\u2014for local, high\u2011speed IPC<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Streamable HTTP<\/strong>\u2014for remote communication with optional SSE and authentication support.<\/li>\n<!-- \/wp:list-item --><\/ul>\n<!-- \/wp:list -->\n\n<!-- wp:paragraph -->\n<p><\/p>\n<!-- \/wp:paragraph -->\n\n<!-- wp:image {\"id\":14,\"sizeSlug\":\"full\",\"linkDestination\":\"none\"} -->\n<figure class=\"wp-block-image size-full\"><img src=\"https:\/\/wpmigrate.cloudaccess.host\/wp-content\/uploads\/2025\/08\/Screenshot-2025-06-26-160910.png\" alt=\"\" class=\"wp-image-14\"\/><\/figure>\n<!-- \/wp:image -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Features &amp; Benefits<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:list -->\n<ul class=\"wp-block-list\"><!-- wp:list-item -->\n<li><strong>Plug\u2011and\u2011play tool integration:<\/strong> Any MCP\u2010compliant tool can be discovered and invoked dynamically<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Modularity:<\/strong> Decouples tool logic from AI agents and encourages reuse.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Dynamic discovery:<\/strong> AI can fetch available tools at runtime without hard\u2011coding.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Wide adoption:<\/strong> Embraced by OpenAI, Google DeepMind, Microsoft, and platforms like Replit and Sourcegraph.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Supports secure and user\u2011controlled access:<\/strong> Hosts can require explicit permissions before exposing sensitive data.<\/li>\n<!-- \/wp:list-item --><\/ul>\n<!-- \/wp:list -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Security Considerations<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:paragraph -->\n<p>Despite its versatility, MCP has revealed security challenges. Researchers have demonstrated attack vectors like prompt injection, tool poisoning, and malicious MCP servers that can exfiltrate data or execute harmful actions.<\/p>\n<!-- \/wp:paragraph -->\n\n<!-- wp:paragraph -->\n<p>On the defensive side, new solutions such as <strong>MCP\u2011Guard<\/strong> use static scanning, neural detection, and arbitration to block adversarial prompts\u2014achieving over 96% detection accuracy.<\/p>\n<!-- \/wp:paragraph -->\n\n<!-- wp:paragraph -->\n<p><\/p>\n<!-- \/wp:paragraph -->",
+                "post_title": "Understanding the Model Context Protocol (MCP)",
+                "post_excerpt": "",
+                "post_status": "publish",
+                "comment_status": "open",
+                "ping_status": "open",
+                "post_password": "",
+                "post_name": "understanding-the-model-context-protocol-mcp",
+                "to_ping": "",
+                "pinged": "",
+                "post_modified": "2025-08-19 10:07:28",
+                "post_modified_gmt": "2025-08-19 10:07:28",
+                "post_content_filtered": "",
+                "post_parent": 0,
+                "guid": "https:\/\/wpmigrate.cloudaccess.host\/?p=12",
+                "menu_order": 0,
+                "post_type": "post",
+                "post_mime_type": "",
+                "comment_count": "0",
+                "filter": "raw",
+                "ancestors": [],
+                "page_template": "",
+                "post_category": [
+                    3
+                ],
+                "tags_input": [
+                    "latest"
+                ],
+                "permalink": "https:\/\/wpmigrate.cloudaccess.host\/?p=12",
+                "metadata": {
+                    "_edit_lock": [
+                        "1755598073:1"
+                    ]
+                },
+                "featured_image_url": false,
+                "terms": {
+                    "category": [
+                        {
+                            "term_id": 3,
+                            "name": "Technology",
+                            "slug": "technology",
+                            "term_group": 0,
+                            "term_taxonomy_id": 3,
+                            "taxonomy": "category",
+                            "description": "",
+                            "parent": 0,
+                            "count": 2,
+                            "filter": "raw"
+                        }
+                    ],
+                    "post_tag": [
+                        {
+                            "term_id": 4,
+                            "name": "latest",
+                            "slug": "latest",
+                            "term_group": 0,
+                            "term_taxonomy_id": 4,
+                            "taxonomy": "post_tag",
+                            "description": "",
+                            "parent": 0,
+                            "count": 1,
+                            "filter": "raw"
+                        }
+                    ],
+                    "post_format": []
+                }
+            },
+            {
+                "ID": 1,
+                "post_author": "1",
+                "post_date": "2025-08-05 06:21:47",
+                "post_date_gmt": "2025-08-05 06:21:47",
+                "post_content": "<!-- wp:paragraph -->\n<p>Welcome to WordPress. This is your first post. Edit or delete it, then start writing!<\/p>\n<!-- \/wp:paragraph -->",
+                "post_title": "Hello world!",
+                "post_excerpt": "",
+                "post_status": "publish",
+                "comment_status": "open",
+                "ping_status": "open",
+                "post_password": "",
+                "post_name": "hello-world",
+                "to_ping": "",
+                "pinged": "",
+                "post_modified": "2025-08-05 06:21:47",
+                "post_modified_gmt": "2025-08-05 06:21:47",
+                "post_content_filtered": "",
+                "post_parent": 0,
+                "guid": "http:\/\/wpmigrate.cloudaccess.host\/httpdocs\/?p=1",
+                "menu_order": 0,
+                "post_type": "post",
+                "post_mime_type": "",
+                "comment_count": "0",
+                "filter": "raw",
+                "ancestors": [],
+                "page_template": "",
+                "post_category": [
+                    1
+                ],
+                "tags_input": [],
+                "permalink": "https:\/\/wpmigrate.cloudaccess.host\/?p=1",
+                "metadata": [],
+                "featured_image_url": false,
+                "terms": {
+                    "category": [
+                        {
+                            "term_id": 1,
+                            "name": "Uncategorized",
+                            "slug": "uncategorized",
+                            "term_group": 0,
+                            "term_taxonomy_id": 1,
+                            "taxonomy": "category",
+                            "description": "",
+                            "parent": 0,
+                            "count": 1,
+                            "filter": "raw"
+                        }
+                    ],
+                    "post_tag": [],
+                    "post_format": []
+                }
+            }
+        ],
+        "page": [
+            {
+                "ID": 18,
+                "post_author": "1",
+                "post_date": "2025-08-19 10:17:14",
+                "post_date_gmt": "2025-08-19 10:17:14",
+                "post_content": "<!-- wp:heading {\"level\":1} -->\n<h1 class=\"wp-block-heading\">Open\u2011Weight Future: Exploring OpenAI\u2019s GPT\u2011OSS Models<\/h1>\n<!-- \/wp:heading -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">What Are GPT\u2011OSS Models?<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:paragraph -->\n<p>GPT\u2011OSS refers to OpenAI's newly released open\u2011weight language models\u2014gpt\u2011oss\u2011120b and gpt\u2011oss\u201120b\u2014marking its first public\u2011weight offerings since GPT\u20112. These models are available under an Apache\u202f2.0 license, enabling developers to download, modify, and deploy them freely.<\/p>\n<!-- \/wp:paragraph -->\n\n<!-- wp:image {\"id\":19,\"sizeSlug\":\"full\",\"linkDestination\":\"none\"} -->\n<figure class=\"wp-block-image size-full\"><img src=\"https:\/\/wpmigrate.cloudaccess.host\/wp-content\/uploads\/2025\/08\/What-Is-GPT-OSS.webp\" alt=\"\" class=\"wp-image-19\"\/><\/figure>\n<!-- \/wp:image -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Model Specifications<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:table -->\n<figure class=\"wp-block-table\"><table class=\"has-fixed-layout\"><tbody><tr><th>Model<\/th><th>Total Params<\/th><th>Active Params \/ Token<\/th><th>Experts \/ Active Experts<\/th><th>Layers<\/th><th>Context Window<\/th><th>Hardware Req.<\/th><\/tr><tr><td>gpt\u2011oss\u2011120b<\/td><td>~117B<\/td><td>~5.1B<\/td><td>128 \/ 4<\/td><td>36<\/td><td>128K tokens<\/td><td>~80\u202fGB GPU<\/td><\/tr><tr><td>gpt\u2011oss\u201120b<\/td><td>~21B<\/td><td>~3.6B<\/td><td>32 \/ 4<\/td><td>24<\/td><td>128K tokens<\/td><td>~16\u202fGB GPU<\/td><\/tr><\/tbody><\/table><\/figure>\n<!-- \/wp:table -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Architecture &amp; Key Features<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:list -->\n<ul class=\"wp-block-list\"><!-- wp:list-item -->\n<li><strong>Mixture-of-Experts (MoE):<\/strong> Efficient inference by activating only a fraction of the model per token.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Grouped Multi-Query Attention:<\/strong> Optimizes memory and speed.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Rotary Positional Embedding (RoPE):<\/strong> Enhances context handling.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>128K Context Length:<\/strong> Supports long-form inputs like entire books.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>Chain-of-Thought (CoT):<\/strong> Enables multi-step reasoning; configurable intensity (low\/medium\/high).<\/li>\n<!-- \/wp:list-item --><\/ul>\n<!-- \/wp:list -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Compatibility &amp; Licensing<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:list -->\n<ul class=\"wp-block-list\"><!-- wp:list-item -->\n<li>Released under Apache\u202f2.0\u2014completely open and permissive.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li>Compatible with frameworks like Transformers, ONNX Runtime, vLLM, Ollama, Azure, AWS, and more.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li>Supports quantization using MXFP4 for reduced memory use.<\/li>\n<!-- \/wp:list-item --><\/ul>\n<!-- \/wp:list -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Performance<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:paragraph -->\n<p>Benchmarks show that:<\/p>\n<!-- \/wp:paragraph -->\n\n<!-- wp:list -->\n<ul class=\"wp-block-list\"><!-- wp:list-item -->\n<li><strong>120\u202fB model:<\/strong> Matches or exceeds OpenAI\u2019s proprietary o4-mini in math, coding, and tool-based tasks.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li><strong>20\u202fB model:<\/strong> Matches o3-mini performance while being dramatically lighter.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li>Surprisingly, the smaller 20B variant often outperforms the 120B version in certain real-world coding and general reasoning tasks.<\/li>\n<!-- \/wp:list-item --><\/ul>\n<!-- \/wp:list -->\n\n<!-- wp:heading -->\n<h2 class=\"wp-block-heading\">Safety &amp; Openness<\/h2>\n<!-- \/wp:heading -->\n\n<!-- wp:list -->\n<ul class=\"wp-block-list\"><!-- wp:list-item -->\n<li>Underwent rigorous safety evaluations; adversarial fine-tuning did not elevate risk levels in cyber or bio domains.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li>Supports full Chain-of-Thought\u2014visible and auditable reasoning paths.<\/li>\n<!-- \/wp:list-item -->\n\n<!-- wp:list-item -->\n<li>Open access democratizes AI while also placing trust and governance in developer hands.<\/li>\n<!-- \/wp:list-item --><\/ul>\n<!-- \/wp:list -->\n\n<!-- wp:paragraph -->\n<p>Visit OpenAI\u2019s model card page or explore on Hugging Face to get started with GPT\u2011OSS today!<\/p>\n<!-- \/wp:paragraph -->\n\n<!-- wp:paragraph -->\n<p><\/p>\n<!-- \/wp:paragraph -->",
+                "post_title": "OpenAI\u2019s GPT\u2011OSS Open\u2011Weight Models",
+                "post_excerpt": "",
+                "post_status": "publish",
+                "comment_status": "closed",
+                "ping_status": "closed",
+                "post_password": "",
+                "post_name": "openais-gpt%e2%80%91oss-open%e2%80%91weight-models",
+                "to_ping": "",
+                "pinged": "",
+                "post_modified": "2025-08-19 10:17:14",
+                "post_modified_gmt": "2025-08-19 10:17:14",
+                "post_content_filtered": "",
+                "post_parent": 0,
+                "guid": "https:\/\/wpmigrate.cloudaccess.host\/?page_id=18",
+                "menu_order": 0,
+                "post_type": "page",
+                "post_mime_type": "",
+                "comment_count": "0",
+                "filter": "raw",
+                "ancestors": [],
+                "page_template": "",
+                "post_category": [],
+                "tags_input": [],
+                "permalink": "https:\/\/wpmigrate.cloudaccess.host\/?page_id=18",
+                "metadata": {
+                    "_edit_lock": [
+                        "1755598641:1"
+                    ]
+                },
+                "featured_image_url": false,
+                "terms": []
+            }
+        ],
+        "attachment": [
+            {
+                "ID": 25,
+                "post_author": "1",
+                "post_date": "2025-08-19 10:33:45",
+                "post_date_gmt": "2025-08-19 10:33:45",
+                "post_content": "",
+                "post_title": "oss_models",
+                "post_excerpt": "",
+                "post_status": "inherit",
+                "comment_status": "open",
+                "ping_status": "closed",
+                "post_password": "",
+                "post_name": "oss_models",
+                "to_ping": "",
+                "pinged": "",
+                "post_modified": "2025-08-19 10:33:45",
+                "post_modified_gmt": "2025-08-19 10:33:45",
+                "post_content_filtered": "",
+                "post_parent": 22,
+                "guid": "https:\/\/wpmigrate.cloudaccess.host\/wp-content\/uploads\/2025\/08\/oss_models.png",
+                "menu_order": 0,
+                "post_type": "attachment",
+                "post_mime_type": "image\/png",
+                "comment_count": "0",
+                "filter": "raw",
+                "ancestors": [
+                    22
+                ],
+                "page_template": "",
+                "post_category": [],
+                "tags_input": [],
+                "permalink": "https:\/\/wpmigrate.cloudaccess.host\/?attachment_id=25",
+                "metadata": {
+                    "_wp_attached_file": [
+                        "2025\/08\/oss_models.png"
+                    ],
+                    "_wp_attachment_metadata": [
+                        "a:6:{s:5:\"width\";i:1096;s:6:\"height\";i:617;s:4:\"file\";s:22:\"2025\/08\/oss_models.png\";s:8:\"filesize\";i:112781;s:5:\"sizes\";a:4:{s:6:\"medium\";a:5:{s:4:\"file\";s:22:\"oss_models-300x169.png\";s:5:\"width\";i:300;s:6:\"height\";i:169;s:9:\"mime-type\";s:9:\"image\/png\";s:8:\"filesize\";i:10126;}s:5:\"large\";a:5:{s:4:\"file\";s:23:\"oss_models-1024x576.png\";s:5:\"width\";i:1024;s:6:\"height\";i:576;s:9:\"mime-type\";s:9:\"image\/png\";s:8:\"filesize\";i:50935;}s:9:\"thumbnail\";a:5:{s:4:\"file\";s:22:\"oss_models-150x150.png\";s:5:\"width\";i:150;s:6:\"height\";i:150;s:9:\"mime-type\";s:9:\"image\/png\";s:8:\"filesize\";i:5928;}s:12:\"medium_large\";a:5:{s:4:\"file\";s:22:\"oss_models-768x432.png\";s:5:\"width\";i:768;s:6:\"height\";i:432;s:9:\"mime-type\";s:9:\"image\/png\";s:8:\"filesize\";i:34046;}}s:10:\"image_meta\";a:12:{s:8:\"aperture\";s:1:\"0\";s:6:\"credit\";s:0:\"\";s:6:\"camera\";s:0:\"\";s:7:\"caption\";s:0:\"\";s:17:\"created_timestamp\";s:1:\"0\";s:9:\"copyright\";s:0:\"\";s:12:\"focal_length\";s:1:\"0\";s:3:\"iso\";s:1:\"0\";s:13:\"shutter_speed\";s:1:\"0\";s:5:\"title\";s:0:\"\";s:11:\"orientation\";s:1:\"0\";s:8:\"keywords\";a:0:{}}}"
+                    ]
+                },
+                "featured_image_url": false,
+                "terms": []
+            },
+            {
+                "ID": 19,
+                "post_author": "1",
+                "post_date": "2025-08-19 10:16:35",
+                "post_date_gmt": "2025-08-19 10:16:35",
+                "post_content": "",
+                "post_title": "What-Is-GPT-OSS",
+                "post_excerpt": "",
+                "post_status": "inherit",
+                "comment_status": "open",
+                "ping_status": "closed",
+                "post_password": "",
+                "post_name": "what-is-gpt-oss",
+                "to_ping": "",
+                "pinged": "",
+                "post_modified": "2025-08-19 10:16:35",
+                "post_modified_gmt": "2025-08-19 10:16:35",
+                "post_content_filtered": "",
+                "post_parent": 18,
+                "guid": "https:\/\/wpmigrate.cloudaccess.host\/wp-content\/uploads\/2025\/08\/What-Is-GPT-OSS.webp",
+                "menu_order": 0,
+                "post_type": "attachment",
+                "post_mime_type": "image\/webp",
+                "comment_count": "0",
+                "filter": "raw",
+                "ancestors": [
+                    18
+                ],
+                "page_template": "",
+                "post_category": [],
+                "tags_input": [],
+                "permalink": "https:\/\/wpmigrate.cloudaccess.host\/?attachment_id=19",
+                "metadata": {
+                    "_wp_attached_file": [
+                        "2025\/08\/What-Is-GPT-OSS.webp"
+                    ],
+                    "_wp_attachment_metadata": [
+                        "a:6:{s:5:\"width\";i:1024;s:6:\"height\";i:512;s:4:\"file\";s:28:\"2025\/08\/What-Is-GPT-OSS.webp\";s:8:\"filesize\";i:10240;s:5:\"sizes\";a:3:{s:6:\"medium\";a:5:{s:4:\"file\";s:28:\"What-Is-GPT-OSS-300x150.webp\";s:5:\"width\";i:300;s:6:\"height\";i:150;s:9:\"mime-type\";s:10:\"image\/webp\";s:8:\"filesize\";i:2908;}s:9:\"thumbnail\";a:5:{s:4:\"file\";s:28:\"What-Is-GPT-OSS-150x150.webp\";s:5:\"width\";i:150;s:6:\"height\";i:150;s:9:\"mime-type\";s:10:\"image\/webp\";s:8:\"filesize\";i:2128;}s:12:\"medium_large\";a:5:{s:4:\"file\";s:28:\"What-Is-GPT-OSS-768x384.webp\";s:5:\"width\";i:768;s:6:\"height\";i:384;s:9:\"mime-type\";s:10:\"image\/webp\";s:8:\"filesize\";i:7998;}}s:10:\"image_meta\";a:12:{s:8:\"aperture\";s:1:\"0\";s:6:\"credit\";s:0:\"\";s:6:\"camera\";s:0:\"\";s:7:\"caption\";s:0:\"\";s:17:\"created_timestamp\";s:1:\"0\";s:9:\"copyright\";s:0:\"\";s:12:\"focal_length\";s:1:\"0\";s:3:\"iso\";s:1:\"0\";s:13:\"shutter_speed\";s:1:\"0\";s:5:\"title\";s:0:\"\";s:11:\"orientation\";s:1:\"0\";s:8:\"keywords\";a:0:{}}}"
+                    ]
+                },
+                "featured_image_url": false,
+                "terms": []
+            },
+            {
+                "ID": 14,
+                "post_author": "1",
+                "post_date": "2025-08-19 10:06:45",
+                "post_date_gmt": "2025-08-19 10:06:45",
+                "post_content": "",
+                "post_title": "Screenshot-2025-06-26-160910",
+                "post_excerpt": "",
+                "post_status": "inherit",
+                "comment_status": "open",
+                "ping_status": "closed",
+                "post_password": "",
+                "post_name": "screenshot-2025-06-26-160910",
+                "to_ping": "",
+                "pinged": "",
+                "post_modified": "2025-08-19 10:06:45",
+                "post_modified_gmt": "2025-08-19 10:06:45",
+                "post_content_filtered": "",
+                "post_parent": 12,
+                "guid": "https:\/\/wpmigrate.cloudaccess.host\/wp-content\/uploads\/2025\/08\/Screenshot-2025-06-26-160910.png",
+                "menu_order": 0,
+                "post_type": "attachment",
+                "post_mime_type": "image\/png",
+                "comment_count": "0",
+                "filter": "raw",
+                "ancestors": [
+                    12
+                ],
+                "page_template": "",
+                "post_category": [],
+                "tags_input": [],
+                "permalink": "https:\/\/wpmigrate.cloudaccess.host\/?attachment_id=14",
+                "metadata": {
+                    "_wp_attached_file": [
+                        "2025\/08\/Screenshot-2025-06-26-160910.png"
+                    ],
+                    "_wp_attachment_metadata": [
+                        "a:6:{s:5:\"width\";i:915;s:6:\"height\";i:633;s:4:\"file\";s:40:\"2025\/08\/Screenshot-2025-06-26-160910.png\";s:8:\"filesize\";i:56587;s:5:\"sizes\";a:3:{s:6:\"medium\";a:5:{s:4:\"file\";s:40:\"Screenshot-2025-06-26-160910-300x208.png\";s:5:\"width\";i:300;s:6:\"height\";i:208;s:9:\"mime-type\";s:9:\"image\/png\";s:8:\"filesize\";i:6696;}s:9:\"thumbnail\";a:5:{s:4:\"file\";s:40:\"Screenshot-2025-06-26-160910-150x150.png\";s:5:\"width\";i:150;s:6:\"height\";i:150;s:9:\"mime-type\";s:9:\"image\/png\";s:8:\"filesize\";i:3326;}s:12:\"medium_large\";a:5:{s:4:\"file\";s:40:\"Screenshot-2025-06-26-160910-768x531.png\";s:5:\"width\";i:768;s:6:\"height\";i:531;s:9:\"mime-type\";s:9:\"image\/png\";s:8:\"filesize\";i:24504;}}s:10:\"image_meta\";a:12:{s:8:\"aperture\";s:1:\"0\";s:6:\"credit\";s:0:\"\";s:6:\"camera\";s:0:\"\";s:7:\"caption\";s:0:\"\";s:17:\"created_timestamp\";s:1:\"0\";s:9:\"copyright\";s:0:\"\";s:12:\"focal_length\";s:1:\"0\";s:3:\"iso\";s:1:\"0\";s:13:\"shutter_speed\";s:1:\"0\";s:5:\"title\";s:0:\"\";s:11:\"orientation\";s:1:\"0\";s:8:\"keywords\";a:0:{}}}"
+                    ]
+                },
+                "featured_image_url": false,
+                "terms": []
+            }
+        ]
+    },
+    "taxonomies": {
+        "category": [
+            {
+                "term_id": 3,
+                "name": "Technology",
+                "slug": "technology",
+                "term_group": 0,
+                "term_taxonomy_id": 3,
+                "taxonomy": "category",
+                "description": "",
+                "parent": 0,
+                "count": 2,
+                "filter": "raw",
+                "metadata": []
+            },
+            {
+                "term_id": 1,
+                "name": "Uncategorized",
+                "slug": "uncategorized",
+                "term_group": 0,
+                "term_taxonomy_id": 1,
+                "taxonomy": "category",
+                "description": "",
+                "parent": 0,
+                "count": 1,
+                "filter": "raw",
+                "metadata": []
+            }
+        ],
+        "post_tag": [
+            {
+                "term_id": 4,
+                "name": "latest",
+                "slug": "latest",
+                "term_group": 0,
+                "term_taxonomy_id": 4,
+                "taxonomy": "post_tag",
+                "description": "",
+                "parent": 0,
+                "count": 1,
+                "filter": "raw",
+                "metadata": []
+            },
+            {
+                "term_id": 5,
+                "name": "models",
+                "slug": "models",
+                "term_group": 0,
+                "term_taxonomy_id": 5,
+                "taxonomy": "post_tag",
+                "description": "",
+                "parent": 0,
+                "count": 1,
+                "filter": "raw",
+                "metadata": []
+            }
+        ],
+        "post_format": []
+    }
+}
