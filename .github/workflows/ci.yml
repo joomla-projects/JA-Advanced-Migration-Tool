@@ -5,6 +5,8 @@ on:
     branches: [main, cypress-testing-beta]
   pull_request:
     branches: [main, cypress-testing-beta]
+  release:
+    types: [published] # runs only when a release is published in GitHub UI
 
 jobs:
   test:
@@ -101,51 +103,48 @@ jobs:
           name: test-videos
           path: cypress/videos
 
-      - name: Get version from XML
-        id: get_version
-        run: |
-          VERSION=$(grep -oP '(?<=<version>)[^<]+' src/component/cmsmigrator.xml)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+  release:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'release'
 
-      - name: Get latest tag and increment
-        id: increment_version
-        run: |
-          LATEST_TAG=$(git tag --sort=-version:refname | head -1 | sed 's/v//')
-          if [ -z "$LATEST_TAG" ]; then
-            NEW_VERSION="0.0.1"
-          else
-            IFS='.' read -r major minor patch <<< "$LATEST_TAG"
-            NEW_VERSION="$major.$minor.$((patch + 1))"
-          fi
-          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # fetch full history so branches & tags are available
 
-      - name: Create component zip
+      - name: Switch to main branch properly
         run: |
+          git fetch origin main
+          git checkout -B main origin/main
+
+      - name: Extract version from release tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create component zip with version
+        run: |
+          mkdir -p cypress/fixtures
           cd src/component
-          zip -r ../../cypress/fixtures/com_cmsmigrator.zip .
+          zip -r ../../cypress/fixtures/com_cmsmigrator_v${{ steps.version.outputs.version }}.zip .
 
-      - name: Rename zip with version
-        run: |
-          mv cypress/fixtures/com_cmsmigrator.zip cypress/fixtures/com_cmsmigrator_v${{ steps.increment_version.outputs.new_version }}.zip
+      - name: Verify zip file exists
+        run: ls -lh cypress/fixtures/
 
       - name: Update XML version
         run: |
-          sed -i "s|<version>.*</version>|<version>${{ steps.increment_version.outputs.new_version }}</version>|" src/component/cmsmigrator.xml
+          sed -i "s|<version>.*</version>|<version>${{ steps.version.outputs.version }}</version>|" src/component/cmsmigrator.xml
 
       - name: Commit version update
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add src/component/cmsmigrator.xml
-          git commit -m "Bump version to ${{ steps.increment_version.outputs.new_version }}"
-          git push
+          git commit -m "Bump version to ${{ steps.version.outputs.version }}" || echo "No changes to commit"
+          git push origin main
 
-      - name: Create Release
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: gh release create v${{ steps.increment_version.outputs.new_version }} \
-              cypress/fixtures/com_cmsmigrator_v${{ steps.increment_version.outputs.new_version }}.zip \
-              --title "Release v${{ steps.increment_version.outputs.new_version }}" \
-              --notes "Automated release of Joomla Advanced Migration Tool v${{ steps.increment_version.outputs.new_version }}"
+      - name: Upload asset to GitHub Release
+        run: |
+          gh release upload ${{ github.event.release.tag_name }} cypress/fixtures/com_cmsmigrator_v${{ steps.version.outputs.version }}.zip --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
