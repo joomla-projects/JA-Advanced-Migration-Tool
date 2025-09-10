@@ -6,28 +6,32 @@
 
 describe("WordPress Migration", () => {
   beforeEach(() => {
-    // Login as administrator
-    cy.doAdministratorLogin(
+    // Use fresh login to ensure clean authentication
+    cy.doFreshAdministratorLogin(
       Cypress.env("joomlaAdminUser"),
       Cypress.env("joomlaAdminPass"),
       true
     );
+
     // Navigate to CMS Migrator component
     cy.visit("/administrator/index.php?option=com_cmsmigrator");
+    cy.handlePopups();
   });
 
   it("should install the WordPress migration plugin", () => {
-    cy.session("adminLogin", () => {
-      cy.doAdministratorLogin(
-        Cypress.env("joomlaAdminUser"),
-        Cypress.env("joomlaAdminPass"),
-        true
-      );
-    });
+    // Use fresh login for this critical operation
+    cy.doFreshAdministratorLogin(
+      Cypress.env("joomlaAdminUser"),
+      Cypress.env("joomlaAdminPass"),
+      true
+    );
+
     // Zip the WordPress plugin folder
     cy.exec(
-      "powershell -Command \"Compress-Archive -Path 'src\\plugins\\migration\\wordpress\\*' -DestinationPath 'cypress\\fixtures\\plg_wordpress.zip' -Force\""
+      "cd src/plugins/migration/wordpress && zip -r ../../../../cypress/fixtures/plg_wordpress.zip ."
     );
+    cy.readFile("cypress/fixtures/plg_wordpress.zip", { timeout: 5000 })
+      .should("exist");
     // Install the plugin
     cy.visit("/administrator/index.php?option=com_installer&view=install");
     cy.contains("a,button", "Upload Package File", { matchCase: false })
@@ -49,13 +53,13 @@ describe("WordPress Migration", () => {
   });
 
   it("should verify the WordPress migration plugin is installed", () => {
-    cy.session("adminLogin", () => {
-      cy.doAdministratorLogin(
-        Cypress.env("joomlaAdminUser"),
-        Cypress.env("joomlaAdminPass"),
-        true
-      );
-    });
+    // Use fresh login for verification
+    cy.doFreshAdministratorLogin(
+      Cypress.env("joomlaAdminUser"),
+      Cypress.env("joomlaAdminPass"),
+      true
+    );
+
     // Verify the plugin is installed
     cy.visit("/administrator/index.php?option=com_installer&view=manage");
     cy.get('input[placeholder="Search"], input[name="filter_search"]')

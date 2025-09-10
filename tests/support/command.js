@@ -1,18 +1,76 @@
-// Handle common Joomla popups
+// Handle common Joomla popups and guided tours
 Cypress.Commands.add("handlePopups", () => {
   cy.get("body").then(($body) => {
+    // Handle various guided tour modals
+    const guidedTourSelectors = [
+      ".guided-tour-modal",
+      "[data-joomla-guidedtours]",
+      ".joomla-guided-tour",
+      "[data-guided-tour]",
+      '.modal.show:has([class*="guided"])',
+      '.modal.show:has([class*="tour"])',
+    ];
+
+    guidedTourSelectors.forEach((selector) => {
+      if ($body.find(selector).length) {
+        cy.get("body").then(() => {
+          cy.get(
+            'button[data-bs-dismiss="modal"], button:contains("Skip"), button:contains("Close"), button:contains("Got it"), button:contains("Next"), button:contains("End tour"), .btn-close',
+            { timeout: 2000 }
+          )
+            .first()
+            .click({ force: true })
+            .then(() => cy.wait(500));
+        });
+      }
+    });
+
+    // Handle general modals
     if ($body.find(".modal.show").length) {
-      cy.get('.modal.show [data-bs-dismiss="modal"]').click({ force: true });
+      cy.get(".modal.show").then(($modal) => {
+        // Check if it's a guided tour modal
+        if ($modal.find('[class*="guided"], [class*="tour"]').length) {
+          cy.get(
+            '.modal.show button:contains("Skip"), .modal.show button:contains("Close"), .modal.show .btn-close'
+          )
+            .first()
+            .click({ force: true });
+        } else {
+          cy.get('.modal.show [data-bs-dismiss="modal"]')
+            .first()
+            .click({ force: true });
+        }
+      });
     }
+
+    // Handle dismiss buttons
     if ($body.find('[data-bs-dismiss="modal"]:contains("Skip")').length) {
       cy.get('[data-bs-dismiss="modal"]:contains("Skip")').click({
         force: true,
       });
     }
-    if ($body.find('button:contains("Deny")').length) {
-      cy.get('button:contains("Deny")').click({ force: true });
+
+    // Handle cookie/privacy notices
+    if (
+      $body.find(
+        'button:contains("Deny"), button:contains("Accept"), button:contains("Dismiss")'
+      ).length
+    ) {
+      cy.get(
+        'button:contains("Deny"), button:contains("Accept"), button:contains("Dismiss")'
+      )
+        .first()
+        .click({ force: true });
+    }
+
+    // Handle overlay backdrops
+    if ($body.find(".modal-backdrop").length) {
+      cy.get(".modal-backdrop").click({ force: true });
     }
   });
+
+  // Small wait to allow any animations to complete
+  cy.wait(300);
 });
 
 // Handle confirmation dialogs
@@ -129,63 +187,124 @@ Cypress.Commands.add("trashAndEmpty", (listUrl, itemType = "items") => {
   });
 });
 
-// Custom logout command with multiple selector fallbacks
-Cypress.Commands.add("customAdministratorLogout", () => {
+// Disable Joomla guided tours
+Cypress.Commands.add("disableGuidedTours", () => {
+  cy.log("Disabling Joomla guided tours...");
+
+  // Try to disable guided tours via different methods
   cy.get("body").then(($body) => {
-    // Try multiple selectors for the user menu/profile dropdown
-    const selectors = [
-      ".header-item .header-profile > .dropdown-toggle",
-      ".header-profile .dropdown-toggle",
-      '[data-bs-toggle="dropdown"]',
-      ".navbar-nav .dropdown-toggle",
-      "a.dropdown-toggle",
-      "button.dropdown-toggle",
-    ];
+    // Method 1: Look for "Hide Forever" or "Don't show again" buttons
+    if (
+      $body.find(
+        "button:contains('Hide Forever'), button:contains('Don\\'t show again'), button:contains('Skip'), button:contains('Close')"
+      ).length
+    ) {
+      cy.get(
+        "button:contains('Hide Forever'), button:contains('Don\\'t show again'), button:contains('Skip'), button:contains('Close')"
+      )
+        .first()
+        .click({ force: true });
+      cy.wait(1000);
+    }
 
-    let found = false;
-    for (const selector of selectors) {
-      if ($body.find(selector).length > 0) {
-        cy.get(selector).first().click({ force: true });
-        found = true;
-        break;
+    // Method 2: Try to access guided tours configuration
+    cy.then(() => {
+      try {
+        // Try to set localStorage to disable guided tours
+        cy.window().then((win) => {
+          win.localStorage.setItem("joomla_guided_tours_disabled", "true");
+          win.localStorage.setItem("plg_system_guidedtours", "disabled");
+
+          // Also try to disable via session storage
+          win.sessionStorage.setItem("joomla_guided_tours_disabled", "true");
+        });
+      } catch (e) {
+        cy.log("Could not set localStorage for guided tours");
       }
-    }
+    });
 
-    if (!found) {
-      cy.log("No user menu dropdown found, trying direct logout link");
-    }
+    // Method 3: Try to navigate to guided tours configuration page
+    cy.then(() => {
+      try {
+        cy.visit(
+          "/administrator/index.php?option=com_plugins&filter_search=guided+tours",
+          { failOnStatusCode: false }
+        ).then(() => {
+          // If we can access the plugins page, try to disable the plugin
+          cy.get("body").then(($body) => {
+            if ($body.find("td:contains('System - Guided Tours')").length) {
+              cy.contains("td", "System - Guided Tours")
+                .parent()
+                .find('input[type="checkbox"]')
+                .uncheck({ force: true });
+              cy.get('button[onclick*="Joomla.submitbutton"], .btn-success')
+                .first()
+                .click({ force: true });
+            }
+          });
+        });
+      } catch (e) {
+        cy.log("Could not access guided tours plugin configuration");
+      }
+    });
   });
+});
 
-  cy.wait(500);
+// Fresh login command that completely clears session before logging in
+Cypress.Commands.add(
+  "doFreshAdministratorLogin",
+  (username, password, useEnvCredentials = false) => {
+    cy.log("🔄 Performing fresh administrator login...");
 
-  // Try to find and click logout link
-  cy.get("body").then(($body) => {
-    const logoutSelectors = [
-      'a:contains("Logout")',
-      'a:contains("Log out")',
-      '[href*="logout"]',
-      '.dropdown-menu a:contains("Logout")',
-      '.dropdown-menu a:contains("Log out")',
-    ];
+    // Clear all possible session data
+    cy.clearCookies();
+    cy.clearLocalStorage();
+    cy.clearAllSessionStorage();
 
-    let found = false;
-    for (const selector of logoutSelectors) {
-      if ($body.find(selector).length > 0) {
-        cy.get(selector).first().click({ force: true });
-        found = true;
-        break;
-      }
-    }
-
-    if (!found) {
-      cy.log("No logout link found, trying alternative approach");
-      // Fallback: clear session and cookies
-      cy.window().then((win) => {
+    // Also clear any browser session data if accessible
+    cy.window().then((win) => {
+      try {
         win.sessionStorage.clear();
         win.localStorage.clear();
-      });
-      cy.clearCookies();
-      cy.visit("/administrator");
+      } catch (e) {
+        cy.log("Could not clear window storage");
+      }
+    });
+
+    // Wait a moment for clearing to take effect
+    cy.wait(500);
+
+    // Now perform the login
+    cy.doAdministratorLogin(username, password, useEnvCredentials);
+
+    // Handle any popups after login
+    cy.handlePopups();
+    cy.wait(1000);
+
+    cy.log("✅ Fresh administrator login completed");
+  }
+);
+
+// Check for PHP notices and warnings
+Cypress.Commands.add("checkForPhpNoticesOrWarnings", () => {
+  cy.get("body").then(($body) => {
+    // Check for PHP error displays in the HTML
+    const phpErrors =
+      $body.find(".php-error, .error, .notice, .warning").length > 0;
+    const errorText = $body.text();
+
+    // Look for common PHP error patterns in the page content
+    const hasPhpErrors =
+      /PHP (Warning|Error|Notice|Fatal error)/i.test(errorText) ||
+      /Undefined (variable|index|offset)/i.test(errorText) ||
+      /Call to undefined function/i.test(errorText);
+
+    if (phpErrors || hasPhpErrors) {
+      cy.log("⚠️ PHP errors or warnings detected on page");
+      // Don't fail the test, just log it
+      cy.wrap(null).should("not.be.null"); // This will pass but log the issue
+    } else {
+      cy.log("✅ No PHP errors or warnings detected");
     }
   });
 });

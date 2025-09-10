@@ -20,7 +20,7 @@ describe("Framework Validation", () => {
 
   it("should have working joomla-cypress commands", () => {
     // Test basic joomla-cypress functionality
-    cy.doAdministratorLogin(
+    cy.doFreshAdministratorLogin(
       Cypress.env("joomlaAdminUser"),
       Cypress.env("joomlaAdminPass"),
       true
@@ -62,12 +62,22 @@ describe("Framework Validation", () => {
       true
     );
 
+    // Disable Joomla guided tours to prevent JavaScript errors
+    cy.disableGuidedTours();
+
+    // Handle any remaining popups
+    cy.handlePopups();
+
     // Navigate to users section
     cy.visit("/administrator/index.php?option=com_users");
+    cy.disableGuidedTours();
+    cy.handlePopups();
     cy.get("h1, .page-title").should("be.visible");
 
     // Navigate to articles
     cy.visit("/administrator/index.php?option=com_content");
+    cy.disableGuidedTours();
+    cy.handlePopups();
     cy.get("h1, .page-title").should("be.visible");
   });
 

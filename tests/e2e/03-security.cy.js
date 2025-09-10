@@ -6,41 +6,35 @@
 
 describe("Joomla Security Framework", () => {
   beforeEach(() => {
-    cy.doAdministratorLogin(
+    // Use fresh login to ensure clean authentication
+    cy.doFreshAdministratorLogin(
       Cypress.env("joomlaAdminUser"),
       Cypress.env("joomlaAdminPass"),
       true
     );
   });
 
-  afterEach(() => {
-    // Ensure we stay logged in for other tests
-    // Re-authenticate if needed without causing errors
-    cy.url().then((currentUrl) => {
-      if (
-        !currentUrl.includes("/administrator/") ||
-        currentUrl.includes("login")
-      ) {
-        cy.doAdministratorLogin(
-          Cypress.env("joomlaAdminUser"),
-          Cypress.env("joomlaAdminPass"),
-          true
-        );
-      }
-    });
-  });
-
   it("should prevent unauthorized access to admin areas", () => {
-    // Test that admin areas require authentication by using a different approach
-    // instead of using the potentially problematic doAdministratorLogout
+    // Save current authentication state
+    let savedCookies;
+    let savedLocalStorage;
+    let savedSessionStorage;
+
+    cy.getCookies().then((cookies) => {
+      savedCookies = cookies;
+    });
 
     cy.window().then((win) => {
-      // Clear all session data
+      savedLocalStorage = { ...win.localStorage };
+      savedSessionStorage = { ...win.sessionStorage };
+    });
+
+    // Test unauthorized access by clearing authentication in a separate context
+    cy.window().then((win) => {
       win.sessionStorage.clear();
       win.localStorage.clear();
     });
 
-    // Clear all cookies to simulate logout
     cy.clearCookies();
 
     // Try to access admin dashboard directly without session
@@ -52,12 +46,19 @@ describe("Joomla Security Framework", () => {
       expect(bodyText).to.satisfy(
         (text) =>
           text.includes("login") ||
-          text.includes("joomlaAdminUser") ||
-          text.includes("joomlaAdminPass") ||
+          text.includes("username") ||
+          text.includes("password") ||
           text.includes("log in") ||
           text.includes("sign in")
       );
     });
+
+    // Restore authentication state by logging in again
+    cy.doFreshAdministratorLogin(
+      Cypress.env("joomlaAdminUser"),
+      Cypress.env("joomlaAdminPass"),
+      true
+    );
   });
 
   it("should validate CSRF tokens on forms", () => {

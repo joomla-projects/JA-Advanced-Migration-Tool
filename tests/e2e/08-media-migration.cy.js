@@ -6,16 +6,17 @@
 
 describe("Media Migration", () => {
   beforeEach(() => {
-    // Login as administrator
-    cy.doAdministratorLogin(
+    // Use fresh login to ensure clean authentication
+    cy.doFreshAdministratorLogin(
       Cypress.env("joomlaAdminUser"),
       Cypress.env("joomlaAdminPass"),
       true
     );
+
     // Navigate to CMS Migrator component
     cy.visit("/administrator/index.php?option=com_cmsmigrator");
+    cy.handlePopups();
   });
-
   it("should display media migration form elements", () => {
     // Verify the migration form is visible
     cy.get("#migration-form").should("be.visible");
@@ -150,9 +151,8 @@ describe("Media Migration", () => {
     cy.get("#jform_connection_type").select("zip");
 
     // Zip the media-files folder into media-files.zip
-    cy.exec(
-      "powershell -command \"Compress-Archive -Path 'cypress\\fixtures\\media-files\\*' -DestinationPath 'cypress\\fixtures\\media-files.zip' -Force\""
-    );
+    cy.exec("cd cypress/fixtures/media-files && zip -r ../media-files.zip .");
+    cy.readFile("cypress/fixtures/media-files.zip", { timeout: 5000 }).should("exist");
 
     // Upload the ZIP file containing media
     cy.get("#jform_media_zip_file").selectFile(
