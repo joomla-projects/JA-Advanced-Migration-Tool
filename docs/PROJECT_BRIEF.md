@@ -53,8 +53,8 @@ Behind the scenes, it:
 ## Technical Overview
 
 ### Built With:
-- **PHP 7.4+**: Core programming language
-- **Joomla 4+ Framework**: Built as native Joomla component and plugins
+- **PHP 8.1+**: Core programming language
+- **Joomla 5+ Framework**: Built as native Joomla component and plugins
 - **phpseclib**: For secure FTP/SFTP connections
 
 ### Architecture:
@@ -67,6 +67,8 @@ Behind the scenes, it:
 - ✅ **WordPress** (via WXR/XML export files)
 - ✅ **Generic JSON** (for custom export formats)
 - 🔄 **Extensible** (developers can add plugins for other platforms)
+
+> **For detailed architecture and development information, see [Developer Documentation](./Developer_Documentation.md).**
 
 ## Installation & Requirements
 
@@ -82,6 +84,8 @@ Behind the scenes, it:
 3. Enable the component and plugins
 4. Access via "Components > Migrate to Joomla" in Joomla admin
 
+> **Detailed installation steps are available in [User Documentation](./User_Documentation.md).**
+
 ## Project Status
 
 - **Version**: 0.1.1
@@ -95,6 +99,8 @@ Behind the scenes, it:
 - Progress tracking and error handling implemented
 - JSON import support available
 
+> **For testing information, refer to [Testing Documentation](./Testing_Documentation.md).**
+
 ## Developer Information
 
 The project is part of the **Joomla Academy** initiative and welcomes contributions from the community.
@@ -105,7 +111,7 @@ This project includes comprehensive documentation:
 
 - **[User Documentation](./User_Documentation.md)**: Step-by-step migration instructions
 - **[Developer Guide](./Developer_Documentation)**: Architecture overview and extension development
-- **[Testing](./Testing.md)**: How to run tests and contribute
+- **[Testing](./Testing_Documentation.md)**: How to run tests and contribute
 
 ## Support & Community
 
