@@ -8,6 +8,7 @@ use Binary\Component\CmsMigrator\Administrator\Event\MigrationEvent;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\Model\BaseModel;
+use Joomla\CMS\MVC\Factory\MVCFactoryAwareTrait;
 use Joomla\CMS\Plugin\PluginHelper;
 use Joomla\CMS\Http\HttpFactory;
 use Joomla\Filesystem\File;
@@ -16,6 +17,16 @@ use Joomla\Filesystem\Folder;
 //handles all the Mapping and Chain of Events logic as of Now.
 class ImportModel extends BaseModel
 {
+    use MVCFactoryAwareTrait;
+
+    /**
+     * The application instance
+     *
+     * @var    \Joomla\CMS\Application\CMSApplicationInterface
+     * @since  1.0.0
+     */
+    protected $app;
+
     /**
      * Constructor
      *
@@ -24,6 +35,7 @@ class ImportModel extends BaseModel
     public function __construct($config = [])
     {
         parent::__construct($config);
+        $this->app = Factory::getApplication();
     }
     //Our importFunction doesn't know how to convert/parse this data
     public function import($file, $sourceCms, $sourceUrl = '', $ftpConfig = [], $importAsSuperUser = false)
@@ -40,7 +52,7 @@ class ImportModel extends BaseModel
             }
         } else {
             PluginHelper::importPlugin('migration');
-            $dispatcher = Factory::getApplication()->getDispatcher();
+            $dispatcher = $this->app->getDispatcher();
 
             // Fire the "onMigrationConvert" event to allow plugins to convert the file
             $event = new MigrationEvent('onMigrationConvert', ['sourceCms' => $sourceCms, 'filePath' => $file['tmp_name']]);
@@ -70,9 +82,9 @@ class ImportModel extends BaseModel
 
             try {
                 File::write($filePath, $convertedData);
-                Factory::getApplication()->enqueueMessage(Text::sprintf('COM_CMSMIGRATOR_JSON_SAVED', $filePath), 'message');
+                $this->app->enqueueMessage(Text::sprintf('COM_CMSMIGRATOR_JSON_SAVED', $filePath), 'message');
             } catch (\Exception $e) {
-                Factory::getApplication()->enqueueMessage(Text::sprintf('COM_CMSMIGRATOR_JSON_SAVE_FAILED', $e->getMessage()), 'error');
+                $this->app->enqueueMessage(Text::sprintf('COM_CMSMIGRATOR_JSON_SAVE_FAILED', $e->getMessage()), 'error');
             }
         }
 
@@ -87,8 +99,7 @@ class ImportModel extends BaseModel
         }
         
         try {
-            $mvcFactory = Factory::getApplication()->bootComponent('com_cmsmigrator')->getMVCFactory();
-            $processor = $mvcFactory->createModel('Processor', 'Administrator', ['ignore_request' => true]);
+            $processor = $this->getMVCFactory()->createModel('Processor', 'Administrator', ['ignore_request' => true]);
             //Processor function to process data to Joomla Tables
             $result = $processor->process($data, $sourceUrl, $ftpConfig, $importAsSuperUser);
          
@@ -99,7 +110,7 @@ class ImportModel extends BaseModel
                           Text::sprintf('COM_CMSMIGRATOR_IMPORT_TAXONOMIES_COUNT', $result['counts']['taxonomies']) . '<br>' .
                           Text::sprintf('COM_CMSMIGRATOR_IMPORT_MEDIA_COUNT', $result['counts']['media'] ?? 0) . '<br>' .
                           Text::sprintf('COM_CMSMIGRATOR_IMPORT_SKIPPED_COUNT', $result['counts']['skipped'] ?? 0);
-                Factory::getApplication()->enqueueMessage($message, 'message');
+                $this->app->enqueueMessage($message, 'message');
             } else {
                 $message = Text::_('COM_CMSMIGRATOR_IMPORT_PARTIAL') . '<br>' .
                           Text::sprintf('COM_CMSMIGRATOR_IMPORT_USERS_COUNT', $result['counts']['users']) . '<br>' .
@@ -108,11 +119,11 @@ class ImportModel extends BaseModel
                           Text::sprintf('COM_CMSMIGRATOR_IMPORT_MEDIA_COUNT', $result['counts']['media'] ?? 0) . '<br>' .
                           Text::sprintf('COM_CMSMIGRATOR_IMPORT_SKIPPED_COUNT', $result['counts']['skipped'] ?? 0) . '<br>' .
                           implode("\n", $result['errors']);
-                Factory::getApplication()->enqueueMessage($message, 'warning');
+                $this->app->enqueueMessage($message, 'warning');
                 return false;
             }
         } catch (\Exception $e) {
-            Factory::getApplication()->enqueueMessage(Text::sprintf('COM_CMSMIGRATOR_IMPORT_ERROR', $e->getMessage()), 'error');
+            $this->app->enqueueMessage(Text::sprintf('COM_CMSMIGRATOR_IMPORT_ERROR', $e->getMessage()), 'error');
             return false;
         }
 

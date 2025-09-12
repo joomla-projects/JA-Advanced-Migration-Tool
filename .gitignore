@@ -11,19 +11,16 @@
 *.tar
 *.zip
 
-# Logs and databases #
-######################
+# Logs and databases
 *.log
 *.sqlite
 
-# Temporary files #
-###################
+# Temporary files
 *.swp
 *.swap
 *.bak
 
-# OS generated files #
-######################
+# OS generated files
 .DS_Store
 .DS_Store?
 ._*
@@ -36,22 +33,63 @@ Thumbs.db
 /.idea
 .idea
 
-# Composer #
-############
-vendor
-composer.lock
-node_modules
+# Composer
+/vendor/
+/composer.lock
 
-# Phing related #
-#################
+# Node (npm/yarn/pnpm)
+/node_modules/
+
+# Phing related
 build/ftp.build.properties
 build/paths.build.properties
 
-# Visual Code #
-###############
-.vscode
+# Visual Studio Code
+.vscode/
 
-# Tests #
-#########
-/tests/coverage
-phpunit.xml
+# PHPUnit tests
+/phpunit.xml
+/tests/coverage/
+.phpunit.result.cache
+
+# Test files that should be ignored
+/tests/temp/
+/tests/tmp/
+/tests/unit/temp/
+/tests/unit/tmp/
+/tests/cache/
+*.test.tmp
+test*.tmp
+
+# Coverage reports
+/coverage/
+/tests/coverage/
+coverage.xml
+clover.xml
+coverage.clover
+
+# Cypress tests
+/cypress/videos/
+/cypress/screenshots/
+/cypress/results/
+/cypress/downloads/
+/cypress/reports/
+
+# Media uploads and temporary files
+/media/com_cmsmigrator/imports/
+/media/com_cmsmigrator/temp/
+/media/com_cmsmigrator/cache/
+/media/com_cmsmigrator/uploads/
+
+# Runtime and cache files
+/cache/
+/tmp/
+*.cache
+.cache/
+
+# Build artifacts
+com_cmsmigrator.zip
+*.zip.backup
+
+# Environment files
+.env

@@ -110,6 +110,27 @@ class MediaModel extends BaseModel
     protected $documentRootDetected = false;
 
     /**
+     * Joomla Application instance
+     *
+     * @var    \Joomla\CMS\Application\CMSApplication|null
+     * @since  1.0.0
+     */
+    protected $app;
+
+    /**
+     * Constructor
+     *
+     * @param   array  $config  An optional associative array of configuration settings.
+     *
+     * @since   1.0.0
+     */
+    public function __construct($config = [])
+    {
+        parent::__construct($config);
+        $this->app = Factory::getApplication();
+    }
+
+    /**
      * Sets the storage directory.
      * 
      * The storage directory will contain the WordPress media files organized 
@@ -187,7 +208,7 @@ class MediaModel extends BaseModel
         }
 
         if (!$this->connect($config)) {
-            Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_CONNECTION_FAILED'), 'warning');
+            $this->app->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_CONNECTION_FAILED'), 'warning');
             return $content;
         }
 
@@ -205,7 +226,7 @@ class MediaModel extends BaseModel
                     $updatedContent = str_replace($originalUrl, $newUrl, $updatedContent);
                 }
             } catch (\Exception $e) {
-                Factory::getApplication()->enqueueMessage(
+                $this->app->enqueueMessage(
                     sprintf('Error processing image %s: %s', $originalUrl, $e->getMessage()),
                     'warning'
                 );
@@ -280,7 +301,7 @@ class MediaModel extends BaseModel
     {
         $parsedUrl = parse_url($imageUrl);
         if (!$parsedUrl || empty($parsedUrl['path'])) {
-            Factory::getApplication()->enqueueMessage("Invalid image URL: $imageUrl", 'warning');
+            $this->app->enqueueMessage("Invalid image URL: $imageUrl", 'warning');
             return null;
         }
 
@@ -303,7 +324,7 @@ class MediaModel extends BaseModel
         }
         
         if (!$isWordPressUpload || empty($relativePath)) {
-            Factory::getApplication()->enqueueMessage("Not a WordPress upload path: $uploadPath", 'warning');
+            $this->app->enqueueMessage("Not a WordPress upload path: $uploadPath", 'warning');
             return null;
         }
 
@@ -344,7 +365,7 @@ class MediaModel extends BaseModel
                 //Cache the Path
                 $prefix = str_replace([$resizedPath, $originalPath], '', $remotePath);
                 $this->cachedUploadPrefix = $prefix;
-                Factory::getApplication()->enqueueMessage(
+                $this->app->enqueueMessage(
                     sprintf('✅ Downloaded image: %s (saved as %s)', basename($remotePath), basename($localFileName)),
                     'info'
                 );
@@ -353,7 +374,7 @@ class MediaModel extends BaseModel
             }
         }
 
-        Factory::getApplication()->enqueueMessage(
+        $this->app->enqueueMessage(
             "❌ Image not found in either resolution: $uploadPath",
             'warning'
         );
@@ -469,11 +490,11 @@ class MediaModel extends BaseModel
         $result = @ftp_get($this->ftpConnection, $localPath, $remotePath, FTP_BINARY);
 
         if ($result) {
-            // Factory::getApplication()->enqueueMessage("✅ Downloaded: $remotePath", 'info');
+            // $this->app->enqueueMessage("✅ Downloaded: $remotePath", 'info');
             return true;
         }
 
-        // Factory::getApplication()->enqueueMessage("❌ Failed to get: $remotePath", 'warning');
+        // $this->app->enqueueMessage("❌ Failed to get: $remotePath", 'warning');
         return false;
     }
 
@@ -649,7 +670,7 @@ class MediaModel extends BaseModel
                 $this->documentRootDetected = true;
                 
                 $detectedStructure = $root ? "{$root}/{$contentPath}" : $contentPath;
-                Factory::getApplication()->enqueueMessage(
+                $this->app->enqueueMessage(
                     "✅ WordPress structure auto-detected: {$detectedStructure} (Document root: {$this->documentRoot})",
                     'info'
                 );
@@ -660,7 +681,7 @@ class MediaModel extends BaseModel
         
         // If no valid structure found, use default and mark as detected to avoid repeated attempts
         $this->documentRootDetected = true;
-        Factory::getApplication()->enqueueMessage(
+        $this->app->enqueueMessage(
             "⚠️ Could not auto-detect WordPress structure. Using default document root: {$this->documentRoot}",
             'warning'
         );
@@ -706,7 +727,7 @@ class MediaModel extends BaseModel
         }
 
         if (empty($config['host']) || empty($config['username']) || empty($config['password'])) {
-            Factory::getApplication()->enqueueMessage('FTP configuration incomplete', 'error');
+            $this->app->enqueueMessage('FTP configuration incomplete', 'error');
             return false;
         }
 
@@ -714,14 +735,14 @@ class MediaModel extends BaseModel
         ftp_set_option($this->ftpConnection, FTP_TIMEOUT_SEC, 10);
 
         if (!$this->ftpConnection) {
-            Factory::getApplication()->enqueueMessage("Failed to connect to FTP server: {$config['host']}", 'error');
+            $this->app->enqueueMessage("Failed to connect to FTP server: {$config['host']}", 'error');
             return false;
         }
 
         $loginResult = ftp_login($this->ftpConnection, $config['username'], $config['password']);
 
         if (!$loginResult) {
-            Factory::getApplication()->enqueueMessage('FTP login failed', 'error');
+            $this->app->enqueueMessage('FTP login failed', 'error');
             ftp_close($this->ftpConnection);
             $this->ftpConnection = null;
             return false;
@@ -750,7 +771,7 @@ class MediaModel extends BaseModel
         }
 
         if (empty($config['host']) || empty($config['username']) || empty($config['password'])) {
-            Factory::getApplication()->enqueueMessage('FTPS configuration incomplete', 'error');
+            $this->app->enqueueMessage('FTPS configuration incomplete', 'error');
             return false;
         }
 
@@ -758,7 +779,7 @@ class MediaModel extends BaseModel
         $this->ftpConnection = ftp_ssl_connect($config['host'], $config['port'] ?? 21, 15);
         
         if (!$this->ftpConnection) {
-            Factory::getApplication()->enqueueMessage("Failed to connect to FTPS server: {$config['host']}", 'error');
+            $this->app->enqueueMessage("Failed to connect to FTPS server: {$config['host']}", 'error');
             return false;
         }
 
@@ -767,7 +788,7 @@ class MediaModel extends BaseModel
         $loginResult = ftp_login($this->ftpConnection, $config['username'], $config['password']);
 
         if (!$loginResult) {
-            Factory::getApplication()->enqueueMessage('FTPS login failed', 'error');
+            $this->app->enqueueMessage('FTPS login failed', 'error');
             ftp_close($this->ftpConnection);
             $this->ftpConnection = null;
             return false;
@@ -796,7 +817,7 @@ class MediaModel extends BaseModel
         }
 
         if (empty($config['host']) || empty($config['username']) || empty($config['password'])) {
-            Factory::getApplication()->enqueueMessage('SFTP configuration incomplete', 'error');
+            $this->app->enqueueMessage('SFTP configuration incomplete', 'error');
             return false;
         }
 
@@ -804,14 +825,14 @@ class MediaModel extends BaseModel
             $this->sftpConnection = new SFTP($config['host'], $config['port'] ?? 22);
             
             if (!$this->sftpConnection->login($config['username'], $config['password'])) {
-                Factory::getApplication()->enqueueMessage('SFTP login failed', 'error');
+                $this->app->enqueueMessage('SFTP login failed', 'error');
                 $this->sftpConnection = null;
                 return false;
             }
 
             return true;
         } catch (\Exception $e) {
-            Factory::getApplication()->enqueueMessage("Failed to connect to SFTP server: {$config['host']} - " . $e->getMessage(), 'error');
+            $this->app->enqueueMessage("Failed to connect to SFTP server: {$config['host']} - " . $e->getMessage(), 'error');
             $this->sftpConnection = null;
             return false;
         }
@@ -829,7 +850,7 @@ class MediaModel extends BaseModel
     protected function processZipUpload(array $config): bool
     {
         if (empty($config['zip_file']) || !isset($config['zip_file']['tmp_name'])) {
-            Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_FILE_MISSING'), 'error');
+            $this->app->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_FILE_MISSING'), 'error');
             return false;
         }
 
@@ -837,7 +858,7 @@ class MediaModel extends BaseModel
         
         // Validate file upload
         if ($zipFile['error'] !== UPLOAD_ERR_OK) {
-            Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_UPLOAD_ERROR'), 'error');
+            $this->app->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_UPLOAD_ERROR'), 'error');
             return false;
         }
 
@@ -847,7 +868,7 @@ class MediaModel extends BaseModel
         finfo_close($finfo);
 
         if (!in_array($mimeType, ['application/zip', 'application/x-zip-compressed'])) {
-            Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_INVALID_TYPE'), 'error');
+            $this->app->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_INVALID_TYPE'), 'error');
             return false;
         }
 
@@ -860,14 +881,14 @@ class MediaModel extends BaseModel
                 Folder::create($extractPath);
             }
 
-            Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_PROCESSING'), 'info');
+            $this->app->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_PROCESSING'), 'info');
 
             // Extract ZIP
             $zip = new \ZipArchive();
             $result = $zip->open($zipFile['tmp_name']);
             
             if ($result !== TRUE) {
-                Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_EXTRACT_FAILED'), 'error');
+                $this->app->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_EXTRACT_FAILED'), 'error');
                 return false;
             }
 
@@ -920,17 +941,17 @@ class MediaModel extends BaseModel
             
             $zip->close();
 
-            Factory::getApplication()->enqueueMessage(
+            $this->app->enqueueMessage(
                 Text::sprintf('COM_CMSMIGRATOR_MEDIA_ZIP_EXTRACTED_SUCCESS', $extractedFiles), 
                 'message'
             );
             
-            Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_COMPLETE'), 'info');
+            $this->app->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_COMPLETE'), 'info');
             
             return true;
 
         } catch (\Exception $e) {
-            Factory::getApplication()->enqueueMessage(
+            $this->app->enqueueMessage(
                 Text::sprintf('COM_CMSMIGRATOR_MEDIA_ZIP_EXTRACT_ERROR', $e->getMessage()), 
                 'error'
             );
@@ -959,13 +980,13 @@ class MediaModel extends BaseModel
                 $newUrl = $this->findExtractedImageUrl($originalUrl);
                 if ($newUrl) {
                     $updatedContent = str_replace($originalUrl, $newUrl, $updatedContent);
-                    Factory::getApplication()->enqueueMessage(
+                    $this->app->enqueueMessage(
                         Text::sprintf('COM_CMSMIGRATOR_MEDIA_ZIP_URL_REPLACED', basename($originalUrl)), 
                         'info'
                     );
                 }
             } catch (\Exception $e) {
-                Factory::getApplication()->enqueueMessage(
+                $this->app->enqueueMessage(
                     sprintf('Error processing image %s: %s', $originalUrl, $e->getMessage()),
                     'warning'
                 );
@@ -1152,7 +1173,7 @@ class MediaModel extends BaseModel
         }
 
         if (!$this->connect($config)) {
-            Factory::getApplication()->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_CONNECTION_FAILED'), 'warning');
+            $this->app->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_CONNECTION_FAILED'), 'warning');
             return [];
         }
 
@@ -1176,7 +1197,7 @@ class MediaModel extends BaseModel
             return $results;
         }
 
-        Factory::getApplication()->enqueueMessage(
+        $this->app->enqueueMessage(
             sprintf('Starting batch download of %d media files...', count($downloadTasks)),
             'info'
         );
@@ -1190,7 +1211,7 @@ class MediaModel extends BaseModel
         }
 
         $successCount = count(array_filter($results, function($result) { return $result['success']; }));
-        Factory::getApplication()->enqueueMessage(
+        $this->app->enqueueMessage(
             sprintf('✅ Batch download complete: %d/%d files downloaded successfully', $successCount, count($results)),
             'info'
         );
@@ -1212,7 +1233,7 @@ class MediaModel extends BaseModel
         $results = [];
         $foundCount = 0;
         
-        Factory::getApplication()->enqueueMessage(
+        $this->app->enqueueMessage(
             sprintf('Processing %d media URLs from extracted ZIP files...', count($mediaUrls)),
             'info'
         );
@@ -1236,7 +1257,7 @@ class MediaModel extends BaseModel
             }
         }
         
-        Factory::getApplication()->enqueueMessage(
+        $this->app->enqueueMessage(
             sprintf('✅ ZIP media processing complete: %d/%d files found in extracted content', $foundCount, count($mediaUrls)),
             'info'
         );

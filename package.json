@@ -1,0 +1,32 @@
+{
+  "name": "ja-advanced-migration-tool",
+  "version": "1.0.0",
+  "description": "Advanced Migration Tool for Joomla - Migrate from WordPress and other CMS platforms",
+  "homepage": "https://github.com/joomla-projects/JA-Advanced-Migration-Tool#readme",
+  "bugs": {
+    "url": "https://github.com/joomla-projects/JA-Advanced-Migration-Tool/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joomla-projects/JA-Advanced-Migration-Tool.git"
+  },
+  "license": "GPL-2.0-or-later",
+  "author": "Rahul Singh",
+  "type": "commonjs",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "cypress run",
+    "test:open": "cypress open",
+    "test:admin": "cypress run --spec \"tests/e2e/login-admin.cy.js\"",
+    "test:install": "cypress run --spec \"tests/e2e/install-extension.cy.js\"",
+    "test:e2e": "cypress run --spec \"tests/e2e/**/*.cy.js\""
+  },
+  "dependencies": {
+    "cypress": "^15.0.0",
+    "dotenv": "^17.2.1",
+    "joomla-cypress": "^1.3.1"
+  }
+}

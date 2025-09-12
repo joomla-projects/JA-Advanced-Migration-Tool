@@ -1,0 +1,150 @@
+name: CI and Release
+
+on:
+  push:
+    branches: [main, cypress-testing-beta]
+  pull_request:
+    branches: [main, cypress-testing-beta]
+  release:
+    types: [published] # runs only when a release is published in GitHub UI
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: joomla
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      joomla:
+        image: joomla:6.0-php8.3-apache
+        env:
+          JOOMLA_DB_HOST: mysql
+          JOOMLA_DB_USER: root
+          JOOMLA_DB_PASSWORD: root
+          JOOMLA_DB_NAME: joomla
+        ports:
+          - 8080:80
+        options: >-
+          --health-cmd="curl -f http://localhost/installation/index.php || exit 1"
+          --health-interval=15s
+          --health-timeout=10s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: zip, mysqli, pdo_mysql
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.11.1"
+
+      - name: Install Composer dependencies
+        run: composer install --no-progress --prefer-dist --optimize-autoloader
+
+      - name: Install NPM dependencies
+        run: npm install
+
+      - name: Install zip utility
+        run: sudo apt-get update && sudo apt-get install -y zip
+
+      - name: Wait for Joomla installer to be ready
+        run: |
+          for i in {1..40}; do
+            if curl -f http://localhost:8080/installation/index.php > /dev/null 2>&1; then
+              echo "✅ Joomla installer is ready"
+              break
+            fi
+            echo "⏳ Waiting for Joomla installer..."
+            sleep 10
+          done
+
+      - name: Set Joomla env
+        run: |
+          echo "JOOMLA_BASE_URL=http://localhost:8080" >> $GITHUB_ENV
+          echo "JOOMLA_ADMIN_USER=admin" >> $GITHUB_ENV
+          echo "JOOMLA_ADMIN_PASS=admin123423454664@" >> $GITHUB_ENV
+
+      - name: Run tests
+        run: composer test
+        env:
+          JOOMLA_BASE_URL: http://localhost:8080
+          JOOMLA_ADMIN_USER: admin
+          JOOMLA_ADMIN_PASS: admin123423454664@
+          DBUS_SESSION_BUS_ADDRESS: /dev/null
+
+      - name: Upload screenshots on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-screenshots
+          path: cypress/screenshots
+
+      - name: Upload videos on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-videos
+          path: cypress/videos
+
+  release:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'release'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # fetch full history so branches & tags are available
+
+      - name: Switch to main branch properly
+        run: |
+          git fetch origin main
+          git checkout -B main origin/main
+
+      - name: Extract version from release tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create component zip with version
+        run: |
+          mkdir -p cypress/fixtures
+          cd src/component
+          zip -r ../../cypress/fixtures/com_cmsmigrator_v${{ steps.version.outputs.version }}.zip .
+
+      - name: Verify zip file exists
+        run: ls -lh cypress/fixtures/
+
+      - name: Update XML version
+        run: |
+          sed -i "s|<version>.*</version>|<version>${{ steps.version.outputs.version }}</version>|" src/component/cmsmigrator.xml
+
+      - name: Commit version update
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add src/component/cmsmigrator.xml
+          git commit -m "Bump version to ${{ steps.version.outputs.version }}" || echo "No changes to commit"
+          git push origin main
+
+      - name: Upload asset to GitHub Release
+        run: |
+          gh release upload ${{ github.event.release.tag_name }} cypress/fixtures/com_cmsmigrator_v${{ steps.version.outputs.version }}.zip --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
