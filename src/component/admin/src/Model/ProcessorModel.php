@@ -34,6 +34,24 @@ use Joomla\Component\Content\Administrator\Table\ArticleTable;
  */
 class ProcessorModel extends BaseDatabaseModel
 {
+    /**
+     * The application instance
+     *
+     * @var    \Joomla\CMS\Application\CMSApplicationInterface
+     * @since  1.0.0
+     */
+    protected $app;
+
+    /**
+     * Constructor
+     *
+     * @param   array  $config  An optional associative array of configuration settings
+     */
+    public function __construct($config = [])
+    {
+        parent::__construct($config);
+        $this->app = Factory::getApplication();
+    }
 
     /**
      * Processes migration data by routing to the appropriate processor.
@@ -196,7 +214,7 @@ class ProcessorModel extends BaseDatabaseModel
 
         $this->executeInTransaction(function () use ($data, $sourceUrl, $ftpConfig, $importAsSuperUser, &$result) {
             $mediaModel = $this->initializeMediaModel($ftpConfig);
-            $superUserId = $importAsSuperUser ? Factory::getApplication()->getIdentity()->id : null;
+            $superUserId = $importAsSuperUser ? $this->app->getIdentity()->id : null;
             
             // Process tags first if they exist in the data
             $tagMap = [];
@@ -254,7 +272,7 @@ class ProcessorModel extends BaseDatabaseModel
         $batches = array_chunk($articles, $batchSize);
         $processedCount = 0;
 
-        Factory::getApplication()->enqueueMessage(
+        $this->app->enqueueMessage(
             sprintf('Processing %d articles in %d batches (batch size: %d)', $total, count($batches), $batchSize),
             'info'
         );
@@ -629,7 +647,7 @@ class ProcessorModel extends BaseDatabaseModel
                 $tagMap[$tagData['slug']] = $tagId;
             } catch (\Exception $e) {
                 // Log the error but continue processing other tags
-                Factory::getApplication()->enqueueMessage(
+                $this->app->enqueueMessage(
                     sprintf('Error importing tag "%s": %s', $tagData['name'], $e->getMessage()),
                     'warning'
                 );
@@ -666,7 +684,7 @@ class ProcessorModel extends BaseDatabaseModel
         $batches = array_chunk($posts, $batchSize, true);
         $processedCount = 0;
 
-        Factory::getApplication()->enqueueMessage(
+        $this->app->enqueueMessage(
             sprintf('Processing %d JSON posts in %d batches (batch size: %d)', $totalPosts, count($batches), $batchSize),
             'info'
         );
@@ -817,7 +835,7 @@ class ProcessorModel extends BaseDatabaseModel
                                 $tagIds[] = $tagId;
                             } catch (\Exception $e) {
                                 // Log error but continue with other tags
-                                Factory::getApplication()->enqueueMessage(
+                                $this->app->enqueueMessage(
                                     sprintf('Error creating tag "%s" for article "%s": %s', $tagName, $post['post_title'], $e->getMessage()),
                                     'warning'
                                 );
@@ -873,7 +891,7 @@ class ProcessorModel extends BaseDatabaseModel
             
             // Process ZIP upload immediately when initializing the model
             if (!$mediaModel->connect($ftpConfig)) {
-                Factory::getApplication()->enqueueMessage('Failed to process ZIP upload for media migration', 'error');
+                $this->app->enqueueMessage('Failed to process ZIP upload for media migration', 'error');
                 return null;
             }
             
@@ -1117,7 +1135,7 @@ class ProcessorModel extends BaseDatabaseModel
                     $this->saveCustomFieldValue($fieldId, $articleId, $fieldValue);
                 }
             } catch (\Exception $e) {
-                Factory::getApplication()->enqueueMessage(
+                $this->app->enqueueMessage(
                     sprintf('Error processing custom field "%s": %s', $fieldName, $e->getMessage()),
                     'warning'
                 );
@@ -1187,7 +1205,7 @@ class ProcessorModel extends BaseDatabaseModel
         }
         catch (\Exception $e)
         {
-            Factory::getApplication()->enqueueMessage(
+            $this->app->enqueueMessage(
                 sprintf('Error creating custom field "%s": %s', $fieldName, $e->getMessage()),
                 'warning'
             );
@@ -1282,7 +1300,7 @@ class ProcessorModel extends BaseDatabaseModel
             }
         } catch (\Exception $e) {
             // Catch any errors and display a message.
-            Factory::getApplication()->enqueueMessage($e->getMessage(), 'error');
+            $this->app->enqueueMessage($e->getMessage(), 'error');
         }
     }
 
