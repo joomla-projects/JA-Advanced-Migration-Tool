@@ -179,12 +179,6 @@ npx cypress run --browser edge
 | **E2E Tests** | Joomla + MySQL | Complete workflow testing |
 | **Security Scan** | Latest PHP | Vulnerability detection |
 
-### 📊 Reporting & Monitoring
-- **Mochawesome**: Detailed E2E test reports with screenshots
-- **Codecov**: Code coverage tracking and trends
-- **Artifacts**: Screenshots and videos for failed tests
-- **Notifications**: Slack/email alerts for test failures
-
 ## 💡 Testing Best Practices
 
 ### 🧪 Unit Testing Guidelines
@@ -198,12 +192,6 @@ npx cypress run --browser edge
 - **Explicit Waits**: Wait for specific elements rather than using timeouts
 - **Page Object Model**: Maintain reusable page components
 - **Environment Independence**: Tests should work across environments
-
-### ⚡ Performance Guidelines
-- **Budget Setting**: Define time and memory constraints
-- **Realistic Data**: Test with production-like data volumes
-- **Trend Monitoring**: Track performance metrics over time
-- **Bottleneck Identification**: Profile and optimize slow operations
 
 ### 🔒 Security Testing Guidelines
 - **Input Validation**: Test all user input points
