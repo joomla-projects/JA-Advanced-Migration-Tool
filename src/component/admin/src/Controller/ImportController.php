@@ -29,8 +29,8 @@ class ImportController extends BaseController
         ]));
         
         // Retrieves form data (jform) and uploaded files.
-        $app = Factory::getApplication();
-        $input = $app->getInput();
+        $app = $this->app;
+        $input = $this->input;
         $jform = $input->get('jform', [], 'array');
         $files = $input->files->get('jform');
 
@@ -93,6 +93,7 @@ class ImportController extends BaseController
         $importAsSuperUser = !empty($jform['import_as_super_user']) && $jform['import_as_super_user'] == '1';
         //Passes the data to ImportModel Function
         $model = $this->getModel('Import');
+        $model->setMVCFactory($this->getMVCFactory());
 
         try {
             if (!$model->import($file, $sourceCms, $sourceUrl, $connectionConfig, $importAsSuperUser)) {
@@ -120,8 +121,8 @@ class ImportController extends BaseController
         // Check for request forgeries
         $this->checkToken();
         
-        $app = Factory::getApplication();
-        $input = $app->getInput();
+        $app = $this->app;
+        $input = $this->input;
         
         // Get connection configuration
         $connectionConfig = [
@@ -154,8 +155,8 @@ class ImportController extends BaseController
         // Check for request forgeries
         $this->checkToken();
         
-        $app = Factory::getApplication();
-        $input = $app->getInput();
+        $app = $this->app;
+        $input = $this->input;
         
         // Get FTP configuration
         $ftpConfig = [

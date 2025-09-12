@@ -10,6 +10,10 @@ require_once __DIR__ . '/Mocks/JoomlaModelMocks.php';
 require_once __DIR__ . '/Mocks/JoomlaTableMocks.php';
 require_once __DIR__ . '/Mocks/JoomlaMiscMocks.php';
 
+// Load MVC Factory stubs that are needed by the component
+require_once __DIR__ . '/stubs/Joomla/CMS/MVC/Factory/MVCFactoryInterface.php';
+require_once __DIR__ . '/stubs/Joomla/CMS/MVC/Factory/MVCFactoryAwareTrait.php';
+
 // Define necessary constants for testing
 if (!defined('_JEXEC')) {
     define('_JEXEC', 1);

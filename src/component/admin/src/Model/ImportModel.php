@@ -8,6 +8,7 @@ use Binary\Component\CmsMigrator\Administrator\Event\MigrationEvent;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\Model\BaseModel;
+use Joomla\CMS\MVC\Factory\MVCFactoryAwareTrait;
 use Joomla\CMS\Plugin\PluginHelper;
 use Joomla\CMS\Http\HttpFactory;
 use Joomla\Filesystem\File;
@@ -16,6 +17,8 @@ use Joomla\Filesystem\Folder;
 //handles all the Mapping and Chain of Events logic as of Now.
 class ImportModel extends BaseModel
 {
+    use MVCFactoryAwareTrait;
+
     /**
      * Constructor
      *
@@ -87,8 +90,7 @@ class ImportModel extends BaseModel
         }
         
         try {
-            $mvcFactory = Factory::getApplication()->bootComponent('com_cmsmigrator')->getMVCFactory();
-            $processor = $mvcFactory->createModel('Processor', 'Administrator', ['ignore_request' => true]);
+            $processor = $this->getMVCFactory()->createModel('Processor', 'Administrator', ['ignore_request' => true]);
             //Processor function to process data to Joomla Tables
             $result = $processor->process($data, $sourceUrl, $ftpConfig, $importAsSuperUser);
          
