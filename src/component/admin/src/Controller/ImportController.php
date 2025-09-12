@@ -5,6 +5,7 @@ namespace Binary\Component\CmsMigrator\Administrator\Controller;
 \defined('_JEXEC') or die;
 
 use Joomla\CMS\MVC\Controller\BaseController;
+use Joomla\CMS\MVC\Factory\MVCFactoryAwareTrait;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\Filesystem\File;
@@ -13,6 +14,8 @@ use Joomla\CMS\Response\JsonResponse;
 
 class ImportController extends BaseController
 {
+    use MVCFactoryAwareTrait;
+
     public function import()
     {
         $this->checkToken();
@@ -93,8 +96,21 @@ class ImportController extends BaseController
         $importAsSuperUser = !empty($jform['import_as_super_user']) && $jform['import_as_super_user'] == '1';
         //Passes the data to ImportModel Function
         $model = $this->getModel('Import');
-        $model->setMVCFactory($this->getMVCFactory());
-
+        try {
+            $mvcFactory = $this->getMVCFactory();
+            $model->setMVCFactory($mvcFactory);
+        } catch (\Exception $e) {
+            // MVC factory not available on controller, try to get it from the application/component
+            try {
+                $app = Factory::getApplication();
+                $component = $app->bootComponent('com_cmsmigrator');
+                if (method_exists($component, 'getMVCFactory')) {
+                    $model->setMVCFactory($component->getMVCFactory());
+                }
+            } catch (\Exception $componentException) {
+                // No MVC factory available, model will work with fallback
+            }
+        }
         try {
             if (!$model->import($file, $sourceCms, $sourceUrl, $connectionConfig, $importAsSuperUser)) {
                 $app->enqueueMessage('Import failed', 'error');

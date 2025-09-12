@@ -87,18 +87,19 @@ class ProcessorModel extends BaseDatabaseModel
      */
     private function executeInTransaction(callable $processor, array &$result): void
     {
-        $this->getDatabase()->transactionStart();
+        $db = $this->getDatabase();
+        $db->transactionStart();
         try {
             $processor();
 
             if (empty($result['errors'])) {
-                $this->getDatabase()->transactionCommit();
+                $db->transactionCommit();
             } else {
-                $this->getDatabase()->transactionRollback();
+                $db->transactionRollback();
                 $result['success'] = false;
             }
         } catch (\Exception $e) {
-            $this->getDatabase()->transactionRollback();
+            $db->transactionRollback();
             $result['success'] = false;
             $result['errors'][] = 'Import failed: ' . $e->getMessage();
         }
@@ -980,14 +981,15 @@ class ProcessorModel extends BaseDatabaseModel
     protected function getOrCreateCategory(string $categoryName, array &$counts, ?array $sourceData = null): int
     {
         $alias = $sourceData['slug'] ?? OutputFilter::stringURLSafe($categoryName);
+        $db = $this->getDatabase();
 
-        $query = $this->getDatabase()->getQuery(true)
+        $query = $db->getQuery(true)
             ->select('id')
             ->from('#__categories')
-            ->where('alias = ' . $this->getDatabase()->quote($alias))
-            ->where('extension = ' . $this->getDatabase()->quote('com_content'));
+            ->where('alias = ' . $db->quote($alias))
+            ->where('extension = ' . $db->quote('com_content'));
 
-        $categoryId = $this->getDatabase()->setQuery($query)->loadResult();
+        $categoryId = $db->setQuery($query)->loadResult();
 
         if (!$categoryId) {
             $categoriesMvcFactory = Factory::getApplication()->bootComponent('com_categories')->getMVCFactory();
@@ -1031,14 +1033,15 @@ class ProcessorModel extends BaseDatabaseModel
     protected function getOrCreateTag(string $tagName, array &$counts, ?array $sourceData = null): int
     {
         $alias = $sourceData['slug'] ?? OutputFilter::stringURLSafe($tagName);
+        $db = $this->getDatabase();
 
         // Check if tag already exists
-        $query = $this->getDatabase()->getQuery(true)
+        $query = $db->getQuery(true)
             ->select('id')
             ->from('#__tags')
-            ->where('alias = ' . $this->getDatabase()->quote($alias));
+            ->where('alias = ' . $db->quote($alias));
 
-        $tagId = $this->getDatabase()->setQuery($query)->loadResult();
+        $tagId = $db->setQuery($query)->loadResult();
 
         if (!$tagId) {
             $tagsMvcFactory = Factory::getApplication()->bootComponent('com_tags')->getMVCFactory();
@@ -1153,13 +1156,14 @@ class ProcessorModel extends BaseDatabaseModel
     {
         $alias   = OutputFilter::stringURLSafe($fieldName);
         $context = 'com_content.article';
+        $db = $this->getDatabase();
 
-        $query = $this->getDatabase()->getQuery(true)
+        $query = $db->getQuery(true)
             ->select('id')
-            ->from($this->getDatabase()->quoteName('#__fields'))
-            ->where('context = ' . $this->getDatabase()->quote($context))
-            ->where('name    = ' . $this->getDatabase()->quote($fieldName));
-        $existingId = (int) $this->getDatabase()->setQuery($query)->loadResult();
+            ->from($db->quoteName('#__fields'))
+            ->where('context = ' . $db->quote($context))
+            ->where('name    = ' . $db->quote($fieldName));
+        $existingId = (int) $db->setQuery($query)->loadResult();
 
         if ($existingId)
         {
@@ -1190,12 +1194,12 @@ class ProcessorModel extends BaseDatabaseModel
                 $err = $fieldModel->getError();
                 if (strpos($err, 'COM_FIELDS_ERROR_UNIQUE_NAME') !== false)
                 {
-                    $query = $this->getDatabase()->getQuery(true)
+                    $query = $db->getQuery(true)
                         ->select('id')
-                        ->from($this->getDatabase()->quoteName('#__fields'))
-                        ->where('context = ' . $this->getDatabase()->quote($context))
-                        ->where('name    = ' . $this->getDatabase()->quote($fieldName));
-                    return (int) $this->getDatabase()->setQuery($query)->loadResult();
+                        ->from($db->quoteName('#__fields'))
+                        ->where('context = ' . $db->quote($context))
+                        ->where('name    = ' . $db->quote($fieldName));
+                    return (int) $db->setQuery($query)->loadResult();
                 }
 
                 throw new \RuntimeException('Failed to create custom field: ' . $err);
@@ -1228,7 +1232,8 @@ class ProcessorModel extends BaseDatabaseModel
         $fieldValue->item_id  = $articleId;
         $fieldValue->value    = $value;
 
-        $this->getDatabase()->insertObject('#__fields_values', $fieldValue, ['field_id', 'item_id']);
+        $db = $this->getDatabase();
+        $db->insertObject('#__fields_values', $fieldValue, ['field_id', 'item_id']);
     }
 
     /**
@@ -1238,13 +1243,14 @@ class ProcessorModel extends BaseDatabaseModel
      */
     private function getDefaultCategoryId(): int
     {
-        $query = $this->getDatabase()->getQuery(true)
+        $db = $this->getDatabase();
+        $query = $db->getQuery(true)
             ->select('id')
-            ->from($this->getDatabase()->quoteName('#__categories'))
-            ->where($this->getDatabase()->quoteName('path') . ' = ' . $this->getDatabase()->quote('uncategorised'))
-            ->where($this->getDatabase()->quoteName('extension') . ' = ' . $this->getDatabase()->quote('com_content'));
+            ->from($db->quoteName('#__categories'))
+            ->where($db->quoteName('path') . ' = ' . $db->quote('uncategorised'))
+            ->where($db->quoteName('extension') . ' = ' . $db->quote('com_content'));
             
-        return (int) $this->getDatabase()->setQuery($query)->loadResult() ?: 2; // Fallback to root
+        return (int) $db->setQuery($query)->loadResult() ?: 2; // Fallback to root
     }
 
     /**
@@ -1289,7 +1295,8 @@ class ProcessorModel extends BaseDatabaseModel
     protected function linkTagsToArticle(int $articleId, array $tagIds): void
     {
         try {
-            $articleTable = new ArticleTable($this->getDatabase());
+            $mvcFactory = Factory::getApplication()->bootComponent('com_content')->getMVCFactory();
+            $articleTable = $mvcFactory->createTable('Article', 'Administrator');
 
             if (!$articleTable->load($articleId)) {
                 throw new \RuntimeException("Article with ID {$articleId} not found.");
@@ -1349,12 +1356,13 @@ class ProcessorModel extends BaseDatabaseModel
      */
     protected function aliasExists(string $alias): bool
     {
-        $query = $this->getDatabase()->getQuery(true)
+        $db = $this->getDatabase();
+        $query = $db->getQuery(true)
             ->select('1')
             ->from('#__content')
-            ->where('alias = ' . $this->getDatabase()->quote($alias));
+            ->where('alias = ' . $db->quote($alias));
 
-        return (bool) $this->getDatabase()->setQuery($query)->loadResult();
+        return (bool) $db->setQuery($query)->loadResult();
     }
 
     /**
@@ -1366,12 +1374,13 @@ class ProcessorModel extends BaseDatabaseModel
      */
     protected function articleExists(string $title): bool
     {
-        $query = $this->getDatabase()->getQuery(true)
+        $db = $this->getDatabase();
+        $query = $db->getQuery(true)
             ->select('1')
             ->from('#__content')
-            ->where('title = ' . $this->getDatabase()->quote($title));
+            ->where('title = ' . $db->quote($title));
 
-        return (bool) $this->getDatabase()->setQuery($query)->loadResult();
+        return (bool) $db->setQuery($query)->loadResult();
     }
 
     /**
@@ -1392,7 +1401,8 @@ class ProcessorModel extends BaseDatabaseModel
         foreach ($menus as $wpMenuName => $wpMenuItems) {
             try {
                 // Step 1: Create the Joomla Menu container (Menu Type) if it doesn't exist.
-                $menuTypeTable = new MenuType($this->getDatabase());
+                $menusMvcFactory = Factory::getApplication()->bootComponent('com_menus')->getMVCFactory();
+                $menuTypeTable = $menusMvcFactory->createTable('MenuType', 'Administrator');
                 
                 // Check if the menu type already exists to avoid errors on re-run
                 if (!$menuTypeTable->load(['menutype' => $wpMenuName])) {
@@ -1418,7 +1428,7 @@ class ProcessorModel extends BaseDatabaseModel
                         continue;
                     }
 
-                    $menuItemTable = new MenuTable($this->getDatabase());
+                    $menuItemTable = $menusMvcFactory->createTable('Menu', 'Administrator');
                     list($link, $type) = $this->generateJoomlaLink($item, $contentMap);
 
                     $menuItemData = [
@@ -1464,10 +1474,10 @@ class ProcessorModel extends BaseDatabaseModel
                     $joomlaParentId = $wpToJoomlaMenuItemMap[$wpParentId];
 
                     // Load the parent to get its level and path for the new child
-                    $parentTable = new MenuTable($this->getDatabase());
+                    $parentTable = $menusMvcFactory->createTable('Menu', 'Administrator');
                     $parentTable->load($joomlaParentId);
 
-                    $menuItemTable = new MenuTable($this->getDatabase());
+                    $menuItemTable = $menusMvcFactory->createTable('Menu', 'Administrator');
                     list($link, $type) = $this->generateJoomlaLink($item, $contentMap);
                     
                     $alias = OutputFilter::stringURLSafe($item['title']);
