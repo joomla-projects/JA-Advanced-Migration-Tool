@@ -1,10 +1,13 @@
 <?php
+
 // script.php
 
 defined('_JEXEC') or die;
 
 use Joomla\CMS\Factory;
 use Joomla\Database\DatabaseInterface;
+
+namespace Joomla\Plugin\Migration\Wordpress;
 
 /**
  * Installer script for the WordPress Migration Plugin.
@@ -26,8 +29,7 @@ class PlgMigrationWordpressInstallerScript
     public function postflight($type, $parent)
     {
         // Only act on fresh installs or updates.
-        if (in_array($type, ['install', 'update'], true))
-        {
+        if (in_array($type, ['install', 'update'], true)) {
             $db = Factory::getContainer()->get(DatabaseInterface::class);
             $query = $db->getQuery(true)
                 ->update($db->quoteName('#__extensions'))

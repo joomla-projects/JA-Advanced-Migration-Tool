@@ -130,7 +130,7 @@ use Joomla\CMS\Factory;
                                             $selected = $this->form->getValue('media_storage_mode', null, 'root');
                                             foreach ($mediaStorageOptions as $option) :
                                                 $isActive = ($selected == $option->value) ? 'active' : '';
-                                            ?>
+                                                ?>
                                                 <input type="radio" class="btn-check" name="jform[media_storage_mode]" id="media_storage_mode_<?php echo $option->value; ?>" value="<?php echo $option->value; ?>" autocomplete="off" <?php echo ($selected == $option->value) ? 'checked' : ''; ?>>
                                                 <label class="btn btn-outline-primary <?php echo $isActive; ?>" for="media_storage_mode_<?php echo $option->value; ?>">
                                                     <?php echo $option->text; ?>

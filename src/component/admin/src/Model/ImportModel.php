@@ -97,12 +97,12 @@ class ImportModel extends BaseModel
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new \RuntimeException(Text::_('COM_CMSMIGRATOR_INVALID_JSON_FORMAT_FROM_PLUGIN'));
         }
-        
+
         try {
             $processor = $this->getMVCFactory()->createModel('Processor', 'Administrator', ['ignore_request' => true]);
             //Processor function to process data to Joomla Tables
             $result = $processor->process($data, $sourceUrl, $ftpConfig, $importAsSuperUser);
-         
+
             if ($result['success']) {
                 $message = Text::_('COM_CMSMIGRATOR_IMPORT_SUCCESS') . '<br>' .
                           Text::sprintf('COM_CMSMIGRATOR_IMPORT_USERS_COUNT', $result['counts']['users']) . '<br>' .
@@ -129,4 +129,4 @@ class ImportModel extends BaseModel
 
         return true;
     }
-} 
+}

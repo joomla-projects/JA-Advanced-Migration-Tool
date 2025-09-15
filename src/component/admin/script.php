@@ -1,10 +1,10 @@
 <?php
 
 /**
- * @package		Joomla.Administrator
- * @subpackage	com_cmsmigrator
+ * @package     Joomla.Administrator
+ * @subpackage  com_cmsmigrator
  * @copyright
- * @license		GNU General Public License version 2 or later; see LICENSE.txt
+ * @license     GNU General Public License version 2 or later; see LICENSE.txt
  */
 
 \defined('_JEXEC') or die;
@@ -14,6 +14,8 @@ use Joomla\CMS\Language\Text;
 use Joomla\CMS\Log\Log;
 use Joomla\CMS\Factory;
 use Joomla\Database\DatabaseDriver;
+
+namespace Joomla\Component\Cmsmigrator;
 
 /**
  * Installation script
@@ -54,13 +56,13 @@ class Com_CmsMigratorInstallerScript
             // Execute SQL installation file
             $db = Factory::getContainer()->get('DatabaseDriver');
             $sqlFile = JPATH_ADMINISTRATOR . '/components/com_cmsmigrator/sql/install.mysql.utf8.sql';
-            
+
             if (file_exists($sqlFile)) {
                 $sql = file_get_contents($sqlFile);
                 if ($sql) {
                     // Split SQL file into individual queries
                     $queries = $db->splitSql($sql);
-                    
+
                     foreach ($queries as $query) {
                         $query = trim($query);
                         if ($query) {

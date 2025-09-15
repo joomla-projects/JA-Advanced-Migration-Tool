@@ -8,7 +8,7 @@ use Joomla\DI\ServiceProviderInterface;
 use Joomla\Event\DispatcherInterface;
 use My\Plugin\Migration\Wordpress\Extension\Wordpress;
 
-return new class() implements ServiceProviderInterface
+return new class () implements ServiceProviderInterface
 {
     public function register(Container $container)
     {
@@ -19,7 +19,7 @@ return new class() implements ServiceProviderInterface
                 $config = (array) PluginHelper::getPlugin('migration', 'wordpress');
                 $subject = $container->get(DispatcherInterface::class);
                 $app = Factory::getApplication();
-                
+
                 $plugin = new Wordpress($subject, $config);
                 $plugin->setApplication($app);
 

@@ -113,8 +113,10 @@ class Wordpress extends CMSPlugin implements SubscriberInterface
 
             // Only published posts and pages
             $postType = (string) $wp_ns->post_type;
-            if (!in_array($postType, ['post', 'page'], true)
-                || (string) $wp_ns->status !== 'publish') {
+            if (
+                !in_array($postType, ['post', 'page'], true)
+                || (string) $wp_ns->status !== 'publish'
+            ) {
                 continue;
             }
 
@@ -165,7 +167,7 @@ class Wordpress extends CMSPlugin implements SubscriberInterface
             $article = [
                 '@type'         => 'Article',
                 'headline'      => (string) $item->title,
-                'articleSection'=> $categories ?: ['Uncategorized'],
+                'articleSection' => $categories ?: ['Uncategorized'],
                 'tags'          => $postTagSlugs,
                 'articleBody'   => $articleBody,
                 'datePublished' => $isoDate,
@@ -189,7 +191,7 @@ class Wordpress extends CMSPlugin implements SubscriberInterface
             '@context'       => 'http://schema.org',
             '@type'          => 'ItemList',
             'allTags'        => $allTags,
-            'itemListElement'=> $itemList,
+            'itemListElement' => $itemList,
             'mediaItems'     => $mediaItems,
         ];
 
