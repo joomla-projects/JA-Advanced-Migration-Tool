@@ -15,8 +15,6 @@ use Joomla\CMS\Log\Log;
 use Joomla\CMS\Factory;
 use Joomla\Database\DatabaseDriver;
 
-namespace Joomla\Component\Cmsmigrator;
-
 /**
  * Installation script
  *

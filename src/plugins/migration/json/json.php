@@ -5,8 +5,6 @@ defined('_JEXEC') or die;
 use Joomla\CMS\Event\AbstractEvent;
 use Joomla\CMS\Plugin\CMSPlugin;
 
-namespace Joomla\Plugin\Migration\Json;
-
 class PlgMigrationJson extends CMSPlugin
 {
     public function onMigrationConvert(AbstractEvent $event)

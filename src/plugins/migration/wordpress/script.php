@@ -7,8 +7,6 @@ defined('_JEXEC') or die;
 use Joomla\CMS\Factory;
 use Joomla\Database\DatabaseInterface;
 
-namespace Joomla\Plugin\Migration\Wordpress;
-
 /**
  * Installer script for the WordPress Migration Plugin.
  *
