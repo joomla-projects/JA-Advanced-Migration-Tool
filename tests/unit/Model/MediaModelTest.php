@@ -1,8 +1,8 @@
 <?php
 
-namespace Binary\Component\CmsMigrator\Tests\Model;
+namespace Joomla\Component\CmsMigrator\Tests\Model;
 
-use Binary\Component\CmsMigrator\Administrator\Model\MediaModel;
+use Joomla\Component\CmsMigrator\Administrator\Model\MediaModel;
 use PHPUnit\Framework\TestCase;
 
 class MediaModelTest extends TestCase

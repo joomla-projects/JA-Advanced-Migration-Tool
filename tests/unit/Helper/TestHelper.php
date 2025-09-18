@@ -1,13 +1,13 @@
 <?php
 
-namespace Binary\Component\CmsMigrator\Tests\Helper;
+namespace Joomla\Component\CmsMigrator\Tests\Helper;
 
 use PHPUnit\Framework\TestCase;
 
 /**
  * Test helper class providing common utilities for unit tests
  *
- * @package Binary\Component\CmsMigrator\Tests\Helper
+ * @package Joomla\Component\CmsMigrator\Tests\Helper
  * @since   1.0.0
  */
 class TestHelper

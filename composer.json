@@ -17,7 +17,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Binary\\Component\\CmsMigrator\\": "src/component/admin/src/"
+            "Joomla\\Component\\CmsMigrator\\Administrator\\": "src/component/admin/src/"
         }
     },
     "require-dev": {
@@ -28,7 +28,7 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Binary\\Component\\CmsMigrator\\Tests\\": "tests/"
+            "Joomla\\Component\\CmsMigrator\\Tests\\": "tests/unit/"
         }
     },
     "scripts": {

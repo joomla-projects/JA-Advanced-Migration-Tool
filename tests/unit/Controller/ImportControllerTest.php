@@ -1,15 +1,15 @@
 <?php
 
-namespace Binary\Component\CmsMigrator\Tests\Controller;
+namespace Joomla\Component\CmsMigrator\Tests\Controller;
 
-use Binary\Component\CmsMigrator\Administrator\Controller\ImportController;
+use Joomla\Component\CmsMigrator\Administrator\Controller\ImportController;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\MockObject\MockObject;
 
 /**
  * Test class for ImportController
  *
- * @package Binary\Component\CmsMigrator\Tests\Controller
+ * @package Joomla\Component\CmsMigrator\Tests\Controller
  * @since   1.0.0
  */
 class ImportControllerTest extends TestCase
@@ -159,7 +159,7 @@ class ImportControllerTest extends TestCase
         // Since checkToken throws exception if invalid, we assume it passes
 
         // Mock the getModel method
-        $mockModel = $this->getMockBuilder(\Binary\Component\CmsMigrator\Administrator\Model\ImportModel::class)
+        $mockModel = $this->getMockBuilder(\Joomla\Component\CmsMigrator\Administrator\Model\ImportModel::class)
             ->disableOriginalConstructor()
             ->getMock();
         $mockModel->method('import')->willReturn(true);

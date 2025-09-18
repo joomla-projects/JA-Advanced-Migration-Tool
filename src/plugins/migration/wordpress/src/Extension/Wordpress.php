@@ -60,6 +60,11 @@ class Wordpress extends CMSPlugin implements SubscriberInterface
             return;
         }
 
+        // Validate that this is a WordPress export file
+        if (!isset($xml->channel)) {
+            return;
+        }
+
         // Register namespaces
         $namespaces = $xml->getNamespaces(true);
         $wp      = $namespaces['wp']      ?? 'wp';

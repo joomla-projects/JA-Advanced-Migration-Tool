@@ -1,6 +1,6 @@
 <?php
 
-namespace Binary\Component\CmsMigrator\Tests\Integration;
+namespace Joomla\Component\CmsMigrator\Tests\Integration;
 
 use PHPUnit\Framework\TestCase;
 use ZipArchive;

@@ -1,14 +1,14 @@
 <?php
 
-namespace Binary\Component\CmsMigrator\Tests\Controller;
+namespace Joomla\Component\CmsMigrator\Tests\Controller;
 
-use Binary\Component\CmsMigrator\Administrator\Controller\DisplayController;
+use Joomla\Component\CmsMigrator\Administrator\Controller\DisplayController;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Test class for DisplayController
  *
- * @package Binary\Component\CmsMigrator\Tests\Controller
+ * @package Joomla\Component\CmsMigrator\Tests\Controller
  * @since   1.0.0
  */
 class DisplayControllerTest extends TestCase

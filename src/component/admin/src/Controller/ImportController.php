@@ -107,7 +107,7 @@ class ImportController extends BaseController
         $model->setMVCFactory($mvcFactory);
         try {
             if (!$model->import($file, $sourceCms, $sourceUrl, $connectionConfig, $importAsSuperUser)) {
-                $app->enqueueMessage('Import failed', 'error');
+                $app->enqueueMessage(Text::_('COM_CMSMIGRATOR_IMPORT_FAILED'), 'error');
                 $this->setRedirect('index.php?option=com_cmsmigrator');
                 return;
             }
