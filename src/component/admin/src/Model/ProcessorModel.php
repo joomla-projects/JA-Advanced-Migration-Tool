@@ -7,23 +7,23 @@
  * @license      GNU General Public License version 2 or later; see LICENSE.txt
  */
 
-namespace Binary\Component\CmsMigrator\Administrator\Model;
+namespace Joomla\Component\CmsMigrator\Administrator\Model;
 
 \defined('_JEXEC') or die;
 
+use Joomla\CMS\Component\ComponentHelper;
 use Joomla\CMS\Date\Date;
 use Joomla\CMS\Factory;
-use Joomla\CMS\MVC\Model\BaseDatabaseModel;
-use Joomla\CMS\Table\Table;
-use Joomla\CMS\User\UserHelper;
-use Joomla\CMS\Helper\TagsHelper;
 use Joomla\CMS\Filter\OutputFilter;
-use Joomla\CMS\Uri\Uri;
-use Binary\Component\CmsMigrator\Administrator\Model\MediaModel;
-use Joomla\CMS\Component\ComponentHelper;
-use Joomla\Component\Menus\Administrator\Table\MenuTable;
+use Joomla\CMS\Helper\TagsHelper;
+use Joomla\CMS\MVC\Model\BaseDatabaseModel;
 use Joomla\CMS\Table\MenuType;
+use Joomla\CMS\Table\Table;
+use Joomla\CMS\Uri\Uri;
+use Joomla\CMS\User\UserHelper;
+use Joomla\Component\CmsMigrator\Administrator\Model\MediaModel;
 use Joomla\Component\Content\Administrator\Table\ArticleTable;
+use Joomla\Component\Menus\Administrator\Table\MenuTable;
 
 /**
  * Processor Model

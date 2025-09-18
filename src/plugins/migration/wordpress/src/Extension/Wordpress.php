@@ -1,13 +1,13 @@
 <?php
 
-namespace My\Plugin\Migration\Wordpress\Extension;
+namespace Joomla\Plugin\Migration\Wordpress\Extension;
 
 defined('_JEXEC') or die;
 
+use DateTime;
 use Joomla\CMS\Plugin\CMSPlugin;
 use Joomla\Event\Event;
 use Joomla\Event\SubscriberInterface;
-use DateTime;
 
 /**
  * WordPress Migration Plugin

@@ -1,3 +1,10 @@
+--
+-- @package     Joomla.Administrator
+-- @subpackage  com_cmsmigrator
+-- @copyright   Copyright (C) 2025 Open Source Matters, Inc.
+-- @license     GNU General Public License version 2 or later; see LICENSE.txt
+--
+
 CREATE TABLE IF NOT EXISTS `#__cmsmigrator_articles` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `title` varchar(255) NOT NULL DEFAULT '',

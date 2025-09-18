@@ -7,7 +7,7 @@
  * @license     GNU General Public License version 2 or later; see LICENSE.txt
  */
 
-namespace Binary\Component\CmsMigrator\Administrator\View\Cpanel;
+namespace Joomla\Component\CmsMigrator\Administrator\View\Cpanel;
 
 \defined('_JEXEC') or die;
 

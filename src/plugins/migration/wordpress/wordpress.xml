@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+/**
+ * @package     Joomla.Plugin
+ * @subpackage  migration.wordpress
+ * @copyright   Copyright (C) 2025 Open Source Matters, Inc.
+ * @license     GNU General Public License version 2 or later; see LICENSE.txt
+ */
+-->
 <extension method="upgrade" type="plugin" group="migration">
     <name>PLG_MIGRATION_WORDPRESS</name>
     <version>1.0.0</version>
@@ -7,7 +15,7 @@
     <creationDate>2025-06-05</creationDate>
     <copyright>(C) 2025 Open Source Matters, Inc.</copyright>
     <license>GNU General Public License version 2 or later; see LICENSE.txt</license>
-    <namespace path="src">My\Plugin\Migration\Wordpress</namespace>
+    <namespace path="src">Joomla\Plugin\Migration\Wordpress</namespace>
     <files>
         <folder plugin="wordpress">services</folder>
         <folder>src</folder>
