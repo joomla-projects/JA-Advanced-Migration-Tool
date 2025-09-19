@@ -14,15 +14,12 @@ namespace Joomla\Component\CmsMigrator\Administrator\Controller;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\Controller\BaseController;
-use Joomla\CMS\MVC\Factory\MVCFactoryAwareTrait;
 use Joomla\CMS\Response\JsonResponse;
 use Joomla\Component\CmsMigrator\Administrator\Model\MediaModel;
 use Joomla\Filesystem\File;
 
 class ImportController extends BaseController
 {
-    use MVCFactoryAwareTrait;
-
     public function import()
     {
         $this->checkToken();
