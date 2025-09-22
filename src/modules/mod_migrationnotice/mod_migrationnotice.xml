@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="module" version="5.0" client="site" method="upgrade">
+    <name>mod_migrationnotice</name>
+    <title>Migration Notice Module</title>
+    <description>MOD_MIGRATIONNOTICE_XML_DESCRIPTION</description>
+    <version>1.0.0</version>
+    <author>Joomla Academy</author>
+    <authorEmail></authorEmail>
+    <authorUrl></authorUrl>
+    <copyright>Copyright (C) 2025 Joomla Academy. All rights reserved.</copyright>
+    <license>GNU General Public License version 2 or later</license>
+    
+    <files>
+        <filename module="mod_migrationnotice">mod_migrationnotice.php</filename>
+        <folder>tmpl</folder>
+        <folder>language</folder>
+    </files>
+    
+    <languages>
+        <language tag="en-GB">language/en-GB/en-GB.mod_migrationnotice.ini</language>
+        <language tag="en-GB">language/en-GB/en-GB.mod_migrationnotice.sys.ini</language>
+    </languages>
+    
+    <scriptfile>script.php</scriptfile>
+    
+    <config>
+        <fields name="params">
+            <fieldset name="basic" label="MOD_MIGRATIONNOTICE_FIELDSET_BASIC_LABEL">
+                <field
+                    name="show_notice"
+                    type="radio"
+                    label="MOD_MIGRATIONNOTICE_FIELD_SHOW_NOTICE_LABEL"
+                    description="MOD_MIGRATIONNOTICE_FIELD_SHOW_NOTICE_DESC"
+                    default="1"
+                    class="btn-group btn-group-yesno"
+                >
+                    <option value="1">JYES</option>
+                    <option value="0">JNO</option>
+                </field>
+                
+                <field
+                    name="notice_type"
+                    type="list"
+                    label="MOD_MIGRATIONNOTICE_FIELD_NOTICE_TYPE_LABEL"
+                    description="MOD_MIGRATIONNOTICE_FIELD_NOTICE_TYPE_DESC"
+                    default="both"
+                >
+                    <option value="migration">MOD_MIGRATIONNOTICE_OPTION_MIGRATION_ONLY</option>
+                    <option value="password">MOD_MIGRATIONNOTICE_OPTION_PASSWORD_ONLY</option>
+                    <option value="both">MOD_MIGRATIONNOTICE_OPTION_BOTH</option>
+                </field>
+                
+                <field
+                    name="alert_type"
+                    type="list"
+                    label="MOD_MIGRATIONNOTICE_FIELD_ALERT_TYPE_LABEL"
+                    description="MOD_MIGRATIONNOTICE_FIELD_ALERT_TYPE_DESC"
+                    default="info"
+                >
+                    <option value="info">MOD_MIGRATIONNOTICE_OPTION_INFO</option>
+                    <option value="warning">MOD_MIGRATIONNOTICE_OPTION_WARNING</option>
+                    <option value="success">MOD_MIGRATIONNOTICE_OPTION_SUCCESS</option>
+                    <option value="error">MOD_MIGRATIONNOTICE_OPTION_ERROR</option>
+                </field>
+                
+                <field
+                    name="show_reset_link"
+                    type="radio"
+                    label="MOD_MIGRATIONNOTICE_FIELD_SHOW_RESET_LINK_LABEL"
+                    description="MOD_MIGRATIONNOTICE_FIELD_SHOW_RESET_LINK_DESC"
+                    default="1"
+                    class="btn-group btn-group-yesno"
+                >
+                    <option value="1">JYES</option>
+                    <option value="0">JNO</option>
+                </field>
+                
+                <field
+                    name="custom_message"
+                    type="textarea"
+                    label="MOD_MIGRATIONNOTICE_FIELD_CUSTOM_MESSAGE_LABEL"
+                    description="MOD_MIGRATIONNOTICE_FIELD_CUSTOM_MESSAGE_DESC"
+                    rows="4"
+                    cols="40"
+                />
+            </fieldset>
+            
+            <fieldset name="advanced" label="JGLOBAL_FIELDSET_ADVANCED">
+                <field
+                    name="layout"
+                    type="modulelayout"
+                    label="JFIELD_ALT_LAYOUT_LABEL"
+                    description="JFIELD_ALT_LAYOUT_DESC"
+                    default="default"
+                />
+                
+                <field
+                    name="moduleclass_sfx"
+                    type="textarea"
+                    label="COM_MODULES_FIELD_MODULECLASS_SFX_LABEL"
+                    description="COM_MODULES_FIELD_MODULECLASS_SFX_DESC"
+                    rows="3"
+                />
+                
+                <field
+                    name="cache"
+                    type="list"
+                    label="COM_MODULES_FIELD_CACHING_LABEL"
+                    description="COM_MODULES_FIELD_CACHING_DESC"
+                    default="1"
+                >
+                    <option value="1">JGLOBAL_USE_GLOBAL</option>
+                    <option value="0">COM_MODULES_FIELD_VALUE_NOCACHING</option>
+                </field>
+                
+                <field
+                    name="cache_time"
+                    type="number"
+                    label="COM_MODULES_FIELD_CACHE_TIME_LABEL"
+                    description="COM_MODULES_FIELD_CACHE_TIME_DESC"
+                    default="900"
+                />
+            </fieldset>
+        </fields>
+    </config>
+</extension>
