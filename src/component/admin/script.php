@@ -13,6 +13,7 @@ use Joomla\CMS\Installer\InstallerAdapter;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\Log\Log;
 use Joomla\CMS\Factory;
+use Joomla\CMS\Installer\Installer;
 use Joomla\Database\DatabaseDriver;
 
 /**
@@ -154,6 +155,11 @@ class Com_CmsMigratorInstallerScript
      */
     public function postflight($type, $parent)
     {
+        // Only install bundled extensions during install or update
+        if ($type === 'install' || $type === 'update') {
+            $this->installBundledExtensions($parent);
+        }
+        
         return true;
     }
 
@@ -178,6 +184,36 @@ class Com_CmsMigratorInstallerScript
 
         if (!file_exists($imagesPath)) {
             mkdir($imagesPath, 0755, true);
+        }
+    }
+
+    /**
+     * Install bundled extensions that come with the component
+     *
+     * @param   InstallerAdapter  $parent  The installer adapter
+     *
+     * @return  void
+     */
+    private function installBundledExtensions($parent): void
+    {
+        $sourcePath = $parent->getParent()->getPath('source');
+        $moduleSourcePath = $sourcePath . '/modules/mod_migrationnotice';
+
+        if (is_dir($moduleSourcePath) && file_exists($moduleSourcePath . '/mod_migrationnotice.xml')) {
+            try {
+                $installer = Factory::getContainer()->get(Installer::class);
+                $result = $installer->install($moduleSourcePath);
+
+                if ($result) {
+                    \Joomla\CMS\Log\Log::add('✅ Installed module: mod_migrationnotice', \Joomla\CMS\Log\Log::INFO, 'com_cmsmigrator');
+                } else {
+                    \Joomla\CMS\Log\Log::add('❌ Failed to install module: mod_migrationnotice', \Joomla\CMS\Log\Log::WARNING, 'com_cmsmigrator');
+                }
+            } catch (\Exception $e) {
+                \Joomla\CMS\Log\Log::add('Exception during module install: ' . $e->getMessage(), \Joomla\CMS\Log\Log::ERROR, 'com_cmsmigrator');
+            }
+        } else {
+            \Joomla\CMS\Log\Log::add('Module not found or missing manifest at ' . $moduleSourcePath, \Joomla\CMS\Log\Log::WARNING, 'com_cmsmigrator');
         }
     }
 }

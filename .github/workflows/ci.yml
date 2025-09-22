@@ -126,6 +126,10 @@ jobs:
         run: |
           mkdir -p cypress/fixtures
           cd src/component
+          # Copy the module into the component structure for bundling
+          mkdir -p modules
+          cp -r ../modules/mod_migrationnotice modules/
+          # Create the component zip with bundled module
           zip -r ../../cypress/fixtures/com_cmsmigrator_v${{ steps.version.outputs.version }}.zip .
 
       - name: Verify zip file exists
