@@ -1,16 +1,23 @@
 <?php
 
-namespace Binary\Component\CmsMigrator\Administrator\Model;
+/**
+ * @package     Joomla.Administrator
+ * @subpackage  com_cmsmigrator
+ * @copyright   Copyright (C) 2025 Open Source Matters, Inc.
+ * @license     GNU General Public License version 2 or later; see LICENSE.txt
+ */
+
+namespace Joomla\Component\CmsMigrator\Administrator\Model;
 
 \defined('_JEXEC') or die;
 
-use Binary\Component\CmsMigrator\Administrator\Event\MigrationEvent;
 use Joomla\CMS\Factory;
-use Joomla\CMS\Language\Text;
-use Joomla\CMS\MVC\Model\BaseModel;
-use Joomla\CMS\MVC\Factory\MVCFactoryAwareTrait;
-use Joomla\CMS\Plugin\PluginHelper;
 use Joomla\CMS\Http\HttpFactory;
+use Joomla\CMS\Language\Text;
+use Joomla\CMS\MVC\Factory\MVCFactoryAwareTrait;
+use Joomla\CMS\MVC\Model\BaseModel;
+use Joomla\CMS\Plugin\PluginHelper;
+use Joomla\Component\CmsMigrator\Administrator\Event\MigrationEvent;
 use Joomla\Filesystem\File;
 use Joomla\Filesystem\Folder;
 
@@ -73,20 +80,20 @@ class ImportModel extends BaseModel
         }
 
         // Save the converted data to a file (Optional)
-        if ($convertedData) {
-            $importPath = JPATH_SITE . '/media/com_cmsmigrator/imports';
-            Folder::create($importPath);
+        // if ($convertedData) {
+        //     $importPath = JPATH_SITE . '/media/com_cmsmigrator/imports';
+        //     Folder::create($importPath);
 
-            $fileName = 'import_' . $sourceCms . '_' . time() . '.json';
-            $filePath = $importPath . '/' . $fileName;
+        //     $fileName = 'import_' . $sourceCms . '_' . time() . '.json';
+        //     $filePath = $importPath . '/' . $fileName;
 
-            try {
-                File::write($filePath, $convertedData);
-                $this->app->enqueueMessage(Text::sprintf('COM_CMSMIGRATOR_JSON_SAVED', $filePath), 'message');
-            } catch (\Exception $e) {
-                $this->app->enqueueMessage(Text::sprintf('COM_CMSMIGRATOR_JSON_SAVE_FAILED', $e->getMessage()), 'error');
-            }
-        }
+        //     try {
+        //         File::write($filePath, $convertedData);
+        //         $this->app->enqueueMessage(Text::sprintf('COM_CMSMIGRATOR_JSON_SAVED', $filePath), 'message');
+        //     } catch (\Exception $e) {
+        //         $this->app->enqueueMessage(Text::sprintf('COM_CMSMIGRATOR_JSON_SAVE_FAILED', $e->getMessage()), 'error');
+        //     }
+        // }
 
         if (!$convertedData) {
             throw new \RuntimeException(Text::sprintf('COM_CMSMIGRATOR_NO_PLUGIN_FOUND', $sourceCms));
@@ -97,12 +104,12 @@ class ImportModel extends BaseModel
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new \RuntimeException(Text::_('COM_CMSMIGRATOR_INVALID_JSON_FORMAT_FROM_PLUGIN'));
         }
-        
+
         try {
             $processor = $this->getMVCFactory()->createModel('Processor', 'Administrator', ['ignore_request' => true]);
             //Processor function to process data to Joomla Tables
             $result = $processor->process($data, $sourceUrl, $ftpConfig, $importAsSuperUser);
-         
+
             if ($result['success']) {
                 $message = Text::_('COM_CMSMIGRATOR_IMPORT_SUCCESS') . '<br>' .
                           Text::sprintf('COM_CMSMIGRATOR_IMPORT_USERS_COUNT', $result['counts']['users']) . '<br>' .
@@ -129,4 +136,4 @@ class ImportModel extends BaseModel
 
         return true;
     }
-} 
+}

@@ -1,8 +1,8 @@
 <?php
 
-namespace Binary\Component\CmsMigrator\Tests\Model;
+namespace Joomla\Component\CmsMigrator\Tests\Model;
 
-use Binary\Component\CmsMigrator\Administrator\Model\ProcessorModel;
+use Joomla\Component\CmsMigrator\Administrator\Model\ProcessorModel;
 use Joomla\Database\DatabaseDriver;
 use Joomla\Database\DatabaseQuery;
 use PHPUnit\Framework\TestCase;

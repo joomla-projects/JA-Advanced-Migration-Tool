@@ -1,4 +1,12 @@
 <?php
+
+/**
+ * @package     Joomla.Plugin
+ * @subpackage  migration.wordpress
+ * @copyright   Copyright (C) 2025 Open Source Matters, Inc.
+ * @license     GNU General Public License version 2 or later; see LICENSE.txt
+ */
+
 // script.php
 
 defined('_JEXEC') or die;
@@ -26,8 +34,7 @@ class PlgMigrationWordpressInstallerScript
     public function postflight($type, $parent)
     {
         // Only act on fresh installs or updates.
-        if (in_array($type, ['install', 'update'], true))
-        {
+        if (in_array($type, ['install', 'update'], true)) {
             $db = Factory::getContainer()->get(DatabaseInterface::class);
             $query = $db->getQuery(true)
                 ->update($db->quoteName('#__extensions'))

@@ -7,7 +7,7 @@
  * @license     GNU General Public License version 2 or later; see LICENSE.txt
  */
 
-namespace Binary\Component\CmsMigrator\Administrator\View\Cpanel;
+namespace Joomla\Component\CmsMigrator\Administrator\View\Cpanel;
 
 \defined('_JEXEC') or die;
 
@@ -116,7 +116,7 @@ class HtmlView extends BaseHtmlView
             'ftpFieldsRequired' => Text::_('COM_CMSMIGRATOR_MEDIA_FTP_FIELDS_REQUIRED'),
             'zipFileError'      => Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_FILE_ERROR')
         ]);
-        
+
         // Load language strings for JavaScript
         Text::script('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_TESTING');
         Text::script('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS');

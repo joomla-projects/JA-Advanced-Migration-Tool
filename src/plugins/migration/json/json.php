@@ -25,4 +25,4 @@ class PlgMigrationJson extends CMSPlugin
         // The content is already JSON, so we just pass it along.
         $event->addResult($jsonContent);
     }
-} 
+}

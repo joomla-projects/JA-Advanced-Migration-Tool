@@ -7,7 +7,7 @@
  * @license     GNU General Public License version 2 or later; see LICENSE.txt
  */
 
-namespace Binary\Component\CmsMigrator\Administrator\Model;
+namespace Joomla\Component\CmsMigrator\Administrator\Model;
 
 \defined('_JEXEC') or die;
 
@@ -132,8 +132,8 @@ class MediaModel extends BaseModel
 
     /**
      * Sets the storage directory.
-     * 
-     * The storage directory will contain the WordPress media files organized 
+     *
+     * The storage directory will contain the WordPress media files organized
      * in their original folder structure (e.g., 2024/01/image.jpg).
      *
      * @param   string  $dir  The directory name (e.g., 'imports', 'custom', etc.).
@@ -268,7 +268,9 @@ class MediaModel extends BaseModel
 
         if (!empty($matches[1])) {
             foreach ($matches[1] as $url) {
-                if (strpos($url, 'data:') === 0) continue;
+                if (strpos($url, 'data:') === 0) {
+                    continue;
+                }
                 $imageUrls[] = $url;
             }
         }
@@ -278,7 +280,7 @@ class MediaModel extends BaseModel
         if (!empty($wpMatches[0])) {
             $imageUrls = array_merge($imageUrls, $wpMatches[0]);
         }
-        
+
         // Match direct uploads folder URLs
         preg_match_all('/https?:\/\/[^\/]+\/uploads\/[^\s"\'<>]+\.(jpg|jpeg|png|gif|webp)/i', $content, $directMatches);
         if (!empty($directMatches[0])) {
@@ -306,11 +308,11 @@ class MediaModel extends BaseModel
         }
 
         $uploadPath = $parsedUrl['path'];
-        
+
         // Check for different WordPress upload path patterns
         $isWordPressUpload = false;
         $relativePath = '';
-        
+
         if (strpos($uploadPath, '/wp-content/uploads/') !== false) {
             // Standard WordPress structure: /wp-content/uploads/...
             $isWordPressUpload = true;
@@ -322,7 +324,7 @@ class MediaModel extends BaseModel
             preg_match('/.*\/uploads\/(.+)$/', $uploadPath, $matches);
             $relativePath = $matches[1] ?? '';
         }
-        
+
         if (!$isWordPressUpload || empty($relativePath)) {
             $this->app->enqueueMessage("Not a WordPress upload path: $uploadPath", 'warning');
             return null;
@@ -423,7 +425,7 @@ class MediaModel extends BaseModel
     {
         $candidatePaths = [];
         $documentRoot = $this->documentRoot === '.' ? '' : $this->documentRoot;
-        
+
         // Try different WordPress structure patterns
         $structures = [
             // Standard structure: {documentRoot}/wp-content/uploads/...
@@ -435,14 +437,14 @@ class MediaModel extends BaseModel
             // Root uploads: uploads/...
             'uploads/'
         ];
-        
+
         foreach ($structures as $structure) {
             // Add resized version first (usually smaller file)
             $candidatePaths[] = $structure . $resizedPath;
             // Add original version
             $candidatePaths[] = $structure . $originalPath;
         }
-        
+
         return array_unique($candidatePaths);
     }
 
@@ -521,7 +523,7 @@ class MediaModel extends BaseModel
 
         try {
             $result = $this->sftpConnection->get($remotePath, $localPath);
-            
+
             if ($result !== false) {
                 return true;
             }
@@ -549,31 +551,31 @@ class MediaModel extends BaseModel
             // Return the WordPress uploads structure (e.g., 2024/01/image.jpg)
             return $matches[1];
         }
-        
+
         // Extract the path after direct uploads/
         $pattern = '/.*\/uploads\/(.+)$/';
         if (preg_match($pattern, $remotePath, $matches)) {
             // Return the uploads structure (e.g., 2024/01/image.jpg)
             return $matches[1];
         }
-        
+
         // Fallback: clean the path but preserve some structure
         $cleanPath = $remotePath;
-        
+
         // Remove document root if present
         if ($this->documentRoot !== '.' && strpos($cleanPath, $this->documentRoot . '/') === 0) {
             $cleanPath = substr($cleanPath, strlen($this->documentRoot . '/'));
         }
-        
+
         // Remove wp-content/uploads/ or uploads/ prefix
         $cleanPath = preg_replace('/^(wp-content\/)?uploads\//', '', $cleanPath);
-        
+
         // Sanitize directory and file names separately to preserve folder structure
         $pathParts = explode('/', $cleanPath);
-        $sanitizedParts = array_map(function($part) {
+        $sanitizedParts = array_map(function ($part) {
             return preg_replace('/[^a-zA-Z0-9._-]/', '_', $part);
         }, $pathParts);
-        
+
         return implode('/', $sanitizedParts);
     }
 
@@ -608,19 +610,19 @@ class MediaModel extends BaseModel
         foreach ($testScenarios as [$root, $contentPath]) {
             $canAccess = false;
             $hasWordPressContent = false;
-            
+
             if ($this->connectionType === 'sftp' && $this->sftpConnection) {
                 try {
                     $checkPath = $root ? $root . '/' . $contentPath : $contentPath;
-                    
+
                     // Check if the root directory exists (or skip if empty root)
                     if (empty($root) || $this->sftpConnection->is_dir($root)) {
                         $canAccess = true;
-                        
+
                         // Check for WordPress content structure
                         if ($this->sftpConnection->is_dir($checkPath)) {
                             $hasWordPressContent = true;
-                            
+
                             // For wp-content, also check for uploads subdirectory
                             if ($contentPath === 'wp-content') {
                                 $uploadsPath = $checkPath . '/uploads';
@@ -633,17 +635,17 @@ class MediaModel extends BaseModel
                 } catch (\Exception $e) {
                     // Continue to next scenario
                 }
-            } else if ($this->ftpConnection) {
+            } elseif ($this->ftpConnection) {
                 $originalDir = @ftp_pwd($this->ftpConnection);
-                
+
                 // Check if we can access the root directory (or skip if empty root)
                 if (empty($root) || @ftp_chdir($this->ftpConnection, $root)) {
                     $canAccess = true;
-                    
+
                     // Check for WordPress content structure
                     if (@ftp_chdir($this->ftpConnection, $contentPath)) {
                         $hasWordPressContent = true;
-                        
+
                         // For wp-content, also check for uploads subdirectory
                         if ($contentPath === 'wp-content') {
                             if (@ftp_chdir($this->ftpConnection, 'uploads')) {
@@ -652,7 +654,7 @@ class MediaModel extends BaseModel
                                 @ftp_chdir($this->ftpConnection, '..');
                             }
                         }
-                        
+
                         // Return to root
                         @ftp_chdir($this->ftpConnection, $originalDir ?: '/');
                     } else {
@@ -664,21 +666,21 @@ class MediaModel extends BaseModel
                     @ftp_chdir($this->ftpConnection, $originalDir ?: '/');
                 }
             }
-            
+
             if ($canAccess && $hasWordPressContent) {
                 $this->documentRoot = $root ?: '.';
                 $this->documentRootDetected = true;
-                
+
                 $detectedStructure = $root ? "{$root}/{$contentPath}" : $contentPath;
                 $this->app->enqueueMessage(
                     "✅ WordPress structure auto-detected: {$detectedStructure} (Document root: {$this->documentRoot})",
                     'info'
                 );
-                
+
                 return;
             }
         }
-        
+
         // If no valid structure found, use default and mark as detected to avoid repeated attempts
         $this->documentRootDetected = true;
         $this->app->enqueueMessage(
@@ -699,7 +701,7 @@ class MediaModel extends BaseModel
     public function connect(array $config): bool
     {
         $this->connectionType = $config['connection_type'] ?? 'ftp';
-        
+
         if ($this->connectionType === 'zip') {
             return $this->processZipUpload($config);
         } elseif ($this->connectionType === 'sftp') {
@@ -777,7 +779,7 @@ class MediaModel extends BaseModel
 
         // Use ftp_ssl_connect for FTPS (FTP over SSL/TLS)
         $this->ftpConnection = ftp_ssl_connect($config['host'], $config['port'] ?? 21, 15);
-        
+
         if (!$this->ftpConnection) {
             $this->app->enqueueMessage("Failed to connect to FTPS server: {$config['host']}", 'error');
             return false;
@@ -823,7 +825,7 @@ class MediaModel extends BaseModel
 
         try {
             $this->sftpConnection = new SFTP($config['host'], $config['port'] ?? 22);
-            
+
             if (!$this->sftpConnection->login($config['username'], $config['password'])) {
                 $this->app->enqueueMessage('SFTP login failed', 'error');
                 $this->sftpConnection = null;
@@ -855,7 +857,7 @@ class MediaModel extends BaseModel
         }
 
         $zipFile = $config['zip_file'];
-        
+
         // Validate file upload
         if ($zipFile['error'] !== UPLOAD_ERR_OK) {
             $this->app->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_UPLOAD_ERROR'), 'error');
@@ -875,7 +877,7 @@ class MediaModel extends BaseModel
         try {
             // Extract ZIP file to storage directory
             $extractPath = $this->mediaBasePath;
-            
+
             // Ensure extraction directory exists
             if (!is_dir($extractPath)) {
                 Folder::create($extractPath);
@@ -886,8 +888,8 @@ class MediaModel extends BaseModel
             // Extract ZIP
             $zip = new \ZipArchive();
             $result = $zip->open($zipFile['tmp_name']);
-            
-            if ($result !== TRUE) {
+
+            if ($result !== true) {
                 $this->app->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_EXTRACT_FAILED'), 'error');
                 return false;
             }
@@ -895,64 +897,63 @@ class MediaModel extends BaseModel
             $extractedFiles = 0;
             $totalFiles = $zip->numFiles;
             $processedFiles = 0;
-            
+
             // Extract files with progress tracking
             for ($i = 0; $i < $totalFiles; $i++) {
                 $filename = $zip->getNameIndex($i);
                 $processedFiles++;
-                
+
                 // Report progress every 10 files or at the end
                 if ($processedFiles % 10 === 0 || $processedFiles === $totalFiles) {
                     $progressPercent = min(15, (int)(($processedFiles / $totalFiles) * 15)); // ZIP processing takes up to 15% of total progress
                     $this->updateZipProgress($progressPercent, sprintf('Extracting files from ZIP: %d/%d', $processedFiles, $totalFiles));
                 }
-                
+
                 // Skip directories and hidden files
                 if (substr($filename, -1) === '/' || strpos(basename($filename), '.') === 0) {
                     continue;
                 }
-                
+
                 // Skip non-media files - only extract common media file types
                 $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
                 $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'mp4', 'mp3', 'zip'];
                 if (!in_array($extension, $allowedExtensions)) {
                     continue;
                 }
-                
+
                 // Extract individual file to handle path structure better
                 $fileData = $zip->getFromIndex($i);
                 if ($fileData !== false) {
                     // Handle WordPress uploads folder structure
                     $relativePath = $this->normalizeUploadPath($filename);
                     $targetPath = $extractPath . $relativePath;
-                    
+
                     // Ensure target directory exists
                     $targetDir = dirname($targetPath);
                     if (!is_dir($targetDir)) {
                         Folder::create($targetDir);
                     }
-                    
+
                     // Write the file
                     if (File::write($targetPath, $fileData)) {
                         $extractedFiles++;
                     }
                 }
             }
-            
+
             $zip->close();
 
             $this->app->enqueueMessage(
-                Text::sprintf('COM_CMSMIGRATOR_MEDIA_ZIP_EXTRACTED_SUCCESS', $extractedFiles), 
+                Text::sprintf('COM_CMSMIGRATOR_MEDIA_ZIP_EXTRACTED_SUCCESS', $extractedFiles),
                 'message'
             );
-            
-            $this->app->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_COMPLETE'), 'info');
-            
-            return true;
 
+            $this->app->enqueueMessage(Text::_('COM_CMSMIGRATOR_MEDIA_ZIP_COMPLETE'), 'info');
+
+            return true;
         } catch (\Exception $e) {
             $this->app->enqueueMessage(
-                Text::sprintf('COM_CMSMIGRATOR_MEDIA_ZIP_EXTRACT_ERROR', $e->getMessage()), 
+                Text::sprintf('COM_CMSMIGRATOR_MEDIA_ZIP_EXTRACT_ERROR', $e->getMessage()),
                 'error'
             );
             return false;
@@ -981,7 +982,7 @@ class MediaModel extends BaseModel
                 if ($newUrl) {
                     $updatedContent = str_replace($originalUrl, $newUrl, $updatedContent);
                     $this->app->enqueueMessage(
-                        Text::sprintf('COM_CMSMIGRATOR_MEDIA_ZIP_URL_REPLACED', basename($originalUrl)), 
+                        Text::sprintf('COM_CMSMIGRATOR_MEDIA_ZIP_URL_REPLACED', basename($originalUrl)),
                         'info'
                     );
                 }
@@ -1025,7 +1026,7 @@ class MediaModel extends BaseModel
         if (preg_match('/.*\/wp-content\/uploads\/(.+)$/i', $urlPath, $matches)) {
             $relativePath = $matches[1];
         }
-        // Pattern 2: /uploads/2024/01/image.jpg 
+        // Pattern 2: /uploads/2024/01/image.jpg
         elseif (preg_match('/.*\/uploads\/(.+)$/i', $urlPath, $matches)) {
             $relativePath = $matches[1];
         }
@@ -1131,7 +1132,7 @@ class MediaModel extends BaseModel
         }
 
         $uploadPath = $parsedUrl['path'];
-        
+
         // Check for standard WordPress structure: /wp-content/uploads/
         if (strpos($uploadPath, '/wp-content/uploads/') !== false) {
             $pattern = '/.*\/wp-content\/uploads\/(.+)$/';
@@ -1139,7 +1140,7 @@ class MediaModel extends BaseModel
                 return $this->mediaBaseUrl . $matches[1];
             }
         }
-        
+
         // Check for direct uploads structure: /uploads/
         if (strpos($uploadPath, '/uploads/') !== false) {
             $pattern = '/.*\/uploads\/(.+)$/';
@@ -1210,7 +1211,9 @@ class MediaModel extends BaseModel
             $this->processBatchDownload($batch, $results);
         }
 
-        $successCount = count(array_filter($results, function($result) { return $result['success']; }));
+        $successCount = count(array_filter($results, function ($result) {
+            return $result['success'];
+        }));
         $this->app->enqueueMessage(
             sprintf('✅ Batch download complete: %d/%d files downloaded successfully', $successCount, count($results)),
             'info'
@@ -1232,7 +1235,7 @@ class MediaModel extends BaseModel
     {
         $results = [];
         $foundCount = 0;
-        
+
         $this->app->enqueueMessage(
             sprintf('Processing %d media URLs from extracted ZIP files...', count($mediaUrls)),
             'info'
@@ -1240,7 +1243,7 @@ class MediaModel extends BaseModel
 
         foreach ($mediaUrls as $originalUrl) {
             $localUrl = $this->findExtractedImageUrl($originalUrl);
-            
+
             if ($localUrl) {
                 $results[$originalUrl] = [
                     'success' => true,
@@ -1256,7 +1259,7 @@ class MediaModel extends BaseModel
                 ];
             }
         }
-        
+
         $this->app->enqueueMessage(
             sprintf('✅ ZIP media processing complete: %d/%d files found in extracted content', $foundCount, count($mediaUrls)),
             'info'
@@ -1282,11 +1285,11 @@ class MediaModel extends BaseModel
         }
 
         $uploadPath = $parsedUrl['path'];
-        
+
         // Check for different WordPress upload path patterns
         $isWordPressUpload = false;
         $relativePath = '';
-        
+
         if (strpos($uploadPath, '/wp-content/uploads/') !== false) {
             // Standard WordPress structure: /wp-content/uploads/...
             $isWordPressUpload = true;
@@ -1298,7 +1301,7 @@ class MediaModel extends BaseModel
             preg_match('/.*\/uploads\/(.+)$/', $uploadPath, $matches);
             $relativePath = $matches[1] ?? '';
         }
-        
+
         if (!$isWordPressUpload || empty($relativePath)) {
             return [];
         }
@@ -1324,10 +1327,10 @@ class MediaModel extends BaseModel
         }
 
         $paths = [];
-        
+
         // Generate candidate remote paths based on detected structure
         $candidatePaths = $this->generateCandidateRemotePaths($resizedPath, $originalPath);
-        
+
         foreach ($candidatePaths as $remotePath) {
             $paths[] = [
                 'remote' => $remotePath,
@@ -1353,7 +1356,7 @@ class MediaModel extends BaseModel
     {
         foreach ($downloadTasks as $imageUrl => $paths) {
             $downloaded = false;
-            
+
             foreach ($paths as $pathInfo) {
                 $localDir = dirname($pathInfo['local']);
                 if (!is_dir($localDir)) {
@@ -1400,7 +1403,7 @@ class MediaModel extends BaseModel
      * Test FTP, FTPS, or SFTP connection and auto-detect document root
      *
      * @param   array   $config        The connection configuration
-     * 
+     *
      * @return  array  Result containing success status and message
      *
      * @since   1.0.0
@@ -1433,7 +1436,7 @@ class MediaModel extends BaseModel
      * Test FTP connection and auto-detect document root
      *
      * @param   array   $config        The FTP configuration
-     * 
+     *
      * @return  array  Result containing success status and message
      *
      * @since   1.0.0
@@ -1447,7 +1450,7 @@ class MediaModel extends BaseModel
 
         // Try to connect
         $connection = @ftp_connect($config['host'], $config['port'] ?? 21, 15);
-        
+
         if (!$connection) {
             $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_FAILED', 'Could not connect to FTP server');
             return $result;
@@ -1455,7 +1458,7 @@ class MediaModel extends BaseModel
 
         // Try to login
         $loginResult = @ftp_login($connection, $config['username'], $config['password']);
-        
+
         if (!$loginResult) {
             ftp_close($connection);
             $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_FAILED', 'Invalid FTP credentials');
@@ -1472,14 +1475,14 @@ class MediaModel extends BaseModel
 
         // Close the connection
         ftp_close($connection);
-        
+
         // Return success with detected root info
         $result['success'] = true;
         if ($detectedRoot) {
-            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) . 
+            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) .
                                "<br> Document root detected: \"{$detectedRoot}\" with WordPress content.";
         } else {
-            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) . 
+            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) .
                                '<br> Warning: Could not detect document root with WordPress content.';
         }
 
@@ -1490,7 +1493,7 @@ class MediaModel extends BaseModel
      * Test FTPS connection and auto-detect document root
      *
      * @param   array   $config        The FTPS configuration
-     * 
+     *
      * @return  array  Result containing success status and message
      *
      * @since   1.0.0
@@ -1504,7 +1507,7 @@ class MediaModel extends BaseModel
 
         // Try to connect using FTPS (FTP over SSL/TLS)
         $connection = @ftp_ssl_connect($config['host'], $config['port'] ?? 21, 15);
-        
+
         if (!$connection) {
             $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_FAILED', 'Could not connect to FTPS server');
             return $result;
@@ -1512,7 +1515,7 @@ class MediaModel extends BaseModel
 
         // Try to login
         $loginResult = @ftp_login($connection, $config['username'], $config['password']);
-        
+
         if (!$loginResult) {
             ftp_close($connection);
             $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_FAILED', 'Invalid FTPS credentials');
@@ -1529,14 +1532,14 @@ class MediaModel extends BaseModel
 
         // Close the connection
         ftp_close($connection);
-        
+
         // Return success with detected root info
         $result['success'] = true;
         if ($detectedRoot) {
-            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) . 
+            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) .
                                "<br> Document root detected: \"{$detectedRoot}\" with WordPress content.";
         } else {
-            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) . 
+            $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) .
                                '<br> Warning: Could not detect document root with WordPress content.';
         }
 
@@ -1547,7 +1550,7 @@ class MediaModel extends BaseModel
      * Test SFTP connection and auto-detect document root
      *
      * @param   array   $config        The SFTP configuration
-     * 
+     *
      * @return  array  Result containing success status and message
      *
      * @since   1.0.0
@@ -1561,7 +1564,7 @@ class MediaModel extends BaseModel
 
         try {
             $sftp = new SFTP($config['host'], $config['port'] ?? 22);
-            
+
             if (!$sftp->login($config['username'], $config['password'])) {
                 $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_FAILED', 'Invalid SFTP credentials');
                 return $result;
@@ -1572,14 +1575,14 @@ class MediaModel extends BaseModel
 
             // Disconnect
             $sftp->disconnect();
-            
+
             // Return success with detected root info
             $result['success'] = true;
             if ($detectedRoot) {
-                $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) . 
+                $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) .
                                    "<br> Document root detected: \"{$detectedRoot}\" with WordPress content.";
             } else {
-                $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) . 
+                $result['message'] = Text::sprintf('COM_CMSMIGRATOR_MEDIA_TEST_CONNECTION_SUCCESS', $config['host']) .
                                    '<br> Warning: Could not detect document root with WordPress content.';
             }
 
@@ -1594,7 +1597,7 @@ class MediaModel extends BaseModel
      * Detect document root via FTP
      *
      * @param   resource  $connection  The FTP connection
-     * 
+     *
      * @return  string|null  The detected document root or null
      *
      * @since   1.0.0
@@ -1602,7 +1605,7 @@ class MediaModel extends BaseModel
     protected function detectDocumentRootFtp($connection): ?string
     {
         $commonRoots = ['httpdocs', 'public_html', 'www'];
-        
+
         foreach ($commonRoots as $root) {
             if (@ftp_chdir($connection, $root)) {
                 // Try to find wp-content directory to confirm this is the right root
@@ -1620,7 +1623,7 @@ class MediaModel extends BaseModel
             @ftp_chdir($connection, '/');
             return '.';
         }
-        
+
         // Check for direct uploads folder in root
         if (@ftp_chdir($connection, 'uploads')) {
             @ftp_chdir($connection, '/');
@@ -1633,7 +1636,7 @@ class MediaModel extends BaseModel
      * Detect document root via SFTP
      *
      * @param   SFTP  $sftp  The SFTP connection
-     * 
+     *
      * @return  string|null  The detected document root or null
      *
      * @since   1.0.0
@@ -1641,7 +1644,7 @@ class MediaModel extends BaseModel
     protected function detectDocumentRootSftp(SFTP $sftp): ?string
     {
         $commonRoots = ['httpdocs', 'public_html', 'www'];
-        
+
         foreach ($commonRoots as $root) {
             try {
                 // Check if directory exists and has wp-content
@@ -1660,7 +1663,7 @@ class MediaModel extends BaseModel
         } catch (\Exception $e) {
             // Continue to next check
         }
-        
+
         // Check for direct uploads folder in root
         try {
             if ($sftp->is_dir('uploads')) {
@@ -1669,7 +1672,7 @@ class MediaModel extends BaseModel
         } catch (\Exception $e) {
             // Continue
         }
-        
+
         return null;
     }
 
@@ -1703,48 +1706,48 @@ class MediaModel extends BaseModel
     {
         // Clean up the path
         $zipPath = str_replace('\\', '/', $zipPath);
-        
+
         // Handle different possible ZIP structures:
         // 1. wp-content/uploads/2024/01/image.jpg
-        // 2. uploads/2024/01/image.jpg  
+        // 2. uploads/2024/01/image.jpg
         // 3. 2024/01/image.jpg (direct uploads content)
         // 4. some-folder/wp-content/uploads/2024/01/image.jpg
-        
+
         // Look for wp-content/uploads pattern
         if (preg_match('/.*?wp-content\/uploads\/(.+)$/', $zipPath, $matches)) {
             return $matches[1];
         }
-        
+
         // Look for direct uploads pattern (excluding if it's a folder name that happens to be "uploads")
         if (preg_match('/.*?\/uploads\/(.+)$/', $zipPath, $matches)) {
             return $matches[1];
         }
-        
+
         // If the ZIP contains just the contents of uploads folder
         // (common when users zip the uploads folder content directly)
         // Check if it looks like a date structure or has media file extensions
         $pathParts = explode('/', $zipPath);
         $firstPart = $pathParts[0] ?? '';
-        
+
         // If it starts with a year (2020-2030) or common folder names
         if (preg_match('/^(20[2-3][0-9]|sites|media)/', $firstPart)) {
             return $zipPath;
         }
-        
+
         // If it's a media file in root
         $extension = strtolower(pathinfo($zipPath, PATHINFO_EXTENSION));
         $mediaExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'mp4', 'mp3'];
         if (in_array($extension, $mediaExtensions)) {
             return $zipPath;
         }
-        
+
         // Default: use as-is but remove any leading directories that don't look like uploads
         return $zipPath;
     }
 
     /**
      * Get the expected local path structure for a WordPress media URL
-     * 
+     *
      * This method shows how WordPress URLs will be mapped to local folders.
      * Example: wp-content/uploads/2024/01/image.jpg -> images/imports/2024/01/image.jpg
      *
@@ -1762,7 +1765,7 @@ class MediaModel extends BaseModel
         }
 
         $uploadPath = $parsedUrl['path'];
-        
+
         // Check for standard WordPress structure: /wp-content/uploads/
         if (strpos($uploadPath, '/wp-content/uploads/') !== false) {
             $pattern = '/.*\/wp-content\/uploads\/(.+)$/';
@@ -1770,7 +1773,7 @@ class MediaModel extends BaseModel
                 return 'images/' . $this->storageDir . '/' . $matches[1];
             }
         }
-        
+
         // Check for direct uploads structure: /uploads/
         if (strpos($uploadPath, '/uploads/') !== false) {
             $pattern = '/.*\/uploads\/(.+)$/';

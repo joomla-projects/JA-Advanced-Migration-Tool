@@ -17,17 +17,18 @@
     },
     "autoload": {
         "psr-4": {
-            "Binary\\Component\\CmsMigrator\\": "src/component/admin/src/"
+            "Joomla\\Component\\CmsMigrator\\Administrator\\": "src/component/admin/src/"
         }
     },
     "require-dev": {
         "phpunit/phpunit": "^10",
         "joomla/test": "^2",
-        "mockery/mockery": "^1.6"
+        "mockery/mockery": "^1.6",
+        "squizlabs/php_codesniffer": "*"
     },
     "autoload-dev": {
         "psr-4": {
-            "Binary\\Component\\CmsMigrator\\Tests\\": "tests/"
+            "Joomla\\Component\\CmsMigrator\\Tests\\": "tests/unit/"
         }
     },
     "scripts": {

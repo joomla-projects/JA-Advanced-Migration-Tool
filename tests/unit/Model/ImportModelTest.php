@@ -1,8 +1,8 @@
 <?php
 
-namespace Binary\Component\CmsMigrator\Tests\Model;
+namespace Joomla\Component\CmsMigrator\Tests\Model;
 
-use Binary\Component\CmsMigrator\Administrator\Model\ImportModel;
+use Joomla\Component\CmsMigrator\Administrator\Model\ImportModel;
 use PHPUnit\Framework\TestCase;
 use Joomla\CMS\MVC\Factory\MVCFactoryInterface;
 

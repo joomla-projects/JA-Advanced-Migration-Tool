@@ -1,25 +1,29 @@
 <?php
 
-namespace Binary\Component\CmsMigrator\Administrator\Controller;
+/**
+ * @package     Joomla.Administrator
+ * @subpackage  com_cmsmigrator
+ * @copyright   Copyright (C) 2025 Open Source Matters, Inc.
+ * @license     GNU General Public License version 2 or later; see LICENSE.txt
+ */
+
+namespace Joomla\Component\CmsMigrator\Administrator\Controller;
 
 \defined('_JEXEC') or die;
 
-use Joomla\CMS\MVC\Controller\BaseController;
-use Joomla\CMS\MVC\Factory\MVCFactoryAwareTrait;
 use Joomla\CMS\Factory;
 use Joomla\CMS\Language\Text;
-use Joomla\Filesystem\File;
-use Binary\Component\CmsMigrator\Administrator\Model\MediaModel;
+use Joomla\CMS\MVC\Controller\BaseController;
 use Joomla\CMS\Response\JsonResponse;
+use Joomla\Component\CmsMigrator\Administrator\Model\MediaModel;
+use Joomla\Filesystem\File;
 
 class ImportController extends BaseController
 {
-    use MVCFactoryAwareTrait;
-
     public function import()
     {
         $this->checkToken();
-        
+
         // Reset progress file at the start of new migration
         $progressFile = JPATH_SITE . '/media/com_cmsmigrator/imports/progress.json';
         if (file_exists($progressFile)) {
@@ -30,7 +34,7 @@ class ImportController extends BaseController
             'status' => 'Starting migration...',
             'timestamp' => time()
         ]));
-        
+
         // Retrieves form data (jform) and uploaded files.
         $app = $this->app;
         $input = $this->input;
@@ -40,10 +44,10 @@ class ImportController extends BaseController
         $file = $files['import_file'] ?? null;
         $sourceCms = $jform['source_cms'] ?? null;
         $sourceUrl = $jform['source_url'] ?? null;
-        
+
         // Get media ZIP file if ZIP upload is selected
         $mediaZipFile = $files['media_zip_file'] ?? null;
-        
+
         // Get connection configuration for media migration
         $connectionConfig = [];
         $mediaStorageMode = $jform['media_storage_mode'] ?? 'root';
@@ -55,9 +59,9 @@ class ImportController extends BaseController
                 $this->setRedirect('index.php?option=com_cmsmigrator');
                 return;
             }
-            
+
             $connectionType = $jform['connection_type'] ?? 'ftp';
-            
+
             if ($connectionType === 'zip') {
                 // Handle ZIP upload validation
                 if (empty($mediaZipFile) || $mediaZipFile['error'] !== UPLOAD_ERR_OK) {
@@ -65,7 +69,7 @@ class ImportController extends BaseController
                     $this->setRedirect('index.php?option=com_cmsmigrator');
                     return;
                 }
-                
+
                 $connectionConfig = [
                     'connection_type' => 'zip',
                     'zip_file' => $mediaZipFile,
@@ -86,7 +90,7 @@ class ImportController extends BaseController
                 ];
             }
         }
-        
+
         //Ensures a file was uploaded and it was successful
         if (empty($file) || $file['error'] !== UPLOAD_ERR_OK) {
             $app->enqueueMessage(Text::_('COM_CMSMIGRATOR_IMPORT_FILE_ERROR'), 'error');
@@ -96,24 +100,11 @@ class ImportController extends BaseController
         $importAsSuperUser = !empty($jform['import_as_super_user']) && $jform['import_as_super_user'] == '1';
         //Passes the data to ImportModel Function
         $model = $this->getModel('Import');
-        try {
-            $mvcFactory = $this->getMVCFactory();
-            $model->setMVCFactory($mvcFactory);
-        } catch (\Exception $e) {
-            // MVC factory not available on controller, try to get it from the application/component
-            try {
-                $app = Factory::getApplication();
-                $component = $app->bootComponent('com_cmsmigrator');
-                if (method_exists($component, 'getMVCFactory')) {
-                    $model->setMVCFactory($component->getMVCFactory());
-                }
-            } catch (\Exception $componentException) {
-                // No MVC factory available, model will work with fallback
-            }
-        }
+        $mvcFactory = $this->factory;
+        $model->setMVCFactory($mvcFactory);
         try {
             if (!$model->import($file, $sourceCms, $sourceUrl, $connectionConfig, $importAsSuperUser)) {
-                $app->enqueueMessage('Import failed', 'error');
+                $app->enqueueMessage(Text::_('COM_CMSMIGRATOR_IMPORT_FAILED'), 'error');
                 $this->setRedirect('index.php?option=com_cmsmigrator');
                 return;
             }
@@ -136,10 +127,10 @@ class ImportController extends BaseController
     {
         // Check for request forgeries
         $this->checkToken();
-        
+
         $app = $this->app;
         $input = $this->input;
-        
+
         // Get connection configuration
         $connectionConfig = [
             'connection_type' => $input->getString('connection_type', 'ftp'),
@@ -149,11 +140,11 @@ class ImportController extends BaseController
             'password' => $input->getString('password', ''),
             'passive' => $input->getBool('passive', true)
         ];
-        
+
         // Test connection using controller's model helper to avoid mvcFactory issues
         $mediaModel = $this->getModel('Media', 'Administrator', ['ignore_request' => true]);
         $result = $mediaModel ? $mediaModel->testConnection($connectionConfig) : ['success' => false, 'message' => 'Could not create Media model'];
-        
+
         // Send JSON response
         $app->setHeader('Content-Type', 'application/json');
         $app->sendHeaders();
@@ -170,10 +161,10 @@ class ImportController extends BaseController
     {
         // Check for request forgeries
         $this->checkToken();
-        
+
         $app = $this->app;
         $input = $this->input;
-        
+
         // Get FTP configuration
         $ftpConfig = [
             'connection_type' => 'ftp',
@@ -183,11 +174,11 @@ class ImportController extends BaseController
             'password' => $input->getString('password', ''),
             'passive' => $input->getBool('passive', true)
         ];
-        
+
         // Test connection
         $mediaModel = $this->getModel('Media', 'Administrator');
         $result = $mediaModel ? $mediaModel->testConnection($ftpConfig) : ['success' => false, 'message' => 'Could not create Media model'];
-        
+
         // Send JSON response
         $app->setHeader('Content-Type', 'application/json');
         $app->sendHeaders();

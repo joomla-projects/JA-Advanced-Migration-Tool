@@ -1,15 +1,15 @@
 <?php
 
-namespace Binary\Component\CmsMigrator\Tests\Table;
+namespace Joomla\Component\CmsMigrator\Tests\Table;
 
-use Binary\Component\CmsMigrator\Administrator\Table\ArticleTable;
+use Joomla\Component\CmsMigrator\Administrator\Table\ArticleTable;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\MockObject\MockObject;
 
 /**
  * Test class for ArticleTable
  *
- * @package Binary\Component\CmsMigrator\Tests\Table
+ * @package Joomla\Component\CmsMigrator\Tests\Table
  * @since   1.0.0
  */
 class ArticleTableTest extends TestCase

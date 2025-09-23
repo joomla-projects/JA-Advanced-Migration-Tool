@@ -7,23 +7,23 @@
  * @license      GNU General Public License version 2 or later; see LICENSE.txt
  */
 
-namespace Binary\Component\CmsMigrator\Administrator\Model;
+namespace Joomla\Component\CmsMigrator\Administrator\Model;
 
 \defined('_JEXEC') or die;
 
+use Joomla\CMS\Component\ComponentHelper;
 use Joomla\CMS\Date\Date;
 use Joomla\CMS\Factory;
-use Joomla\CMS\MVC\Model\BaseDatabaseModel;
-use Joomla\CMS\Table\Table;
-use Joomla\CMS\User\UserHelper;
-use Joomla\CMS\Helper\TagsHelper;
 use Joomla\CMS\Filter\OutputFilter;
-use Joomla\CMS\Uri\Uri;
-use Binary\Component\CmsMigrator\Administrator\Model\MediaModel;
-use Joomla\CMS\Component\ComponentHelper;
-use Joomla\Component\Menus\Administrator\Table\MenuTable;
+use Joomla\CMS\Helper\TagsHelper;
+use Joomla\CMS\MVC\Model\BaseDatabaseModel;
 use Joomla\CMS\Table\MenuType;
+use Joomla\CMS\Table\Table;
+use Joomla\CMS\Uri\Uri;
+use Joomla\CMS\User\UserHelper;
+use Joomla\Component\CmsMigrator\Administrator\Model\MediaModel;
 use Joomla\Component\Content\Administrator\Table\ArticleTable;
+use Joomla\Component\Menus\Administrator\Table\MenuTable;
 
 /**
  * Processor Model
@@ -131,7 +131,7 @@ class ProcessorModel extends BaseDatabaseModel
                 $userMap = $userResult['map'];
                 $result['errors'] = array_merge($result['errors'], $userResult['errors']);
             }
-            
+
             $categoryMap = [];
             $tagMap = [];
             if (!empty($data['taxonomies'])) {
@@ -216,15 +216,15 @@ class ProcessorModel extends BaseDatabaseModel
         $this->executeInTransaction(function () use ($data, $sourceUrl, $ftpConfig, $importAsSuperUser, &$result) {
             $mediaModel = $this->initializeMediaModel($ftpConfig);
             $superUserId = $importAsSuperUser ? $this->app->getIdentity()->id : null;
-            
+
             // Process tags first if they exist in the data
             $tagMap = [];
             if (!empty($data['allTags']) && is_array($data['allTags'])) {
                 $tagMap = $this->processWordpressTags($data['allTags'], $result['counts']);
             }
-            
+
             $total = count($data['itemListElement']);
-            
+
             // Use batch processing based on the number of articles
             $this->processBatchedWordpressArticles($data['itemListElement'], $result, $mediaModel, $ftpConfig, $sourceUrl, $superUserId, $total, $tagMap);
 
@@ -356,12 +356,12 @@ class ProcessorModel extends BaseDatabaseModel
 
             $article = $element['item'];
             $content = $article['articleBody'] ?? '';
-            
+
             if ($mediaModel && !empty($content)) {
                 // Extract media URLs and prepare for batch download
                 $mediaUrls = $mediaModel->extractImageUrlsFromContent($content);
                 $updatedContent = $content;
-                
+
                 // Update content with planned Joomla URLs (before download)
                 foreach ($mediaUrls as $originalUrl) {
                     $plannedUrl = $mediaModel->getPlannedJoomlaUrl($originalUrl);
@@ -370,10 +370,10 @@ class ProcessorModel extends BaseDatabaseModel
                         $allMediaUrls[$originalUrl] = $plannedUrl;
                     }
                 }
-                
+
                 $article['articleBody'] = $updatedContent;
             }
-            
+
             $batchData[] = $article;
         }
 
@@ -467,9 +467,9 @@ class ProcessorModel extends BaseDatabaseModel
         ];
 
         // Save the article
-        $mvcFactory = Factory::getApplication()->bootComponent('com_content')
+        $contentMvcFactory = Factory::getApplication()->bootComponent('com_content')
             ->getMVCFactory();
-        $articleModel = $mvcFactory->createModel('Article', 'Administrator', ['ignore_request' => true]);
+        $articleModel = $contentMvcFactory->createModel('Article', 'Administrator', ['ignore_request' => true]);
         if (!$articleModel->save($articleData)) {
             throw new \RuntimeException('Failed to save article: ' . $articleModel->getError());
         }
@@ -490,7 +490,7 @@ class ProcessorModel extends BaseDatabaseModel
                     $tagIds[] = $tagMap[$tagSlug];
                 }
             }
-            
+
             if (!empty($tagIds)) {
                 $this->linkTagsToArticle($articleId, $tagIds);
             }
@@ -566,19 +566,15 @@ class ProcessorModel extends BaseDatabaseModel
         }
 
         // Link parent categories
-        try
-        {
+        try {
             // 1. Get the Category Model instance *once* before the loop.
             $categoriesMvcFactory = Factory::getApplication()->bootComponent('com_categories')->getMVCFactory();
             $categoryModel = $categoriesMvcFactory->createModel('Category', 'Administrator', ['ignore_request' => true]);
 
-            if (!$categoryModel)
-            {
+            if (!$categoryModel) {
                 throw new \RuntimeException('Could not create the Category model.');
             }
-        }
-        catch (\Exception $e)
-        {
+        } catch (\Exception $e) {
             // If the model can't be created, it's a fatal error, so we stop.
             throw new \RuntimeException('Could not create the Category model.');
             $result['errors'][] = 'Fatal Error: Could not initialize the category model. ' . $e->getMessage();
@@ -586,18 +582,15 @@ class ProcessorModel extends BaseDatabaseModel
         }
 
         // 2. Loop through your source map to find parent-child relationships.
-        foreach ($categorySourceData as $sourceTermId => $term)
-        {
+        foreach ($categorySourceData as $sourceTermId => $term) {
             $srcParent = (int) ($term['parent'] ?? 0);
 
             // 3. Check if this term has a parent and if that parent has been mapped to a Joomla ID.
-            if ($srcParent > 0 && isset($result['map'][$sourceTermId], $result['map'][$srcParent]))
-            {
+            if ($srcParent > 0 && isset($result['map'][$sourceTermId], $result['map'][$srcParent])) {
                 $childId  = $result['map'][$sourceTermId];
                 $parentId = $result['map'][$srcParent];
 
-                try
-                {
+                try {
                     // 4. Prepare the data and save. The model handles all the complex logic
                     // of loading the category and recalculating the tree structure.
                     $dataToSave = [
@@ -605,13 +598,10 @@ class ProcessorModel extends BaseDatabaseModel
                         'parent_id' => $parentId,
                     ];
 
-                    if (!$categoryModel->save($dataToSave))
-                    {
+                    if (!$categoryModel->save($dataToSave)) {
                         throw new \RuntimeException($categoryModel->getError());
                     }
-                }
-                catch (\Exception $e)
-                {
+                } catch (\Exception $e) {
                     // If one category fails, we record the error and continue with the rest.
                     $result['errors'][] = sprintf(
                         'Failed to set parent for category ID %d (child of %d): %s',
@@ -625,7 +615,7 @@ class ProcessorModel extends BaseDatabaseModel
 
         return $result;
     }
-    
+
     /**
      * Processes WordPress tags from the allTags array in the JSON structure.
      *
@@ -657,7 +647,7 @@ class ProcessorModel extends BaseDatabaseModel
 
         return $tagMap;
     }
-    
+
     /**
      * Processes a batch of posts (articles) from the JSON import.
      *
@@ -676,7 +666,7 @@ class ProcessorModel extends BaseDatabaseModel
     {
         $result = ['imported' => 0, 'skipped' => 0, 'errors' => [], 'map' => []];
         $totalPosts = count($posts);
-        
+
         if ($totalPosts === 0) {
             return $result;
         }
@@ -729,9 +719,9 @@ class ProcessorModel extends BaseDatabaseModel
     private function processJsonPostsBatch(array $batch, array $userMap, array $categoryMap, array $tagMap, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, int $processedCount, int $total, int $batchNumber, int $totalBatches, array &$counts): array
     {
         $result = ['imported' => 0, 'skipped' => 0, 'errors' => [], 'map' => []];
-        $mvcFactory = Factory::getApplication()->bootComponent('com_content')
+        $contentMvcFactory = Factory::getApplication()->bootComponent('com_content')
             ->getMVCFactory();
-        $articleModel = $mvcFactory->createModel('Article', 'Administrator', ['ignore_request' => true]);
+        $articleModel = $contentMvcFactory->createModel('Article', 'Administrator', ['ignore_request' => true]);
         $defaultCatId = $this->getDefaultCategoryId();
 
         $this->updateProgress(
@@ -745,12 +735,12 @@ class ProcessorModel extends BaseDatabaseModel
 
         foreach ($batch as $postId => $post) {
             $content = $post['post_content'] ?? '';
-            
+
             if ($mediaModel && !empty($content)) {
                 // Extract media URLs and prepare for batch download
                 $mediaUrls = $mediaModel->extractImageUrlsFromContent($content);
                 $updatedContent = $content;
-                
+
                 // Update content with planned Joomla URLs (before download)
                 foreach ($mediaUrls as $originalUrl) {
                     $plannedUrl = $mediaModel->getPlannedJoomlaUrl($originalUrl);
@@ -759,13 +749,13 @@ class ProcessorModel extends BaseDatabaseModel
                         $allMediaUrls[$originalUrl] = $plannedUrl;
                     }
                 }
-                
+
                 $post['post_content'] = $updatedContent;
             } elseif (!$mediaModel && !empty($content)) {
                 // Convert WordPress URLs to Joomla URLs even when media migration is disabled
                 $post['post_content'] = $this->convertWordPressUrlsToJoomla($content, is_array($ftpConfig) ? $ftpConfig : []);
             }
-            
+
             $batchData[$postId] = $post;
         }
 
@@ -792,7 +782,7 @@ class ProcessorModel extends BaseDatabaseModel
                         $catId = $categoryMap[$primary['term_id']];
                     }
                 }
-            
+
                 $articleData = [
                     'id'         => 0,
                     'title'      => $post['post_title'],
@@ -811,13 +801,13 @@ class ProcessorModel extends BaseDatabaseModel
                 }
 
                 $newId = $articleModel->getItem()->id;
-                
+
                 // Map WordPress post ID to Joomla article ID
                 $result['map'][$postId] = $newId;
-                
+
                 // Link tags to the article
                 $tagIds = [];
-                
+
                 // Process tags from terms['post_tag'] (structured data)
                 if (!empty($post['terms']['post_tag']) && !empty($tagMap)) {
                     foreach ($post['terms']['post_tag'] as $tag) {
@@ -826,7 +816,7 @@ class ProcessorModel extends BaseDatabaseModel
                         }
                     }
                 }
-                
+
                 // Process tags from tags_input (simple array) - create tags if they don't exist
                 if (!empty($post['tags_input']) && is_array($post['tags_input'])) {
                     foreach ($post['tags_input'] as $tagName) {
@@ -844,12 +834,12 @@ class ProcessorModel extends BaseDatabaseModel
                         }
                     }
                 }
-                
+
                 // Link all collected tags to the article
                 if (!empty($tagIds)) {
                     $this->linkTagsToArticle($newId, array_unique($tagIds));
                 }
-                
+
                 if (!empty($post['metadata']) && is_array($post['metadata'])) {
                     $fields = [];
                     foreach ($post['metadata'] as $key => $vals) {
@@ -881,7 +871,7 @@ class ProcessorModel extends BaseDatabaseModel
     {
         // Check if media migration is enabled
         $connectionType = $ftpConfig['connection_type'] ?? '';
-        
+
         // For ZIP uploads, we don't need host credentials, just the connection type
         if ($connectionType === 'zip') {
             $mediaModel = $this->getMVCFactory()->createModel('Media', 'Administrator', ['ignore_request' => true]);
@@ -889,16 +879,16 @@ class ProcessorModel extends BaseDatabaseModel
                 ? $ftpConfig['media_custom_dir']
                 : 'imports';
             $mediaModel->setStorageDirectory($storageDir);
-            
+
             // Process ZIP upload immediately when initializing the model
             if (!$mediaModel->connect($ftpConfig)) {
                 $this->app->enqueueMessage('Failed to process ZIP upload for media migration', 'error');
                 return null;
             }
-            
+
             return $mediaModel;
         }
-        
+
         // For FTP/FTPS/SFTP, require host configuration
         if (empty($ftpConfig['host'])) {
             return null;
@@ -941,25 +931,25 @@ class ProcessorModel extends BaseDatabaseModel
         // Pattern to match WordPress media URLs
         // Matches: http://example.com/wp-content/uploads/2024/01/image.jpg
         $pattern = '/https?:\/\/[^\/]+\/wp-content\/uploads\/([^\s"\'<>]+\.(jpg|jpeg|png|gif|webp|pdf|doc|docx|mp4|mp3|zip))/i';
-        $updatedContent = preg_replace_callback($pattern, function($matches) use ($joomlaBaseUrl, $storageDir) {
+        $updatedContent = preg_replace_callback($pattern, function ($matches) use ($joomlaBaseUrl, $storageDir) {
             $wpPath = $matches[1]; // e.g., "2024/01/image.jpg"
-            
+
             // Convert to Joomla URL maintaining the WordPress folder structure
             $joomlaUrl = $joomlaBaseUrl . 'images/' . $storageDir . '/' . $wpPath;
-            
+
             return $joomlaUrl;
         }, $content);
 
         // Also handle relative WordPress URLs that might not have the full domain
         // Pattern: /wp-content/uploads/2024/01/image.jpg
         $relativePattern = '/\/wp-content\/uploads\/([^\s"\'<>]+\.(jpg|jpeg|png|gif|webp|pdf|doc|docx|mp4|mp3|zip))/i';
-        
-        $updatedContent = preg_replace_callback($relativePattern, function($matches) use ($joomlaBaseUrl, $storageDir) {
+
+        $updatedContent = preg_replace_callback($relativePattern, function ($matches) use ($joomlaBaseUrl, $storageDir) {
             $wpPath = $matches[1]; // e.g., "2024/01/image.jpg"
-            
+
             // Convert to Joomla URL maintaining the WordPress folder structure
             $joomlaUrl = $joomlaBaseUrl . 'images/' . $storageDir . '/' . $wpPath;
-            
+
             return $joomlaUrl;
         }, $updatedContent);
 
@@ -1046,7 +1036,7 @@ class ProcessorModel extends BaseDatabaseModel
         if (!$tagId) {
             $tagsMvcFactory = Factory::getApplication()->bootComponent('com_tags')->getMVCFactory();
             $tagModel = $tagsMvcFactory->createModel('Tag', 'Administrator', ['ignore_request' => true]);
-            
+
             $tagData = [
                 'id'          => 0,
                 'title'       => $tagName,
@@ -1061,7 +1051,7 @@ class ProcessorModel extends BaseDatabaseModel
                 // The model's save method will handle nested set logic automatically
                 throw new \RuntimeException('Failed to save tag: ' . $tagModel->getError());
             }
-            
+
             $counts['taxonomies']++;
             $tagId = $tagModel->getItem()->id;
         }
@@ -1089,7 +1079,7 @@ class ProcessorModel extends BaseDatabaseModel
         if ($dummyHash === null) {
             $randomPassword = bin2hex(random_bytes(8));
             $dummyHash = UserHelper::hashPassword($randomPassword);
-            
+
             // Save the password to admin only to reuse or send mass mails
             // file_put_contents(JPATH_ROOT . '/migration_password.txt', "Temp password: $randomPassword\n");
         }
@@ -1099,7 +1089,7 @@ class ProcessorModel extends BaseDatabaseModel
                 'name'         => $sourceData['display_name'] ?? $username,
                 'username'     => $username,
                 'email'        => $email,
-                'password'     => $dummyHash,
+                'password'     => $sourceData['user_pass'] ?? $dummyHash,
                 'registerDate' => isset($sourceData['user_registered']) ? (new Date($sourceData['user_registered']))->toSql() : Factory::getDate()->toSql(),
                 'groups'       => [2], // Registered
                 'requireReset' => 1,
@@ -1165,14 +1155,13 @@ class ProcessorModel extends BaseDatabaseModel
             ->where('name    = ' . $db->quote($fieldName));
         $existingId = (int) $db->setQuery($query)->loadResult();
 
-        if ($existingId)
-        {
+        if ($existingId) {
             return $existingId;
         }
 
         $fieldsMvcFactory = Factory::getApplication()->bootComponent('com_fields')->getMVCFactory();
         $fieldModel = $fieldsMvcFactory->createModel('Field', 'Administrator', ['ignore_request' => true]);
-        
+
         $fieldData  = [
             'id'          => 0,
             'title'       => ucwords(str_replace(['_', '-'], ' ', $fieldName)),
@@ -1187,13 +1176,10 @@ class ProcessorModel extends BaseDatabaseModel
             'params'      => '',
         ];
 
-        try
-        {
-            if (! $fieldModel->save($fieldData))
-            {
+        try {
+            if (! $fieldModel->save($fieldData)) {
                 $err = $fieldModel->getError();
-                if (strpos($err, 'COM_FIELDS_ERROR_UNIQUE_NAME') !== false)
-                {
+                if (strpos($err, 'COM_FIELDS_ERROR_UNIQUE_NAME') !== false) {
                     $query = $db->getQuery(true)
                         ->select('id')
                         ->from($db->quoteName('#__fields'))
@@ -1206,9 +1192,7 @@ class ProcessorModel extends BaseDatabaseModel
             }
 
             return (int) $fieldModel->getItem()->id;
-        }
-        catch (\Exception $e)
-        {
+        } catch (\Exception $e) {
             $this->app->enqueueMessage(
                 sprintf('Error creating custom field "%s": %s', $fieldName, $e->getMessage()),
                 'warning'
@@ -1249,7 +1233,7 @@ class ProcessorModel extends BaseDatabaseModel
             ->from($db->quoteName('#__categories'))
             ->where($db->quoteName('path') . ' = ' . $db->quote('uncategorised'))
             ->where($db->quoteName('extension') . ' = ' . $db->quote('com_content'));
-            
+
         return (int) $db->setQuery($query)->loadResult() ?: 2; // Fallback to root
     }
 
@@ -1295,8 +1279,8 @@ class ProcessorModel extends BaseDatabaseModel
     protected function linkTagsToArticle(int $articleId, array $tagIds): void
     {
         try {
-            $mvcFactory = Factory::getApplication()->bootComponent('com_content')->getMVCFactory();
-            $articleTable = $mvcFactory->createTable('Article', 'Administrator');
+            $contentMvcFactory = Factory::getApplication()->bootComponent('com_content')->getMVCFactory();
+            $articleTable = $contentMvcFactory->createTable('Article', 'Administrator');
 
             if (!$articleTable->load($articleId)) {
                 throw new \RuntimeException("Article with ID {$articleId} not found.");
@@ -1346,7 +1330,7 @@ class ProcessorModel extends BaseDatabaseModel
         }
         return $alias;
     }
-    
+
     /**
      * Checks if a given alias exists in the content table.
      *
@@ -1403,7 +1387,7 @@ class ProcessorModel extends BaseDatabaseModel
                 // Step 1: Create the Joomla Menu container (Menu Type) if it doesn't exist.
                 $menusMvcFactory = Factory::getApplication()->bootComponent('com_menus')->getMVCFactory();
                 $menuTypeTable = $menusMvcFactory->createTable('MenuType', 'Administrator');
-                
+
                 // Check if the menu type already exists to avoid errors on re-run
                 if (!$menuTypeTable->load(['menutype' => $wpMenuName])) {
                     $menuTypeData = [
@@ -1479,7 +1463,7 @@ class ProcessorModel extends BaseDatabaseModel
 
                     $menuItemTable = $menusMvcFactory->createTable('Menu', 'Administrator');
                     list($link, $type) = $this->generateJoomlaLink($item, $contentMap);
-                    
+
                     $alias = OutputFilter::stringURLSafe($item['title']);
 
                     $menuItemData = [
@@ -1507,7 +1491,6 @@ class ProcessorModel extends BaseDatabaseModel
                     $wpToJoomlaMenuItemMap[$item['ID']] = $menuItemTable->id;
                     $counts['menu_items']++;
                 }
-
             } catch (\Exception $e) {
                 $result['errors'][] = sprintf('CRITICAL ERROR importing menu "%s": %s', $wpMenuName, $e->getMessage());
             }
@@ -1533,7 +1516,7 @@ class ProcessorModel extends BaseDatabaseModel
                 // Use the content map to find the new Joomla Article ID
                 $wpId = $wpItem['object_id'] ?? 0;
                 $joomlaId = $contentMap['posts'][$wpId] ?? 0;
-                
+
                 if ($joomlaId) {
                     return ['index.php?option=com_content&view=article&id=' . (int) $joomlaId, 'component'];
                 }
@@ -1548,13 +1531,13 @@ class ProcessorModel extends BaseDatabaseModel
                     return ['index.php?option=com_content&view=category&layout=blog&id=' . (int) $joomlaId, 'component'];
                 }
                 break;
-                
+
             case 'custom':
             default:
                 // For custom links, just use the URL directly.
                 return [$wpItem['url'] ?? '#', 'url'];
         }
-        
+
         // Fallback if the mapped content was not found
         return ['#', 'url'];
     }
@@ -1585,7 +1568,7 @@ class ProcessorModel extends BaseDatabaseModel
                 return $component->id;
             }
         }
-        
+
         // Default to com_wrapper if no specific component is found
         return ComponentHelper::getComponent('com_wrapper')->id;
     }

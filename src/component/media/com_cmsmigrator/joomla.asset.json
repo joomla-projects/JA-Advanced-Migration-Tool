@@ -1,4 +1,10 @@
 {
+  "_comment": [
+    "@package     Joomla.Administrator",
+    "@subpackage  com_cmsmigrator",
+    "@copyright   Copyright (C) 2025 Open Source Matters, Inc.",
+    "@license     GNU General Public License version 2 or later; see LICENSE.txt"
+  ],
   "$schema": "https://developer.joomla.org/schemas/json-schema/web_assets.json",
   "name": "com_cmsmigrator",
   "version": "1.0.0",
@@ -9,13 +15,18 @@
       "name": "com_cmsmigrator.init",
       "type": "script",
       "uri": "com_cmsmigrator/init.js",
-      "dependencies": ["core"]
+      "dependencies": [
+        "core"
+      ]
     },
     {
       "name": "com_cmsmigrator.admin",
       "type": "script",
       "uri": "com_cmsmigrator/admin.js",
-      "dependencies": ["core", "com_cmsmigrator.init"]
+      "dependencies": [
+        "core",
+        "com_cmsmigrator.init"
+      ]
     },
     {
       "name": "com_cmsmigrator.admin",
@@ -26,7 +37,10 @@
       "name": "com_cmsmigrator.migration-form",
       "type": "script",
       "uri": "com_cmsmigrator/migration-form.js",
-      "dependencies": ["core", "com_cmsmigrator.init"]
+      "dependencies": [
+        "core",
+        "com_cmsmigrator.init"
+      ]
     }
   ]
 }

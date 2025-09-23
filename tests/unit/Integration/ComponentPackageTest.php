@@ -1,6 +1,6 @@
 <?php
 
-namespace Binary\Component\CmsMigrator\Tests\Integration;
+namespace Joomla\Component\CmsMigrator\Tests\Integration;
 
 use PHPUnit\Framework\TestCase;
 use ZipArchive;
@@ -101,13 +101,14 @@ class ComponentPackageTest extends TestCase
         // Expected files in the component
         $expectedFiles = [
             'cmsmigrator.xml',
+            'script.php',
             'admin/access.xml',
-            'admin/script.php',
             'admin/forms/import.xml',
             'admin/language/en-GB/com_cmsmigrator.ini',
             'admin/language/en-GB/com_cmsmigrator.sys.ini',
             'admin/services/provider.php',
             'admin/sql/install.mysql.utf8.sql',
+            'admin/sql/install.postgresql.utf8.sql',
             'admin/src/Extension/CmsMigratorComponent.php',
             'admin/src/Controller/DisplayController.php',
             'admin/src/Controller/ImportController.php',
@@ -122,7 +123,13 @@ class ComponentPackageTest extends TestCase
             'media/com_cmsmigrator/css/admin.css',
             'media/com_cmsmigrator/js/admin.js',
             'media/com_cmsmigrator/js/init.js',
-            'media/com_cmsmigrator/js/migration-form.js'
+            'media/com_cmsmigrator/js/migration-form.js',
+            'modules/mod_migrationnotice/mod_migrationnotice.php',
+            'modules/mod_migrationnotice/mod_migrationnotice.xml',
+            'modules/mod_migrationnotice/script.php',
+            'modules/mod_migrationnotice/language/en-GB/en-GB.mod_migrationnotice.ini',
+            'modules/mod_migrationnotice/language/en-GB/en-GB.mod_migrationnotice.sys.ini',
+            'modules/mod_migrationnotice/tmpl/default.php'
         ];
         
         foreach ($expectedFiles as $expectedFile) {

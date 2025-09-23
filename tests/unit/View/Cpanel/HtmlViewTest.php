@@ -1,15 +1,15 @@
 <?php
 
-namespace Binary\Component\CmsMigrator\Tests\View\Cpanel;
+namespace Joomla\Component\CmsMigrator\Tests\View\Cpanel;
 
-use Binary\Component\CmsMigrator\Administrator\View\Cpanel\HtmlView;
+use Joomla\Component\CmsMigrator\Administrator\View\Cpanel\HtmlView;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\MockObject\MockObject;
 
 /**
  * Test class for HtmlView
  *
- * @package Binary\Component\CmsMigrator\Tests\View\Cpanel
+ * @package Joomla\Component\CmsMigrator\Tests\View\Cpanel
  * @since   1.0.0
  */
 class HtmlViewTest extends TestCase
@@ -215,7 +215,7 @@ class HtmlViewTest extends TestCase
         $reflection = new \ReflectionClass($this->view);
         
         $this->assertEquals(
-            'Binary\Component\CmsMigrator\Administrator\View\Cpanel\HtmlView',
+            'Joomla\Component\CmsMigrator\Administrator\View\Cpanel\HtmlView',
             $reflection->getName()
         );
         

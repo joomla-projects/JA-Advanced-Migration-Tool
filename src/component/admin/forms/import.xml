@@ -4,10 +4,10 @@
         <field
             name="source_cms"
             type="list"
-            label="Source CMS"
+            label="COM_CMSMIGRATOR_FIELD_SOURCE_CMS_LABEL"
             class="form-select"
             default="">
-            <option value="">Select Source</option>
+            <option value="">COM_CMSMIGRATOR_FIELD_SOURCE_CMS_SELECT</option>
             <option value="wordpress">WordPress</option>
             <option value="json">JSON</option>
         </field>
@@ -15,7 +15,7 @@
         <field
             name="import_file"
             type="file"
-            label="Import File"
+            label="COM_CMSMIGRATOR_FIELD_IMPORT_FILE_LABEL"
             class="form-control"
             accept=".xml,.json"
         />
@@ -23,8 +23,8 @@
         <field
             name="source_url"
             type="url"
-            label="Source Site URL (for images)"
-            description="Enter the full URL of the original website (e.g., https://my-wordpress-site.com). This is needed to download and import images."
+            label="COM_CMSMIGRATOR_FIELD_SOURCE_URL_LABEL"
+            description="COM_CMSMIGRATOR_FIELD_SOURCE_URL_DESC"
             class="form-control"
             filter="url"
         />
@@ -32,8 +32,8 @@
         <field
             name="enable_media_migration"
             type="radio"
-            label="Enable Media Migration"
-            description="Enable media migration from WordPress. Choose FTP/SFTP to download files directly from your server, or ZIP upload to extract a ZIP file containing your wp-content/uploads folder."
+            label="COM_CMSMIGRATOR_FIELD_ENABLE_MEDIA_MIGRATION_LABEL"
+            description="COM_CMSMIGRATOR_FIELD_ENABLE_MEDIA_MIGRATION_DESC"
             class="btn-group btn-group-yesno"
             default="0">
             <option value="1">JYES</option>
@@ -43,22 +43,22 @@
         <field
             name="connection_type"
             type="list"
-            label="Connection Type"
-            description="Choose between FTP, FTPS, SFTP or ZIP upload for media migration"
+            label="COM_CMSMIGRATOR_FIELD_CONNECTION_TYPE_LABEL"
+            description="COM_CMSMIGRATOR_FIELD_CONNECTION_TYPE_DESC"
             class="form-select"
             default="ftp"
             showon="enable_media_migration:1">
-            <option value="ftp">FTP (File Transfer Protocol)</option>
-            <option value="ftps">FTPS (FTP over SSL/TLS)</option>
-            <option value="sftp">SFTP (Secure File Transfer Protocol)</option>
-            <option value="zip">ZIP Upload (Upload wp-content/uploads folder as ZIP)</option>
+            <option value="ftp">COM_CMSMIGRATOR_FIELD_CONNECTION_TYPE_FTP</option>
+            <option value="ftps">COM_CMSMIGRATOR_FIELD_CONNECTION_TYPE_FTPS</option>
+            <option value="sftp">COM_CMSMIGRATOR_FIELD_CONNECTION_TYPE_SFTP</option>
+            <option value="zip">COM_CMSMIGRATOR_FIELD_CONNECTION_TYPE_ZIP</option>
         </field>
 
         <field
             name="ftp_host"
             type="text"
-            label="Server Host"
-            description="Server hostname or IP address (e.g., ftp.yourwordpresssite.com)"
+            label="COM_CMSMIGRATOR_FIELD_FTP_HOST_LABEL"
+            description="COM_CMSMIGRATOR_FIELD_FTP_HOST_DESC"
             class="form-control"
             showon="enable_media_migration:1[AND]connection_type:ftp,ftps,sftp"
         />
@@ -66,8 +66,8 @@
         <field
             name="ftp_port"
             type="number"
-            label="Server Port"
-            description="Server port (FTP default: 21, FTPS default: 21, SFTP default: 22)"
+            label="COM_CMSMIGRATOR_FIELD_FTP_PORT_LABEL"
+            description="COM_CMSMIGRATOR_FIELD_FTP_PORT_DESC"
             class="form-control"
             default="21"
             showon="enable_media_migration:1[AND]connection_type:ftp,ftps,sftp"
@@ -76,8 +76,8 @@
         <field
             name="ftp_username"
             type="text"
-            label="Username"
-            description="Login username"
+            label="COM_CMSMIGRATOR_FIELD_FTP_USERNAME_LABEL"
+            description="COM_CMSMIGRATOR_FIELD_FTP_USERNAME_DESC"
             class="form-control"
             showon="enable_media_migration:1[AND]connection_type:ftp,ftps,sftp"
         />
@@ -85,8 +85,8 @@
         <field
             name="ftp_password"
             type="password"
-            label="Password"
-            description="Login password"
+            label="COM_CMSMIGRATOR_FIELD_FTP_PASSWORD_LABEL"
+            description="COM_CMSMIGRATOR_FIELD_FTP_PASSWORD_DESC"
             class="form-control"
             showon="enable_media_migration:1[AND]connection_type:ftp,ftps,sftp"
         />
@@ -94,8 +94,8 @@
         <field
             name="ftp_passive"
             type="radio"
-            label="Use Passive Mode"
-            description="Enable passive mode (FTP/FTPS only - recommended for most FTP servers)"
+            label="COM_CMSMIGRATOR_FIELD_FTP_PASSIVE_LABEL"
+            description="COM_CMSMIGRATOR_FIELD_FTP_PASSIVE_DESC"
             class="btn-group btn-group-yesno"
             default="1"
             showon="enable_media_migration:1[AND]connection_type:ftp,ftps">
@@ -106,8 +106,8 @@
         <field
             name="media_zip_file"
             type="file"
-            label="WordPress Uploads ZIP File"
-            description="Upload a ZIP file containing your WordPress wp-content/uploads folder structure"
+            label="COM_CMSMIGRATOR_FIELD_MEDIA_ZIP_FILE_LABEL"
+            description="COM_CMSMIGRATOR_FIELD_MEDIA_ZIP_FILE_DESC"
             class="form-control"
             accept=".zip"
             showon="enable_media_migration:1,connection_type:zip"
@@ -116,20 +116,20 @@
         <field
             name="media_storage_mode"
             type="radio"
-            label="Media Storage Location"
-            description="Choose where to store migrated images. Default is images/imports. Choose custom to specify a directory."
+            label="COM_CMSMIGRATOR_FIELD_MEDIA_STORAGE_MODE_LABEL"
+            description="COM_CMSMIGRATOR_FIELD_MEDIA_STORAGE_MODE_DESC"
             class="btn-group"
             default="root"
             showon="enable_media_migration:1">
-            <option value="root">Default (images/imports)</option>
-            <option value="custom">Custom Directory</option>
+            <option value="root">COM_CMSMIGRATOR_FIELD_MEDIA_STORAGE_MODE_ROOT</option>
+            <option value="custom">COM_CMSMIGRATOR_FIELD_MEDIA_STORAGE_MODE_CUSTOM</option>
         </field>
 
         <field
             name="media_custom_dir"
             type="text"
-            label="Custom Directory Name"
-            description="Enter the directory name to store images in (e.g., myimages). Will be stored in images/[your_name]"
+            label="COM_CMSMIGRATOR_FIELD_MEDIA_CUSTOM_DIR_LABEL"
+            description="COM_CMSMIGRATOR_FIELD_MEDIA_CUSTOM_DIR_DESC"
             class="form-control"
             showon="media_storage_mode:custom"
         />
@@ -137,8 +137,8 @@
         <field
             name="import_as_super_user"
             type="radio"
-            label="Import All Articles as Current Super User"
-            description="If enabled, all imported articles will be assigned to you (the current super user). Otherwise, original authors will be used or created."
+            label="COM_CMSMIGRATOR_FIELD_IMPORT_AS_SUPER_USER_LABEL"
+            description="COM_CMSMIGRATOR_FIELD_IMPORT_AS_SUPER_USER_DESC"
             class="btn-group btn-group-yesno"
             default="0">
             <option value="1">JYES</option>

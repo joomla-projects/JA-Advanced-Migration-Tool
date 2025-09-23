@@ -1,14 +1,14 @@
 <?php
 
-namespace Binary\Component\CmsMigrator\Tests\Event;
+namespace Joomla\Component\CmsMigrator\Tests\Event;
 
-use Binary\Component\CmsMigrator\Administrator\Event\MigrationEvent;
+use Joomla\Component\CmsMigrator\Administrator\Event\MigrationEvent;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Test class for MigrationEvent
  *
- * @package Binary\Component\CmsMigrator\Tests\Event
+ * @package Joomla\Component\CmsMigrator\Tests\Event
  * @since   1.0.0
  */
 class MigrationEventTest extends TestCase

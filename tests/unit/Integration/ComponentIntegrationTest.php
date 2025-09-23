@@ -1,12 +1,12 @@
 <?php
 
-namespace Binary\Component\CmsMigrator\Tests\Integration;
+namespace Joomla\Component\CmsMigrator\Tests\Integration;
 
-use Binary\Component\CmsMigrator\Administrator\Extension\CmsMigratorComponent;
-use Binary\Component\CmsMigrator\Administrator\Controller\ImportController;
-use Binary\Component\CmsMigrator\Administrator\Model\ImportModel;
-use Binary\Component\CmsMigrator\Administrator\Event\MigrationEvent;
-use Binary\Component\CmsMigrator\Tests\Helper\TestHelper;
+use Joomla\Component\CmsMigrator\Administrator\Extension\CmsMigratorComponent;
+use Joomla\Component\CmsMigrator\Administrator\Controller\ImportController;
+use Joomla\Component\CmsMigrator\Administrator\Model\ImportModel;
+use Joomla\Component\CmsMigrator\Administrator\Event\MigrationEvent;
+use Joomla\Component\CmsMigrator\Tests\Helper\TestHelper;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -14,7 +14,7 @@ use PHPUnit\Framework\TestCase;
  *
  * Tests the interaction between different component parts
  *
- * @package Binary\Component\CmsMigrator\Tests\Integration
+ * @package Joomla\Component\CmsMigrator\Tests\Integration
  * @since   1.0.0
  */
 class ComponentIntegrationTest extends TestCase
@@ -352,15 +352,15 @@ class ComponentIntegrationTest extends TestCase
     public function testComponentNamespaceAndAutoloading(): void
     {
         $expectedClasses = [
-            'Binary\Component\CmsMigrator\Administrator\Extension\CmsMigratorComponent',
-            'Binary\Component\CmsMigrator\Administrator\Controller\DisplayController',
-            'Binary\Component\CmsMigrator\Administrator\Controller\ImportController',
-            'Binary\Component\CmsMigrator\Administrator\Model\ImportModel',
-            'Binary\Component\CmsMigrator\Administrator\Model\MediaModel',
-            'Binary\Component\CmsMigrator\Administrator\Model\ProcessorModel',
-            'Binary\Component\CmsMigrator\Administrator\Table\ArticleTable',
-            'Binary\Component\CmsMigrator\Administrator\Event\MigrationEvent',
-            'Binary\Component\CmsMigrator\Administrator\View\Cpanel\HtmlView'
+            'Joomla\Component\CmsMigrator\Administrator\Extension\CmsMigratorComponent',
+            'Joomla\Component\CmsMigrator\Administrator\Controller\DisplayController',
+            'Joomla\Component\CmsMigrator\Administrator\Controller\ImportController',
+            'Joomla\Component\CmsMigrator\Administrator\Model\ImportModel',
+            'Joomla\Component\CmsMigrator\Administrator\Model\MediaModel',
+            'Joomla\Component\CmsMigrator\Administrator\Model\ProcessorModel',
+            'Joomla\Component\CmsMigrator\Administrator\Table\ArticleTable',
+            'Joomla\Component\CmsMigrator\Administrator\Event\MigrationEvent',
+            'Joomla\Component\CmsMigrator\Administrator\View\Cpanel\HtmlView'
         ];
 
         foreach ($expectedClasses as $className) {

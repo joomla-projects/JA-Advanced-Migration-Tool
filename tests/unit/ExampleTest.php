@@ -1,13 +1,13 @@
 <?php
 
-namespace Binary\Component\CmsMigrator\Tests;
+namespace Joomla\Component\CmsMigrator\Tests;
 
 use PHPUnit\Framework\TestCase;
 
 /**
  * Example test class to verify test environment setup
  *
- * @package Binary\Component\CmsMigrator\Tests
+ * @package Joomla\Component\CmsMigrator\Tests
  * @since   1.0.0
  */
 class ExampleTest extends TestCase
@@ -37,13 +37,13 @@ class ExampleTest extends TestCase
     public function testAutoloaderWorking(): void
     {
         $this->assertTrue(
-            class_exists('Binary\Component\CmsMigrator\Administrator\Extension\CmsMigratorComponent')
+            class_exists('Joomla\Component\CmsMigrator\Administrator\Extension\CmsMigratorComponent')
         );
         $this->assertTrue(
-            class_exists('Binary\Component\CmsMigrator\Administrator\Controller\DisplayController')
+            class_exists('Joomla\Component\CmsMigrator\Administrator\Controller\DisplayController')
         );
         $this->assertTrue(
-            class_exists('Binary\Component\CmsMigrator\Administrator\Model\ImportModel')
+            class_exists('Joomla\Component\CmsMigrator\Administrator\Model\ImportModel')
         );
     }
 }

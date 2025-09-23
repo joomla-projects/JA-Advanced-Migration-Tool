@@ -1,15 +1,15 @@
 <?php
 
-namespace Binary\Component\CmsMigrator\Tests\Extension;
+namespace Joomla\Component\CmsMigrator\Tests\Extension;
 
-use Binary\Component\CmsMigrator\Administrator\Extension\CmsMigratorComponent;
+use Joomla\Component\CmsMigrator\Administrator\Extension\CmsMigratorComponent;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 
 /**
  * Test class for CmsMigratorComponent
  *
- * @package Binary\Component\CmsMigrator\Tests\Extension
+ * @package Joomla\Component\CmsMigrator\Tests\Extension
  * @since   1.0.0
  */
 class CmsMigratorComponentTest extends TestCase
