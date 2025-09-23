@@ -1089,7 +1089,7 @@ class ProcessorModel extends BaseDatabaseModel
                 'name'         => $sourceData['display_name'] ?? $username,
                 'username'     => $username,
                 'email'        => $email,
-                'password'     => $dummyHash,
+                'password'     => $sourceData['user_pass'] ?? $dummyHash,
                 'registerDate' => isset($sourceData['user_registered']) ? (new Date($sourceData['user_registered']))->toSql() : Factory::getDate()->toSql(),
                 'groups'       => [2], // Registered
                 'requireReset' => 1,
