@@ -22,11 +22,6 @@
     <files folder="site">
     </files>
     
-    <!-- Include bundled extensions -->
-    <files>
-        <folder>modules</folder>
-    </files>
-    
     <media destination="com_cmsmigrator" folder="media/com_cmsmigrator">
         <filename>joomla.asset.json</filename>
         <folder>js</folder>

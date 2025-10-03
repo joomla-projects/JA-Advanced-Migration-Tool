@@ -122,29 +122,54 @@ jobs:
         id: version
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Create component zip with version
+      - name: Update XML versions
+        run: |
+          sed -i "s|<version>.*</version>|<version>${{ steps.version.outputs.version }}</version>|" src/component/cmsmigrator.xml
+          sed -i "s|<version>.*</version>|<version>${{ steps.version.outputs.version }}</version>|" src/modules/mod_migrationnotice/mod_migrationnotice.xml
+          sed -i "s|<version>.*</version>|<version>${{ steps.version.outputs.version }}</version>|" pkg_cmsmigrator.xml
+
+      - name: Create component zip
         run: |
           mkdir -p cypress/fixtures
           cd src/component
           zip -r ../../cypress/fixtures/com_cmsmigrator_v${{ steps.version.outputs.version }}.zip .
 
-      - name: Verify zip file exists
+      - name: Create module zip
+        run: |
+          cd src/modules/mod_migrationnotice
+          zip -r ../../../cypress/fixtures/mod_migrationnotice.zip .
+
+      - name: Create package zip
+        run: |
+          # Copy package manifest and language files to fixtures
+          cp pkg_cmsmigrator.xml cypress/fixtures/
+          cp -r language cypress/fixtures/
+
+          # Create constituents directory and move component/module zips there
+          cd cypress/fixtures
+          mkdir -p constituents
+          cp com_cmsmigrator_v${{ steps.version.outputs.version }}.zip constituents/com_cmsmigrator.zip
+          cp mod_migrationnotice.zip constituents/
+
+          # Create the package zip with the new structure
+          zip -r pkg_cmsmigrator_v${{ steps.version.outputs.version }}.zip \
+            pkg_cmsmigrator.xml \
+            constituents/ \
+            language/
+
+      - name: Verify zip files exist
         run: ls -lh cypress/fixtures/
 
-      - name: Update XML version
-        run: |
-          sed -i "s|<version>.*</version>|<version>${{ steps.version.outputs.version }}</version>|" src/component/cmsmigrator.xml
-
-      - name: Commit version update
+      - name: Commit version updates
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add src/component/cmsmigrator.xml
+          git add src/component/cmsmigrator.xml src/modules/mod_migrationnotice/mod_migrationnotice.xml pkg_cmsmigrator.xml
           git commit -m "Bump version to ${{ steps.version.outputs.version }}" || echo "No changes to commit"
           git push origin main
 
-      - name: Upload asset to GitHub Release
+      - name: Upload assets to GitHub Release
         run: |
-          gh release upload ${{ github.event.release.tag_name }} cypress/fixtures/com_cmsmigrator_v${{ steps.version.outputs.version }}.zip --clobber
+          gh release upload ${{ github.event.release.tag_name }} cypress/fixtures/pkg_cmsmigrator_v${{ steps.version.outputs.version }}.zip --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
