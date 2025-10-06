@@ -71,7 +71,7 @@ class ProcessorModel extends BaseDatabaseModel
         }
 
         if (isset($data['itemListElement'])) {
-            return $this->processWordpress($data, $sourceUrl, $ftpConfig, $importAsSuperUser);
+            return $this->processSource($data, $sourceUrl, $ftpConfig, $importAsSuperUser);
         }
 
         throw new \RuntimeException('Invalid data format');
@@ -190,7 +190,7 @@ class ProcessorModel extends BaseDatabaseModel
     }
 
     /**
-     * Processes migration data from a WordPress JSON-LD structure.
+     * Processes migration data from a parsed Source JSON-LD structure.
      *
      * @param   array   $data               The migration data.
      * @param   string  $sourceUrl          The source URL.
@@ -199,7 +199,7 @@ class ProcessorModel extends BaseDatabaseModel
      *
      * @return  array   The result of the processing.
      */
-    private function processWordpress(array $data, string $sourceUrl = '', array $ftpConfig = [], bool $importAsSuperUser = false): array
+    private function processSource(array $data, string $sourceUrl = '', array $ftpConfig = [], bool $importAsSuperUser = false): array
     {
         $result = [
             'success' => true,
@@ -209,7 +209,7 @@ class ProcessorModel extends BaseDatabaseModel
 
         if (!isset($data['itemListElement']) || !is_array($data['itemListElement'])) {
             $result['success'] = false;
-            $result['errors'][] = 'Invalid WordPress JSON format';
+            $result['errors'][] = Text::_('COM_CMSMIGRATOR_INVALID_JSON_FORMAT_FROM_PLUGIN');
             return $result;
         }
 
@@ -220,13 +220,13 @@ class ProcessorModel extends BaseDatabaseModel
             // Process tags first if they exist in the data
             $tagMap = [];
             if (!empty($data['allTags']) && is_array($data['allTags'])) {
-                $tagMap = $this->processWordpressTags($data['allTags'], $result['counts']);
+                $tagMap = $this->processSourceTags($data['allTags'], $result['counts']);
             }
 
             $total = count($data['itemListElement']);
 
             // Use batch processing based on the number of articles
-            $this->processBatchedWordpressArticles($data['itemListElement'], $result, $mediaModel, $ftpConfig, $sourceUrl, $superUserId, $total, $tagMap);
+            $this->processBatchedSourceArticles($data['itemListElement'], $result, $mediaModel, $ftpConfig, $sourceUrl, $superUserId, $total, $tagMap);
 
             if ($mediaModel) {
                 $result['counts']['media'] = $mediaModel->getMediaStats()['downloaded'];
@@ -252,7 +252,7 @@ class ProcessorModel extends BaseDatabaseModel
     }
 
     /**
-     * Process WordPress articles in batches with parallel media downloading
+     * Process Source articles in batches with parallel media downloading
      *
      * @param   array       $articles       Array of article elements
      * @param   array       &$result        Result array passed by reference
@@ -267,7 +267,7 @@ class ProcessorModel extends BaseDatabaseModel
      *
      * @since   1.0.0
      */
-    private function processBatchedWordpressArticles(array $articles, array &$result, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, ?int $superUserId, int $total, array $tagMap = []): void
+    private function processBatchedSourceArticles(array $articles, array &$result, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, ?int $superUserId, int $total, array $tagMap = []): void
     {
         $batchSize = $this->calculateBatchSize($total);
         $batches = array_chunk($articles, $batchSize);
@@ -385,7 +385,7 @@ class ProcessorModel extends BaseDatabaseModel
         // Step 3: Process articles sequentially
         foreach ($batchData as $index => $article) {
             try {
-                $this->processWordpressArticle($article, $result, null, $ftpConfig, $sourceUrl, $superUserId, $tagMap);
+                $this->processSourceArticle($article, $result, null, $ftpConfig, $sourceUrl, $superUserId, $tagMap);
                 $currentProgress = (int)((($processedCount + $index + 1) / $total) * 90);
                 $this->updateProgress(
                     $currentProgress,
@@ -407,7 +407,7 @@ class ProcessorModel extends BaseDatabaseModel
     }
 
     /**
-     * Processes a single WordPress article item.
+     * Processes a single Source article item.
      *
      * @param   array      $article        The article data array.
      * @param   array      &$result        The result array, passed by reference.
@@ -420,7 +420,7 @@ class ProcessorModel extends BaseDatabaseModel
      * @return  void
      * @throws  \Exception
      */
-    private function processWordpressArticle(array $article, array &$result, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, ?int $superUserId, array $tagMap = []): void
+    private function processSourceArticle(array $article, array &$result, ?MediaModel $mediaModel, array $ftpConfig, string $sourceUrl, ?int $superUserId, array $tagMap = []): void
     {
         if ($this->articleExists($article['headline'])) {
             $result['counts']['skipped']++;
@@ -428,12 +428,12 @@ class ProcessorModel extends BaseDatabaseModel
         }
 
         // Clean and process content
-        $content = $this->cleanWordPressContent($article['articleBody'] ?? '');
+        $content = $this->cleanSourceContent($article['articleBody'] ?? '');
         if ($mediaModel) {
             $content = $mediaModel->migrateMediaInContent($ftpConfig, $content, $sourceUrl);
         } else {
-            // Convert WordPress URLs to Joomla URLs even when media migration is disabled
-            $content = $this->convertWordPressUrlsToJoomla($content, is_array($ftpConfig) ? $ftpConfig : []);
+            // Convert Source URLs to Joomla URLs even when media migration is disabled
+            $content = $this->convertSourceUrlsToJoomla($content, is_array($ftpConfig) ? $ftpConfig : []);
         }
 
         [$introtext, $fulltext] = (strpos($content, '') !== false)
@@ -617,14 +617,14 @@ class ProcessorModel extends BaseDatabaseModel
     }
 
     /**
-     * Processes WordPress tags from the allTags array in the JSON structure.
+     * Processes Source tags from the allTags array in the JSON structure.
      *
      * @param   array $tags    Array of tag data with name, slug, and description.
      * @param   array &$counts The main counts array.
      *
      * @return  array Map of tag slugs to tag IDs.
      */
-    private function processWordpressTags(array $tags, array &$counts): array
+    private function processSourceTags(array $tags, array &$counts): array
     {
         $tagMap = [];
 
@@ -752,8 +752,8 @@ class ProcessorModel extends BaseDatabaseModel
 
                 $post['post_content'] = $updatedContent;
             } elseif (!$mediaModel && !empty($content)) {
-                // Convert WordPress URLs to Joomla URLs even when media migration is disabled
-                $post['post_content'] = $this->convertWordPressUrlsToJoomla($content, is_array($ftpConfig) ? $ftpConfig : []);
+                // Convert Source URLs to Joomla URLs even when media migration is disabled
+                $post['post_content'] = $this->convertSourceUrlsToJoomla($content, is_array($ftpConfig) ? $ftpConfig : []);
             }
 
             $batchData[$postId] = $post;
@@ -802,7 +802,7 @@ class ProcessorModel extends BaseDatabaseModel
 
                 $newId = $articleModel->getItem()->id;
 
-                // Map WordPress post ID to Joomla article ID
+                // Map Source post ID to Joomla article ID
                 $result['map'][$postId] = $newId;
 
                 // Link tags to the article
@@ -904,17 +904,17 @@ class ProcessorModel extends BaseDatabaseModel
     }
 
     /**
-     * Converts WordPress media URLs to Joomla-compatible URLs
-     * This allows users to manually copy media folders from WordPress to Joomla
+     * Converts Source media URLs to Joomla-compatible URLs
+     * This allows users to manually copy media folders from Source to Joomla
      *
-     * @param   string  $content     The content containing WordPress URLs
+     * @param   string  $content     The content containing Source URLs
      * @param   array   $ftpConfig   FTP configuration to determine storage directory
      *
      * @return  string  The content with converted URLs
      *
      * @since   1.0.0
      */
-    protected function convertWordPressUrlsToJoomla(string $content, array $ftpConfig = []): string
+    protected function convertSourceUrlsToJoomla(string $content, array $ftpConfig = []): string
     {
         if (empty($content)) {
             return $content;
@@ -928,27 +928,27 @@ class ProcessorModel extends BaseDatabaseModel
         // Get the Joomla site URL
         $joomlaBaseUrl = Uri::root();
 
-        // Pattern to match WordPress media URLs
+        // Pattern to match Source media URLs
         // Matches: http://example.com/wp-content/uploads/2024/01/image.jpg
         $pattern = '/https?:\/\/[^\/]+\/wp-content\/uploads\/([^\s"\'<>]+\.(jpg|jpeg|png|gif|webp|pdf|doc|docx|mp4|mp3|zip))/i';
         $updatedContent = preg_replace_callback($pattern, function ($matches) use ($joomlaBaseUrl, $storageDir) {
-            $wpPath = $matches[1]; // e.g., "2024/01/image.jpg"
+            $sourcePath = $matches[1]; // e.g., "2024/01/image.jpg"
 
-            // Convert to Joomla URL maintaining the WordPress folder structure
-            $joomlaUrl = $joomlaBaseUrl . 'images/' . $storageDir . '/' . $wpPath;
+            // Convert to Joomla URL maintaining the Source folder structure
+            $joomlaUrl = $joomlaBaseUrl . 'images/' . $storageDir . '/' . $sourcePath;
 
             return $joomlaUrl;
         }, $content);
 
-        // Also handle relative WordPress URLs that might not have the full domain
+        // Also handle relative Source URLs that might not have the full domain
         // Pattern: /wp-content/uploads/2024/01/image.jpg
         $relativePattern = '/\/wp-content\/uploads\/([^\s"\'<>]+\.(jpg|jpeg|png|gif|webp|pdf|doc|docx|mp4|mp3|zip))/i';
 
         $updatedContent = preg_replace_callback($relativePattern, function ($matches) use ($joomlaBaseUrl, $storageDir) {
-            $wpPath = $matches[1]; // e.g., "2024/01/image.jpg"
+            $sourcePath = $matches[1]; // e.g., "2024/01/image.jpg"
 
-            // Convert to Joomla URL maintaining the WordPress folder structure
-            $joomlaUrl = $joomlaBaseUrl . 'images/' . $storageDir . '/' . $wpPath;
+            // Convert to Joomla URL maintaining the Source folder structure
+            $joomlaUrl = $joomlaBaseUrl . 'images/' . $storageDir . '/' . $sourcePath;
 
             return $joomlaUrl;
         }, $updatedContent);
@@ -1239,13 +1239,13 @@ class ProcessorModel extends BaseDatabaseModel
     }
 
     /**
-     * Cleans WordPress-specific block editor comments from content.
+     * Cleans Source-specific block editor comments from content.
      *
      * @param   string $content The raw HTML content.
      *
      * @return  string The cleaned HTML content.
      */
-    protected function cleanWordPressContent(string $content): string
+    protected function cleanSourceContent(string $content): string
     {
         $content = preg_replace('//s', '', $content);
         $content = preg_replace('//s', '', $content);
@@ -1369,10 +1369,10 @@ class ProcessorModel extends BaseDatabaseModel
     }
 
     /**
-     * Processes an array of WordPress menus and imports them into Joomla.
+     * Processes an array of Source menus and imports them into Joomla.
      *
-     * @param   array  $menus       The array of menu data from the WordPress JSON export.
-     * @param   array  $contentMap  A mapping of old WordPress IDs to new Joomla IDs.
+     * @param   array  $menus       The array of menu data from the Source JSON export.
+     * @param   array  $contentMap  A mapping of old Source IDs to new Joomla IDs.
      * Example: ['posts' => [123 => 45], 'categories' => [10 => 8]]
      * @param   array  &$counts     An array to keep track of import counts.
      *
@@ -1381,19 +1381,19 @@ class ProcessorModel extends BaseDatabaseModel
     protected function processMenus(array $menus, array $contentMap, array &$counts): array
     {
         $result = ['map' => [], 'errors' => []];
-        $wpToJoomlaMenuItemMap = []; // CRITICAL: Maps old WP menu item IDs to new Joomla menu item IDs.
+        $sourceToJoomlaMenuItemMap = []; // CRITICAL: Maps old Source menu item IDs to new Joomla menu item IDs.
 
-        foreach ($menus as $wpMenuName => $wpMenuItems) {
+        foreach ($menus as $sourceMenuName => $sourceMenuItems) {
             try {
                 // Step 1: Create the Joomla Menu container (Menu Type) if it doesn't exist.
                 $menusMvcFactory = Factory::getApplication()->bootComponent('com_menus')->getMVCFactory();
                 $menuTypeTable = $menusMvcFactory->createTable('MenuType', 'Administrator');
 
                 // Check if the menu type already exists to avoid errors on re-run
-                if (!$menuTypeTable->load(['menutype' => $wpMenuName])) {
+                if (!$menuTypeTable->load(['menutype' => $sourceMenuName])) {
                     $menuTypeData = [
-                        'menutype'    => $wpMenuName,
-                        'title'       => ucfirst($wpMenuName),
+                        'menutype'    => $sourceMenuName,
+                        'title'       => ucfirst($sourceMenuName),
                         'description' => 'Imported from WordPress on ' . date('Y-m-d'),
                     ];
 
@@ -1404,11 +1404,11 @@ class ProcessorModel extends BaseDatabaseModel
                 }
 
                 // Step 2: First Pass - Import only TOP-LEVEL menu items.
-                if (empty($wpMenuItems) || !is_array($wpMenuItems)) {
+                if (empty($sourceMenuItems) || !is_array($sourceMenuItems)) {
                     continue; // Skip if there are no items
                 }
 
-                foreach ($wpMenuItems as $item) {
+                foreach ($sourceMenuItems as $item) {
                     if ((string) ($item['menu_item_parent'] ?? '0') !== '0') {
                         continue;
                     }
@@ -1417,7 +1417,7 @@ class ProcessorModel extends BaseDatabaseModel
                     list($link, $type) = $this->generateJoomlaLink($item, $contentMap);
 
                     $menuItemData = [
-                        'menutype'     => $wpMenuName,
+                        'menutype'     => $sourceMenuName,
                         'title'        => $item['title'] ?? 'Untitled',
                         'alias'        => OutputFilter::stringURLSafe($item['title']),
                         'path'         => OutputFilter::stringURLSafe($item['title']),
@@ -1437,26 +1437,26 @@ class ProcessorModel extends BaseDatabaseModel
                         throw new \RuntimeException('Menu Item Save Failed (Pass 1): ' . $menuItemTable->getError());
                     }
 
-                    // Map the old WordPress ID to the new Joomla ID for the second pass
-                    $wpToJoomlaMenuItemMap[$item['ID']] = $menuItemTable->id;
+                    // Map the old Source ID to the new Joomla ID for the second pass
+                    $sourceToJoomlaMenuItemMap[$item['ID']] = $menuItemTable->id;
                     $counts['menu_items']++;
                 }
 
                 // Step 3: Second Pass - Import all CHILD menu items.
-                foreach ($wpMenuItems as $item) {
+                foreach ($sourceMenuItems as $item) {
                     if ((string) ($item['menu_item_parent'] ?? '0') === '0') {
                         continue; // Skip top-level items on this pass
                     }
 
-                    $wpParentId = $item['menu_item_parent'];
+                    $sourceParentId = $item['menu_item_parent'];
 
                     // Ensure the parent was successfully imported in the first pass
-                    if (!isset($wpToJoomlaMenuItemMap[$wpParentId])) {
-                        $result['errors'][] = sprintf('Skipping child item "%s" because its parent (WP ID: %s) was not found.', $item['title'], $wpParentId);
+                    if (!isset($sourceToJoomlaMenuItemMap[$sourceParentId])) {
+                        $result['errors'][] = sprintf('Skipping child item "%s" because its parent (WP ID: %s) was not found.', $item['title'], $sourceParentId);
                         continue;
                     }
 
-                    $joomlaParentId = $wpToJoomlaMenuItemMap[$wpParentId];
+                    $joomlaParentId = $sourceToJoomlaMenuItemMap[$sourceParentId];
 
                     // Load the parent to get its level and path for the new child
                     $parentTable = $menusMvcFactory->createTable('Menu', 'Administrator');
@@ -1468,7 +1468,7 @@ class ProcessorModel extends BaseDatabaseModel
                     $alias = OutputFilter::stringURLSafe($item['title']);
 
                     $menuItemData = [
-                        'menutype'     => $wpMenuName,
+                        'menutype'     => $sourceMenuName,
                         'title'        => $item['title'] ?? 'Untitled',
                         'alias'        => $alias,
                         'path'         => $parentTable->path . '/' . $alias,
@@ -1489,34 +1489,34 @@ class ProcessorModel extends BaseDatabaseModel
                     }
 
                     // Also map this new child item in case it is a parent itself
-                    $wpToJoomlaMenuItemMap[$item['ID']] = $menuItemTable->id;
+                    $sourceToJoomlaMenuItemMap[$item['ID']] = $menuItemTable->id;
                     $counts['menu_items']++;
                 }
             } catch (\Exception $e) {
-                $result['errors'][] = sprintf('CRITICAL ERROR importing menu "%s": %s', $wpMenuName, $e->getMessage());
+                $result['errors'][] = sprintf('CRITICAL ERROR importing menu "%s": %s', $sourceMenuName, $e->getMessage());
             }
         }
 
-        $result['map'] = $wpToJoomlaMenuItemMap;
+        $result['map'] = $sourceToJoomlaMenuItemMap;
         return $result;
     }
 
     /**
      * Helper function to generate the correct Joomla link string and type.
      *
-     * @param   array  $wpItem      A single WordPress menu item.
+     * @param   array  $sourceItem      A single Source menu item.
      * @param   array  $contentMap  The master content map.
      *
      * @return  array  An array containing [string $link, string $type].
      */
-    protected function generateJoomlaLink(array $wpItem, array $contentMap): array
+    protected function generateJoomlaLink(array $sourceItem, array $contentMap): array
     {
-        switch ($wpItem['object'] ?? 'custom') {
+        switch ($sourceItem['object'] ?? 'custom') {
             case 'page':
             case 'post':
                 // Use the content map to find the new Joomla Article ID
-                $wpId = $wpItem['object_id'] ?? 0;
-                $joomlaId = $contentMap['posts'][$wpId] ?? 0;
+                $sourceId = $sourceItem['object_id'] ?? 0;
+                $joomlaId = $contentMap['posts'][$sourceId] ?? 0;
 
                 if ($joomlaId) {
                     return ['index.php?option=com_content&view=article&id=' . (int) $joomlaId, 'component'];
@@ -1525,8 +1525,8 @@ class ProcessorModel extends BaseDatabaseModel
 
             case 'category':
                 // Use the content map to find the new Joomla Category ID
-                $wpId = $wpItem['object_id'] ?? 0;
-                $joomlaId = $contentMap['categories'][$wpId] ?? 0;
+                $sourceId = $sourceItem['object_id'] ?? 0;
+                $joomlaId = $contentMap['categories'][$sourceId] ?? 0;
 
                 if ($joomlaId) {
                     return ['index.php?option=com_content&view=category&layout=blog&id=' . (int) $joomlaId, 'component'];
@@ -1536,7 +1536,7 @@ class ProcessorModel extends BaseDatabaseModel
             case 'custom':
             default:
                 // For custom links, just use the URL directly.
-                return [$wpItem['url'] ?? '#', 'url'];
+                return [$sourceItem['url'] ?? '#', 'url'];
         }
 
         // Fallback if the mapped content was not found
