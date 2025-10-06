@@ -122,6 +122,16 @@ jobs:
         id: version
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
+      - name: Extract wordpress plugin version
+        run: |
+          version_wordpress=$(grep -oP '<version>\K[^<]+' src/plugins/migration/wordpress/wordpress.xml)
+          echo "version_wordpress=$version_wordpress" >> $GITHUB_ENV
+
+      - name: Extract wp-all-export plugin version
+        run: |
+          version_wp_all_export=$(grep -oP '\* Version:\s*\K[^\s]+' src/cms-export-plugins/ja-wp-all-export/wp-all-export.php)
+          echo "version_wp_all_export=$version_wp_all_export" >> $GITHUB_ENV
+
       - name: Update XML versions
         run: |
           sed -i "s|<version>.*</version>|<version>${{ steps.version.outputs.version }}</version>|" src/component/cmsmigrator.xml
@@ -157,6 +167,16 @@ jobs:
             constituents/ \
             language/
 
+      - name: Create wordpress plugin zip
+        run: |
+          cd src/plugins/migration/wordpress
+          zip -r ../../../../cypress/fixtures/plg_wordpress_v${{ env.version_wordpress }}.zip .
+
+      - name: Create wp-all-export plugin zip
+        run: |
+          cd src/cms-export-plugins/ja-wp-all-export
+          zip -r ../../../cypress/fixtures/ja_wp_all_export_v${{ env.version_wp_all_export }}.zip .
+
       - name: Verify zip files exist
         run: ls -lh cypress/fixtures/
 
@@ -170,6 +190,6 @@ jobs:
 
       - name: Upload assets to GitHub Release
         run: |
-          gh release upload ${{ github.event.release.tag_name }} cypress/fixtures/pkg_cmsmigrator_v${{ steps.version.outputs.version }}.zip --clobber
+          gh release upload ${{ github.event.release.tag_name }} cypress/fixtures/pkg_cmsmigrator_v${{ steps.version.outputs.version }}.zip cypress/fixtures/plg_wordpress_v${{ env.version_wordpress }}.zip cypress/fixtures/ja_wp_all_export_v${{ env.version_wp_all_export }}.zip --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
