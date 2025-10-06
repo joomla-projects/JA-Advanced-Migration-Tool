@@ -7,27 +7,33 @@
  * @license     GNU General Public License version 2 or later; see LICENSE.txt
  */
 -->
-<extension type="package" method="upgrade">
-    <name>PKG_CMSMIGRATOR</name>
-    <author>Rahul Singh</author>
-    <authorEmail>rahulsingh19390@gmail.com</authorEmail>
-    <authorUrl>https://rahulsingh.free.nf/</authorUrl>
-    <creationDate>2025-10-03</creationDate>
-    <copyright>(C) 2025 Open Source Matters, Inc.</copyright>
-    <license>GNU General Public License version 2 or later; see LICENSE.txt</license>
-    <version>0.9.0</version>
-    <description>PKG_CMSMIGRATOR_DESCRIPTION</description>
-    <packager>Joomla Academy</packager>
-    <packagerurl>https://github.com/Rahulsingh1939/JA-Advanced-Migration-Tool</packagerurl>
-    
+<extension type="package" version="5.0" method="install">
+  <name>PKG_CMSMIGRATOR</name>
+  <packagename>cmsmigrator</packagename>
+
+  <author>Joomla Academy</author>
+  <authorEmail></authorEmail>
+  <creationDate>2025-10-03</creationDate>
+  <copyright>(C) 2025 Open Source Matters, Inc.</copyright>
+  <license>GNU General Public License version 2 or later; see LICENSE.txt</license>
+  <version>0.0.1</version>
+  <description>PKG_CMSMIGRATOR_DESCRIPTION</description>
+  <packager>Joomla Academy</packager>
+  <packagerurl>https://github.com/joomla-projects/JA-Advanced-Migration-Tool</packagerurl>
+
+  <!-- constituents folder holds the inner extension zips -->
   <files folder="constituents">
     <file type="component" id="com_cmsmigrator">com_cmsmigrator.zip</file>
     <file type="module" id="mod_migrationnotice" client="site">mod_migrationnotice.zip</file>
   </files>
-    
-    <updateservers>
-        <server type="extension" priority="1" name="CMS Migrator Package Updates">
-            <![CDATA[https://api.github.com/repos/Rahulsingh1939/JA-Advanced-Migration-Tool/releases/latest]]>
-        </server>
-    </updateservers>
+
+  <!-- language files (must match files inside /language/en-GB/) -->
+  <languages folder="language">
+    <language tag="en-GB">en-GB/pkg_cmsmigrator.ini</language>
+    <language tag="en-GB">en-GB/pkg_cmsmigrator.sys.ini</language>
+  </languages>
+
+  <updateservers>
+    <server type="extension" priority="1" name="CMS Migrator Package Updates"><![CDATA[https://api.github.com/repos/joomla-projects/JA-Advanced-Migration-Tool/releases/latest]]></server>
+  </updateservers>
 </extension>

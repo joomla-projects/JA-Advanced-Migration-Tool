@@ -3,7 +3,7 @@
  * Plugin Name:       All Export
  * Description:       Export all WordPress core data like Users, Posts, Pages, Categories, and Taxonomies.
  * Version:           1.0.0
- * Author:            Rahul Singh
+ * Author:            Joomla Academy
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       wp-all-export

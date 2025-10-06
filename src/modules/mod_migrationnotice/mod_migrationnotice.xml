@@ -12,9 +12,10 @@
     <description>MOD_MIGRATIONNOTICE_XML_DESCRIPTION</description>
     <version>1.0.0</version>
     <author>Joomla Academy</author>
+    <creationDate>2025-10-03</creationDate>
     <authorEmail></authorEmail>
     <authorUrl></authorUrl>
-    <copyright>Copyright (C) 2025 Joomla Academy. All rights reserved.</copyright>
+    <copyright>(C) 2025 Open Source Matters, Inc.</copyright>
     <license>GNU General Public License version 2 or later</license>
     
     <namespace path="src">Joomla\Module\MigrationNotice</namespace>
