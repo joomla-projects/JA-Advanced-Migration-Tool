@@ -1044,6 +1044,7 @@ class ProcessorModel extends BaseDatabaseModel
                 'description' => $sourceData['description'] ?? '',
                 'published'   => 1,
                 'access'      => 1,
+                'parent_id'   => 1,
                 'language'    => '*',
             ];
 
