@@ -1,24 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+/**
+ * @package     Migration Notice Module
+ * @subpackage  mod_migrationnotice
+ * @copyright   Copyright (C) 2025 Open Source Matters, Inc.
+ * @license     GNU General Public License version 2 or later; see LICENSE.txt
+ */
+-->
 <extension type="module" version="5.0" client="site" method="upgrade">
-    <name>mod_migrationnotice</name>
-    <title>Migration Notice Module</title>
+    <name>MOD_MIGRATIONNOTICE</name>
     <description>MOD_MIGRATIONNOTICE_XML_DESCRIPTION</description>
-    <version>1.0.0</version>
+    <version>0.9.0</version>
     <author>Joomla Academy</author>
+    <creationDate>2025-10-03</creationDate>
     <authorEmail></authorEmail>
     <authorUrl></authorUrl>
-    <copyright>Copyright (C) 2025 Joomla Academy. All rights reserved.</copyright>
+    <copyright>(C) 2025 Open Source Matters, Inc.</copyright>
     <license>GNU General Public License version 2 or later</license>
     
+    <namespace path="src">Joomla\Module\MigrationNotice</namespace>
+    
     <files>
-        <filename module="mod_migrationnotice">mod_migrationnotice.php</filename>
+        <folder module="mod_migrationnotice">services</folder>
+        <folder>src</folder>
         <folder>tmpl</folder>
         <folder>language</folder>
+        <folder>media</folder>
     </files>
     
+    <media destination="mod_migrationnotice" folder="media">
+        <folder>css</folder>
+    </media>
+    
     <languages>
-        <language tag="en-GB">language/en-GB/en-GB.mod_migrationnotice.ini</language>
-        <language tag="en-GB">language/en-GB/en-GB.mod_migrationnotice.sys.ini</language>
+        <language tag="en-GB">language/en-GB/mod_migrationnotice.ini</language>
+        <language tag="en-GB">language/en-GB/mod_migrationnotice.sys.ini</language>
     </languages>
     
     <scriptfile>script.php</scriptfile>

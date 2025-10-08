@@ -1,13 +1,16 @@
 <?php
 /**
- * Plugin Name:       All Export
+ * Plugin Name:       JA WP All Export
+ * Plugin URI:        https://github.com/joomla-projects/JA-Advanced-Migration-Tool/tree/main/src/cms-export-plugins/wp-all-export
  * Description:       Export all WordPress core data like Users, Posts, Pages, Categories, and Taxonomies.
  * Version:           1.0.0
  * Author:            Joomla Academy
+ * Author URI:        https://github.com/joomla-projects/JA-Advanced-Migration-Tool
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain:       wp-all-export
+ * Text Domain:       ja-wp-all-export
  * Domain Path:       /languages
+ * Update URI:        false
  */
 
 // If this file is called directly, abort.

@@ -123,13 +123,7 @@ class ComponentPackageTest extends TestCase
             'media/com_cmsmigrator/css/admin.css',
             'media/com_cmsmigrator/js/admin.js',
             'media/com_cmsmigrator/js/init.js',
-            'media/com_cmsmigrator/js/migration-form.js',
-            'modules/mod_migrationnotice/mod_migrationnotice.php',
-            'modules/mod_migrationnotice/mod_migrationnotice.xml',
-            'modules/mod_migrationnotice/script.php',
-            'modules/mod_migrationnotice/language/en-GB/en-GB.mod_migrationnotice.ini',
-            'modules/mod_migrationnotice/language/en-GB/en-GB.mod_migrationnotice.sys.ini',
-            'modules/mod_migrationnotice/tmpl/default.php'
+            'media/com_cmsmigrator/js/migration-form.js'
         ];
         
         foreach ($expectedFiles as $expectedFile) {

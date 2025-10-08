@@ -68,10 +68,10 @@ jobs:
         run: |
           for i in {1..40}; do
             if curl -f http://localhost:8080/installation/index.php > /dev/null 2>&1; then
-              echo "✅ Joomla installer is ready"
+              echo "Joomla installer is ready"
               break
             fi
-            echo "⏳ Waiting for Joomla installer..."
+            echo "Waiting for Joomla installer..."
             sleep 10
           done
 
@@ -122,29 +122,74 @@ jobs:
         id: version
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Create component zip with version
+      - name: Extract wordpress plugin version
+        run: |
+          version_wordpress=$(grep -oP '<version>\K[^<]+' src/plugins/migration/wordpress/wordpress.xml)
+          echo "version_wordpress=$version_wordpress" >> $GITHUB_ENV
+
+      - name: Extract wp-all-export plugin version
+        run: |
+          version_wp_all_export=$(grep -oP '\* Version:\s*\K[^\s]+' src/cms-export-plugins/ja-wp-all-export/wp-all-export.php)
+          echo "version_wp_all_export=$version_wp_all_export" >> $GITHUB_ENV
+
+      - name: Update XML versions
+        run: |
+          sed -i "s|<version>.*</version>|<version>${{ steps.version.outputs.version }}</version>|" src/component/cmsmigrator.xml
+          sed -i "s|<version>.*</version>|<version>${{ steps.version.outputs.version }}</version>|" src/modules/mod_migrationnotice/mod_migrationnotice.xml
+          sed -i "s|<version>.*</version>|<version>${{ steps.version.outputs.version }}</version>|" pkg_cmsmigrator.xml
+
+      - name: Create component zip
         run: |
           mkdir -p cypress/fixtures
           cd src/component
           zip -r ../../cypress/fixtures/com_cmsmigrator_v${{ steps.version.outputs.version }}.zip .
 
-      - name: Verify zip file exists
+      - name: Create module zip
+        run: |
+          cd src/modules/mod_migrationnotice
+          zip -r ../../../cypress/fixtures/mod_migrationnotice.zip .
+
+      - name: Create package zip
+        run: |
+          # Copy package manifest and language files to fixtures
+          cp pkg_cmsmigrator.xml cypress/fixtures/
+          cp -r language cypress/fixtures/
+
+          # Create constituents directory and move component/module zips there
+          cd cypress/fixtures
+          mkdir -p constituents
+          cp com_cmsmigrator_v${{ steps.version.outputs.version }}.zip constituents/com_cmsmigrator.zip
+          cp mod_migrationnotice.zip constituents/
+
+          # Create the package zip with the new structure
+          zip -r pkg_cmsmigrator_v${{ steps.version.outputs.version }}.zip \
+            pkg_cmsmigrator.xml \
+            constituents/ \
+            language/
+
+      - name: Create wordpress plugin zip
+        run: |
+          cd src/plugins/migration/wordpress
+          zip -r ../../../../cypress/fixtures/plg_wordpress_v${{ env.version_wordpress }}.zip .
+
+      - name: Create wp-all-export plugin zip
+        run: |
+          cd src/cms-export-plugins/ja-wp-all-export
+          zip -r ../../../cypress/fixtures/ja_wp_all_export_v${{ env.version_wp_all_export }}.zip .
+
+      - name: Verify zip files exist
         run: ls -lh cypress/fixtures/
 
-      - name: Update XML version
-        run: |
-          sed -i "s|<version>.*</version>|<version>${{ steps.version.outputs.version }}</version>|" src/component/cmsmigrator.xml
-
-      - name: Commit version update
+      - name: Commit version updates
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add src/component/cmsmigrator.xml
+          git add src/component/cmsmigrator.xml src/modules/mod_migrationnotice/mod_migrationnotice.xml pkg_cmsmigrator.xml
           git commit -m "Bump version to ${{ steps.version.outputs.version }}" || echo "No changes to commit"
           git push origin main
 
-      - name: Upload asset to GitHub Release
+      - name: Upload assets to GitHub Release
         run: |
-          gh release upload ${{ github.event.release.tag_name }} cypress/fixtures/com_cmsmigrator_v${{ steps.version.outputs.version }}.zip --clobber
+          gh release upload ${{ github.event.release.tag_name }} cypress/fixtures/pkg_cmsmigrator_v${{ steps.version.outputs.version }}.zip cypress/fixtures/plg_wordpress_v${{ env.version_wordpress }}.zip cypress/fixtures/ja_wp_all_export_v${{ env.version_wp_all_export }}.zip --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

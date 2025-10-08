@@ -1,12 +1,13 @@
 <?php
+
 /**
  * @package     Migration Notice Module
  * @subpackage  mod_migrationnotice
- * @copyright   Copyright (C) 2025 Joomla Academy. All rights reserved.
+ * @copyright   Copyright (C) 2025 Open Source Matters, Inc.
  * @license     GNU General Public License version 2 or later; see LICENSE.txt
  */
 
-defined('_JEXEC') or die;
+\defined('_JEXEC') or die;
 
 use Joomla\CMS\Language\Text;
 
@@ -72,39 +73,3 @@ $moduleClass = htmlspecialchars($params->get('moduleclass_sfx', ''));
         </div>
     <?php endif; ?>
 </div>
-
-<style>
-.migration-notice-module .alert {
-    margin-bottom: 1rem;
-}
-
-.migration-notice-module .alert-heading {
-    margin-bottom: 0.75rem;
-    font-size: 1.1rem;
-}
-
-.migration-notice-module .alert-heading .icon-info-circle,
-.migration-notice-module .alert-heading .icon-key {
-    margin-right: 0.5rem;
-}
-
-.migration-notice-module .btn {
-    margin-top: 0.5rem;
-}
-
-.migration-notice-module .btn .icon-lock,
-.migration-notice-module .btn .icon-refresh {
-    margin-right: 0.25rem;
-}
-
-.migration-notice-module .admin-info {
-    border-left: 4px solid #17a2b8;
-}
-
-@media (max-width: 576px) {
-    .migration-notice-module .btn {
-        width: 100%;
-        margin-top: 0.75rem;
-    }
-}
-</style>

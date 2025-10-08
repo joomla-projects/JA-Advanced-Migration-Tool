@@ -160,7 +160,7 @@ class Com_CmsMigratorInstallerScript
     }
 
     /**
-     * Install bundled extensions that come with the component
+     * Placeholder for future bundled extensions installation
      *
      * @param   InstallerAdapter  $parent  The installer adapter
      *
@@ -168,43 +168,6 @@ class Com_CmsMigratorInstallerScript
      */
     private function installBundledExtensions($parent): void
     {
-        // Get the source path of the component package
-        $sourcePath = $parent->getParent()->getPath('source');
-        
-        // Try different possible paths for the module
-        $possiblePaths = [
-            $sourcePath . '/modules/mod_migrationnotice',
-            $sourcePath . '/../modules/mod_migrationnotice',
-            dirname($sourcePath) . '/modules/mod_migrationnotice'
-        ];
-        
-        $moduleSourcePath = null;
-        foreach ($possiblePaths as $path) {
-            Log::add('Checking path: ' . $path, Log::INFO, 'com_cmsmigrator');
-            if (file_exists($path) && file_exists($path . '/mod_migrationnotice.xml')) {
-                $moduleSourcePath = $path;
-                Log::add('Found module at: ' . $path, Log::INFO, 'com_cmsmigrator');
-                break;
-            }
-        }
-        
-        if ($moduleSourcePath) {
-            try {
-                $moduleInstaller = new Installer();
-                $result = $moduleInstaller->install($moduleSourcePath);
-                
-                if ($result) {
-                    Log::add('Successfully installed bundled module: mod_migrationnotice', Log::INFO, 'com_cmsmigrator');
-                } else {
-                    $errors = $moduleInstaller->getErrors();
-                    Log::add('Failed to install bundled module: mod_migrationnotice. Errors: ' . implode('; ', $errors), Log::WARNING, 'com_cmsmigrator');
-                }
-            } catch (\Exception $e) {
-                Log::add('Exception during module installation: ' . $e->getMessage(), Log::ERROR, 'com_cmsmigrator');
-            }
-        } else {
-            Log::add('Bundled module not found in any of the expected locations', Log::WARNING, 'com_cmsmigrator');
-            Log::add('Available files in source: ' . print_r(scandir($sourcePath), true), Log::INFO, 'com_cmsmigrator');
-        }
+        // module installation code for bundled installer
     }
 }

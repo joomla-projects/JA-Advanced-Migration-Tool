@@ -133,7 +133,7 @@ class MediaModel extends BaseModel
     /**
      * Sets the storage directory.
      *
-     * The storage directory will contain the WordPress media files organized
+     * The storage directory will contain the Source media files organized
      * in their original folder structure (e.g., 2024/01/image.jpg).
      *
      * @param   string  $dir  The directory name (e.g., 'imports', 'custom', etc.).
@@ -276,9 +276,9 @@ class MediaModel extends BaseModel
         }
 
         // Match standard WordPress uploads URLs
-        preg_match_all('/https?:\/\/[^\/]+\/wp-content\/uploads\/[^\s"\'<>]+\.(jpg|jpeg|png|gif|webp)/i', $content, $wpMatches);
-        if (!empty($wpMatches[0])) {
-            $imageUrls = array_merge($imageUrls, $wpMatches[0]);
+        preg_match_all('/https?:\/\/[^\/]+\/wp-content\/uploads\/[^\s"\'<>]+\.(jpg|jpeg|png|gif|webp)/i', $content, $urlMatches);
+        if (!empty($urlMatches[0])) {
+            $imageUrls = array_merge($imageUrls, $urlMatches[0]);
         }
 
         // Match direct uploads folder URLs
@@ -310,22 +310,22 @@ class MediaModel extends BaseModel
         $uploadPath = $parsedUrl['path'];
 
         // Check for different WordPress upload path patterns
-        $isWordPressUpload = false;
+        $isSourceUpload = false;
         $relativePath = '';
 
         if (strpos($uploadPath, '/wp-content/uploads/') !== false) {
             // Standard WordPress structure: /wp-content/uploads/...
-            $isWordPressUpload = true;
+            $isSourceUpload = true;
             preg_match('/.*\/wp-content\/uploads\/(.+)$/', $uploadPath, $matches);
             $relativePath = $matches[1] ?? '';
         } elseif (strpos($uploadPath, '/uploads/') !== false) {
             // Direct uploads folder: /uploads/...
-            $isWordPressUpload = true;
+            $isSourceUpload = true;
             preg_match('/.*\/uploads\/(.+)$/', $uploadPath, $matches);
             $relativePath = $matches[1] ?? '';
         }
 
-        if (!$isWordPressUpload || empty($relativePath)) {
+        if (!$isSourceUpload || empty($relativePath)) {
             $this->app->enqueueMessage("Not a WordPress upload path: $uploadPath", 'warning');
             return null;
         }
@@ -609,7 +609,7 @@ class MediaModel extends BaseModel
 
         foreach ($testScenarios as [$root, $contentPath]) {
             $canAccess = false;
-            $hasWordPressContent = false;
+            $hasSourceContent = false;
 
             if ($this->connectionType === 'sftp' && $this->sftpConnection) {
                 try {
@@ -621,13 +621,13 @@ class MediaModel extends BaseModel
 
                         // Check for WordPress content structure
                         if ($this->sftpConnection->is_dir($checkPath)) {
-                            $hasWordPressContent = true;
+                            $hasSourceContent = true;
 
                             // For wp-content, also check for uploads subdirectory
                             if ($contentPath === 'wp-content') {
                                 $uploadsPath = $checkPath . '/uploads';
                                 if ($this->sftpConnection->is_dir($uploadsPath)) {
-                                    $hasWordPressContent = true;
+                                    $hasSourceContent = true;
                                 }
                             }
                         }
@@ -644,12 +644,12 @@ class MediaModel extends BaseModel
 
                     // Check for WordPress content structure
                     if (@ftp_chdir($this->ftpConnection, $contentPath)) {
-                        $hasWordPressContent = true;
+                        $hasSourceContent = true;
 
                         // For wp-content, also check for uploads subdirectory
                         if ($contentPath === 'wp-content') {
                             if (@ftp_chdir($this->ftpConnection, 'uploads')) {
-                                $hasWordPressContent = true;
+                                $hasSourceContent = true;
                                 // Return to wp-content
                                 @ftp_chdir($this->ftpConnection, '..');
                             }
@@ -667,7 +667,7 @@ class MediaModel extends BaseModel
                 }
             }
 
-            if ($canAccess && $hasWordPressContent) {
+            if ($canAccess && $hasSourceContent) {
                 $this->documentRoot = $root ?: '.';
                 $this->documentRootDetected = true;
 
@@ -924,7 +924,7 @@ class MediaModel extends BaseModel
                 // Extract individual file to handle path structure better
                 $fileData = $zip->getFromIndex($i);
                 if ($fileData !== false) {
-                    // Handle WordPress uploads folder structure
+                    // Handle Source uploads folder structure
                     $relativePath = $this->normalizeUploadPath($filename);
                     $targetPath = $extractPath . $relativePath;
 
@@ -976,7 +976,7 @@ class MediaModel extends BaseModel
 
         foreach ($imageUrls as $originalUrl) {
             try {
-                // Extract the file path from the WordPress URL
+                // Extract the file path from the Source URL
                 // Typical WordPress URL: http://example.com/wp-content/uploads/2024/01/image.jpg
                 $newUrl = $this->findExtractedImageUrl($originalUrl);
                 if ($newUrl) {
@@ -1124,9 +1124,9 @@ class MediaModel extends BaseModel
      *
      * @since   1.0.0
      */
-    public function getPlannedJoomlaUrl(string $wordpressUrl): ?string
+    public function getPlannedJoomlaUrl(string $sourceUrl): ?string
     {
-        $parsedUrl = parse_url($wordpressUrl);
+        $parsedUrl = parse_url($sourceUrl);
         if (!$parsedUrl || empty($parsedUrl['path'])) {
             return null;
         }
@@ -1287,22 +1287,22 @@ class MediaModel extends BaseModel
         $uploadPath = $parsedUrl['path'];
 
         // Check for different WordPress upload path patterns
-        $isWordPressUpload = false;
+        $isSourceUpload = false;
         $relativePath = '';
 
         if (strpos($uploadPath, '/wp-content/uploads/') !== false) {
             // Standard WordPress structure: /wp-content/uploads/...
-            $isWordPressUpload = true;
+            $isSourceUpload = true;
             preg_match('/.*\/wp-content\/uploads\/(.+)$/', $uploadPath, $matches);
             $relativePath = $matches[1] ?? '';
         } elseif (strpos($uploadPath, '/uploads/') !== false) {
             // Direct uploads folder: /uploads/...
-            $isWordPressUpload = true;
+            $isSourceUpload = true;
             preg_match('/.*\/uploads\/(.+)$/', $uploadPath, $matches);
             $relativePath = $matches[1] ?? '';
         }
 
-        if (!$isWordPressUpload || empty($relativePath)) {
+        if (!$isSourceUpload || empty($relativePath)) {
             return [];
         }
 
@@ -1757,9 +1757,9 @@ class MediaModel extends BaseModel
      *
      * @since   1.0.0
      */
-    public function getExpectedLocalPath(string $wordpressUrl): ?string
+    public function getExpectedLocalPath(string $sourceUrl): ?string
     {
-        $parsedUrl = parse_url($wordpressUrl);
+        $parsedUrl = parse_url($sourceUrl);
         if (!$parsedUrl || empty($parsedUrl['path'])) {
             return null;
         }

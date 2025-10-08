@@ -9,9 +9,9 @@
 -->
 <extension type="component" method="upgrade">
     <name>COM_CMSMIGRATOR</name>
-    <author>Rahul Singh</author>
-    <authorEmail>rahulsingh19390@gmail.com</authorEmail>
-    <authorUrl>https://rahulsingh.free.nf/</authorUrl>
+    <author>Joomla Academy</author>
+    <authorEmail></authorEmail>
+    <authorUrl></authorUrl>
     <creationDate>2025-06-05</creationDate>
     <copyright>(C) 2025 Open Source Matters, Inc.</copyright>
     <license>GNU General Public License version 2 or later; see LICENSE.txt</license>
@@ -20,11 +20,6 @@
     <namespace path="src">Joomla\Component\CmsMigrator</namespace>
     <scriptfile>script.php</scriptfile>
     <files folder="site">
-    </files>
-    
-    <!-- Include bundled extensions -->
-    <files>
-        <folder>modules</folder>
     </files>
     
     <media destination="com_cmsmigrator" folder="media/com_cmsmigrator">
