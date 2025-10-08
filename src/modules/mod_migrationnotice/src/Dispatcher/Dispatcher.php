@@ -11,97 +11,50 @@ namespace Joomla\Module\MigrationNotice\Site\Dispatcher;
 
 \defined('_JEXEC') or die;
 
-use Joomla\CMS\Application\CMSApplicationInterface;
-use Joomla\CMS\Dispatcher\DispatcherInterface;
-use Joomla\CMS\Helper\ModuleHelper;
-use Joomla\CMS\HTML\HTMLHelper;
-use Joomla\Input\Input;
-use Joomla\Registry\Registry;
-use Joomla\Module\MigrationNotice\Site\Helper\MigrationNoticeHelper;
+use Joomla\CMS\Dispatcher\AbstractModuleDispatcher;
+use Joomla\CMS\Helper\HelperFactoryAwareInterface;
+use Joomla\CMS\Helper\HelperFactoryAwareTrait;
 
 /**
  * Dispatcher class for mod_migrationnotice
  *
  * @since  1.0.0
  */
-class Dispatcher implements DispatcherInterface
+class Dispatcher extends AbstractModuleDispatcher implements HelperFactoryAwareInterface
 {
-    /**
-     * The module object
-     *
-     * @var    \stdClass
-     *
-     * @since  1.0.0
-     */
-    protected $module;
+    use HelperFactoryAwareTrait;
 
     /**
-     * The application object
+     * Returns the layout data.
      *
-     * @var    CMSApplicationInterface
-     *
-     * @since  1.0.0
-     */
-    protected $app;
-
-    /**
-     * The input object
-     *
-     * @var    Input
-     *
-     * @since  1.0.0
-     */
-    protected $input;
-
-    /**
-     * Constructor for Dispatcher
-     *
-     * @param   \stdClass                   $module        The module object
-     * @param   CMSApplicationInterface     $app           The application object
-     * @param   Input                       $input         The input object
+     * @return  array
      *
      * @since   1.0.0
      */
-    public function __construct(\stdClass $module, CMSApplicationInterface $app, Input $input)
+    protected function getLayoutData()
     {
-        $this->module = $module;
-        $this->app    = $app;
-        $this->input  = $input;
-    }
-
-    /**
-     * Dispatch a module
-     *
-     * @return  void
-     *
-     * @since   1.0.0
-     */
-    public function dispatch()
-    {
-        // Load the language file
-        $language = $this->app->getLanguage();
-        $language->load('mod_migrationnotice', JPATH_BASE . '/modules/mod_migrationnotice');
-
-        // Get module parameters
-        $params = new Registry($this->module->params);
+        // Get the default layout data from parent (includes params)
+        $data = parent::getLayoutData();
+        
+        // Access the module parameters
+        $params = $data['params'];
         
         // Check if the notice should be shown
         $showNotice = (bool) $params->get('show_notice', 1);
         
         if (!$showNotice) {
-            return;
+            return $data;
         }
 
-        // Get the helper directly
-        $helper = new MigrationNoticeHelper();
+        // Get the helper via HelperFactory
+        $helper = $this->getHelperFactory()->getHelper('MigrationNoticeHelper');
         
         // Prepare module data
-        $moduleData = $helper->getModuleData($params, $this->app);
+        $moduleData = $helper->getModuleData($params, $this->getApplication());
 
-        // Load the module CSS
-        HTMLHelper::_('stylesheet', 'mod_migrationnotice/module.css', ['version' => 'auto', 'relative' => true]);
+        // Add our custom data to the layout data
+        $data['moduleData'] = $moduleData;
 
-        // Include the template
-        require ModuleHelper::getLayoutPath('mod_migrationnotice', $params->get('layout', 'default'));
+        return $data;
     }
 }
